@@ -6,6 +6,13 @@ This is a data integration and AI-powered workflow platform built with React, Ex
 
 The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
 
+**Major Structural Reorganization (January 2025):**
+- Removed step-based workflow navigation in favor of dedicated tab structure
+- **Data Integration Tab**: Shows connected data sources status first, then allows additional connections with search functionality across expanded categories (SCM, QMS, PLM, MES, ERP, CRM)
+- **Automation List Tab**: Dedicated view for managing existing automations with detailed workflow visualization
+- **AI Model Management Tab**: Upload functionality with CREATE AI MODEL section for visual model configuration
+- **BOI Overview Tab**: Comprehensive dashboard combining data from all integrated systems with real-time insights
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -1,41 +1,35 @@
 import { useState } from "react";
 import Header from "@/components/layout/header";
 import Sidebar from "@/components/layout/sidebar";
-import DataSourcesTab from "@/components/data-integration/data-sources-tab";
-import DataMappingTab from "@/components/data-integration/data-mapping-tab";
-import AutomationTab from "@/components/data-integration/automation-tab";
-import AiConfigTab from "@/components/data-integration/ai-config-tab";
-import BoiSettingsTab from "@/components/data-integration/boi-settings-tab";
+import DataIntegrationTab from "@/components/data-integration/data-integration-tab";
+import AutomationListTab from "@/components/automation/automation-list-tab";
+import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
+import BOIOverviewTab from "@/components/boi/boi-overview-tab";
 
-type TabType = "data-sources" | "data-mapping" | "automation" | "ai-config" | "boi-settings";
+type TabType = "data-integration" | "automation-list" | "ai-models" | "boi-overview";
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>("data-sources");
+  const [activeTab, setActiveTab] = useState<TabType>("data-integration");
 
   const tabs = [
-    { id: "data-sources" as const, label: "Data Source Connection", step: 1 },
-    { id: "data-mapping" as const, label: "Data Mapping", step: 2 },
-    { id: "automation" as const, label: "Automation Setup", step: 3 },
-    { id: "ai-config" as const, label: "AI Model Integration", step: 4 },
-    { id: "boi-settings" as const, label: "BOI Settings", step: 5 },
+    { id: "data-integration" as const, label: "Data Integration" },
+    { id: "automation-list" as const, label: "Automation List" },
+    { id: "ai-models" as const, label: "AI Model Management" },
+    { id: "boi-overview" as const, label: "BOI Overview" },
   ];
-
-  const currentStep = tabs.find(tab => tab.id === activeTab)?.step || 1;
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case "data-sources":
-        return <DataSourcesTab onNext={() => setActiveTab("data-mapping")} />;
-      case "data-mapping":
-        return <DataMappingTab onNext={() => setActiveTab("automation")} onPrev={() => setActiveTab("data-sources")} />;
-      case "automation":
-        return <AutomationTab onNext={() => setActiveTab("ai-config")} onPrev={() => setActiveTab("data-mapping")} />;
-      case "ai-config":
-        return <AiConfigTab onNext={() => setActiveTab("boi-settings")} onPrev={() => setActiveTab("automation")} />;
-      case "boi-settings":
-        return <BoiSettingsTab onPrev={() => setActiveTab("ai-config")} />;
+      case "data-integration":
+        return <DataIntegrationTab />;
+      case "automation-list":
+        return <AutomationListTab />;
+      case "ai-models":
+        return <AIModelManagementTab />;
+      case "boi-overview":
+        return <BOIOverviewTab />;
       default:
-        return <DataSourcesTab onNext={() => setActiveTab("data-mapping")} />;
+        return <DataIntegrationTab />;
     }
   };
 

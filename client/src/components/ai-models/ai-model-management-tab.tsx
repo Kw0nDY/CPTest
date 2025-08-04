@@ -1,0 +1,478 @@
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import { 
+  Upload, 
+  Brain, 
+  Plus, 
+  Settings, 
+  Play,
+  BarChart3,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  FileText,
+  Database,
+  Zap
+} from 'lucide-react';
+
+interface AIModel {
+  id: string;
+  name: string;
+  type: string;
+  version: string;
+  status: 'ready' | 'training' | 'error' | 'draft';
+  accuracy?: number;
+  createdAt: string;
+  lastUsed?: string;
+  inputSchema: Array<{ name: string; type: string; description: string }>;
+  outputSchema: Array<{ name: string; type: string; description: string }>;
+  metrics: {
+    accuracy: number;
+    precision: number;
+    recall: number;
+    f1Score: number;
+  };
+}
+
+const sampleModels: AIModel[] = [
+  {
+    id: '1',
+    name: 'Customer Classification Model',
+    type: 'Classification',
+    version: '1.2.0',
+    status: 'ready',
+    accuracy: 94.2,
+    createdAt: '2024-01-10T00:00:00Z',
+    lastUsed: '2024-01-15T14:30:00Z',
+    inputSchema: [
+      { name: 'company_revenue', type: 'number', description: 'Annual company revenue' },
+      { name: 'industry_type', type: 'string', description: 'Industry category' },
+      { name: 'employee_count', type: 'number', description: 'Number of employees' }
+    ],
+    outputSchema: [
+      { name: 'customer_segment', type: 'string', description: 'Predicted customer segment' },
+      { name: 'confidence_score', type: 'number', description: 'Prediction confidence (0-1)' }
+    ],
+    metrics: {
+      accuracy: 94.2,
+      precision: 92.8,
+      recall: 95.1,
+      f1Score: 93.9
+    }
+  },
+  {
+    id: '2',
+    name: 'Demand Forecasting Model',
+    type: 'Regression',
+    version: '2.0.1',
+    status: 'ready',
+    accuracy: 87.5,
+    createdAt: '2024-01-05T00:00:00Z',
+    lastUsed: '2024-01-14T09:15:00Z',
+    inputSchema: [
+      { name: 'historical_sales', type: 'array', description: 'Historical sales data' },
+      { name: 'seasonality', type: 'string', description: 'Seasonal factors' },
+      { name: 'market_trends', type: 'object', description: 'Market trend indicators' }
+    ],
+    outputSchema: [
+      { name: 'predicted_demand', type: 'number', description: 'Forecasted demand' },
+      { name: 'confidence_interval', type: 'object', description: 'Prediction confidence interval' }
+    ],
+    metrics: {
+      accuracy: 87.5,
+      precision: 85.2,
+      recall: 89.1,
+      f1Score: 87.1
+    }
+  }
+];
+
+export default function AIModelManagementTab() {
+  const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState('models');
+  const [uploadConfig, setUploadConfig] = useState({
+    name: '',
+    type: 'classification',
+    file: null as File | null
+  });
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: aiModels = sampleModels } = useQuery({
+    queryKey: ['/api/ai-models'],
+    queryFn: () => Promise.resolve(sampleModels), // Mock data for now
+  });
+
+  const uploadModelMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      return fetch('/api/ai-models/upload', {
+        method: 'POST',
+        body: formData,
+      }).then(res => res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      toast({ title: "Success", description: "AI model uploaded successfully." });
+      setShowUploadDialog(false);
+      setUploadConfig({ name: '', type: 'classification', file: null });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to upload AI model.", variant: "destructive" });
+    },
+  });
+
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      ready: 'bg-green-100 text-green-800',
+      training: 'bg-blue-100 text-blue-800',
+      error: 'bg-red-100 text-red-800',
+      draft: 'bg-gray-100 text-gray-800'
+    };
+    return variants[status as keyof typeof variants] || variants.draft;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'training':
+        return <Clock className="w-4 h-4 text-blue-600" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  const handleViewDetails = (model: AIModel) => {
+    setSelectedModel(model);
+    setShowDetailDialog(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadConfig(prev => ({ ...prev, file }));
+    }
+  };
+
+  const handleUpload = () => {
+    if (!uploadConfig.file || !uploadConfig.name) return;
+
+    const formData = new FormData();
+    formData.append('file', uploadConfig.file);
+    formData.append('name', uploadConfig.name);
+    formData.append('type', uploadConfig.type);
+
+    uploadModelMutation.mutate(formData);
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">AI Model Management</h1>
+          <p className="text-gray-600">Upload, configure, and manage your AI models</p>
+        </div>
+        <Button onClick={() => setShowUploadDialog(true)}>
+          <Upload className="w-4 h-4 mr-2" />
+          Upload Model
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="models">AI Models</TabsTrigger>
+          <TabsTrigger value="create">Create AI Model</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="models" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {aiModels.map((model) => (
+              <Card key={model.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(model.status)}
+                      <CardTitle className="text-lg">{model.name}</CardTitle>
+                    </div>
+                    <Badge className={getStatusBadge(model.status)}>
+                      {model.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span>{model.type}</span>
+                    <span>v{model.version}</span>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  {/* Performance Metrics */}
+                  {model.accuracy && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-blue-600">Accuracy</span>
+                        <span className="font-semibold text-blue-800">{model.accuracy}%</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Schema Info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Inputs:</span>
+                      <div className="font-medium">{model.inputSchema.length} fields</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Outputs:</span>
+                      <div className="font-medium">{model.outputSchema.length} fields</div>
+                    </div>
+                  </div>
+
+                  {/* Usage Info */}
+                  <div className="text-sm">
+                    <span className="text-gray-600">Created:</span>
+                    <div className="font-medium">
+                      {new Date(model.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  {model.lastUsed && (
+                    <div className="text-sm">
+                      <span className="text-gray-600">Last Used:</span>
+                      <div className="font-medium">
+                        {new Date(model.lastUsed).toLocaleDateString()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewDetails(model)}
+                      className="flex-1"
+                    >
+                      <BarChart3 className="w-4 h-4 mr-1" />
+                      Details
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      disabled={model.status !== 'ready'}
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Test
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="create" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="w-5 h-5" />
+                Create AI Model
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Visual Model Builder</h3>
+                <p className="text-gray-600 mb-4">
+                  Drag and drop interface for connecting data sources to AI models will be implemented here.
+                  This will allow you to visually configure input/output mappings and model parameters.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline">
+                    <Database className="w-4 h-4 mr-2" />
+                    Connect Data Source
+                  </Button>
+                  <Button variant="outline">
+                    <Brain className="w-4 h-4 mr-2" />
+                    Configure Model
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Model Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedModel && getStatusIcon(selectedModel.status)}
+              {selectedModel?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedModel && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Type</h4>
+                  <Badge variant="outline">{selectedModel.type}</Badge>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Version</h4>
+                  <span className="text-gray-600">v{selectedModel.version}</span>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Status</h4>
+                  <Badge className={getStatusBadge(selectedModel.status)}>
+                    {selectedModel.status}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Performance Metrics */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Performance Metrics</h4>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-green-800">{selectedModel.metrics.accuracy}%</div>
+                    <div className="text-sm text-green-600">Accuracy</div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-blue-800">{selectedModel.metrics.precision}%</div>
+                    <div className="text-sm text-blue-600">Precision</div>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-purple-800">{selectedModel.metrics.recall}%</div>
+                    <div className="text-sm text-purple-600">Recall</div>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-orange-800">{selectedModel.metrics.f1Score}%</div>
+                    <div className="text-sm text-orange-600">F1 Score</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Input Schema */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Input Schema</h4>
+                <div className="space-y-3">
+                  {selectedModel.inputSchema.map((field, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{field.name}</span>
+                        <Badge variant="outline" className="text-xs">{field.type}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-600">{field.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Output Schema */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Output Schema</h4>
+                <div className="space-y-3">
+                  {selectedModel.outputSchema.map((field, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{field.name}</span>
+                        <Badge variant="outline" className="text-xs">{field.type}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-600">{field.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload AI Model</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="model-name">Model Name</Label>
+              <Input
+                id="model-name"
+                value={uploadConfig.name}
+                onChange={(e) => setUploadConfig(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Customer Classification Model"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="model-type">Model Type</Label>
+              <select
+                id="model-type"
+                value={uploadConfig.type}
+                onChange={(e) => setUploadConfig(prev => ({ ...prev, type: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="classification">Classification</option>
+                <option value="regression">Regression</option>
+                <option value="clustering">Clustering</option>
+                <option value="forecasting">Forecasting</option>
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="model-file">Model File</Label>
+              <Input
+                id="model-file"
+                type="file"
+                onChange={handleFileChange}
+                accept=".pkl,.joblib,.h5,.onnx,.pb"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Supported formats: .pkl, .joblib, .h5, .onnx, .pb
+              </p>
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button 
+                onClick={handleUpload}
+                disabled={uploadModelMutation.isPending || !uploadConfig.file || !uploadConfig.name}
+                className="flex-1"
+              >
+                {uploadModelMutation.isPending ? 'Uploading...' : 'Upload'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowUploadDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -153,6 +153,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/ai-models/upload", async (req, res) => {
+    // Mock implementation for file upload
+    res.json({ success: true, message: "Model uploaded successfully" });
+  });
+
   app.post("/api/ai-models/:id/test", async (req, res) => {
     try {
       const { id } = req.params;
@@ -204,6 +209,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating BOI configuration:", error);
       res.status(400).json({ error: "Invalid BOI configuration data" });
     }
+  });
+
+  // Automation routes
+  app.get("/api/automations", async (req, res) => {
+    res.json([]);
+  });
+
+  app.post("/api/automations/:id/start", async (req, res) => {
+    res.json({ success: true, message: "Automation started" });
+  });
+
+  app.post("/api/automations/:id/pause", async (req, res) => {
+    res.json({ success: true, message: "Automation paused" });
+  });
+
+  // BOI routes
+  app.get("/api/boi/overview", async (req, res) => {
+    res.json({
+      totalDataSources: 8,
+      activeConnections: 6,
+      aiModelsDeployed: 3,
+      automationsRunning: 12,
+      dataProcessedToday: 45230,
+      predictionsGenerated: 1247,
+      averageAccuracy: 94.2,
+      systemHealth: 'excellent'
+    });
+  });
+
+  app.get("/api/boi/data-flows", async (req, res) => {
+    res.json([]);
+  });
+
+  app.get("/api/boi/insights", async (req, res) => {
+    res.json([]);
   });
 
   app.post("/api/boi-configurations/:id/test", async (req, res) => {
