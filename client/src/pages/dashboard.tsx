@@ -6,28 +6,43 @@ import AutomationListTab from "@/components/automation/automation-list-tab";
 import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
 import BOIOverviewTab from "@/components/boi/boi-overview-tab";
 
-type TabType = "data-integration" | "automation-list" | "ai-models" | "boi-overview";
+type ViewType = "data-integration" | "automation" | "model-upload" | "model-configuration" | "model-testing" | "boi-overview" | "boi-insights" | "boi-reports" | "user-management" | "api-keys";
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>("data-integration");
+  const [activeView, setActiveView] = useState<ViewType>("data-integration");
 
-  const tabs = [
-    { id: "data-integration" as const, label: "Data Integration" },
-    { id: "automation-list" as const, label: "Automation List" },
-    { id: "ai-models" as const, label: "AI Model Management" },
-    { id: "boi-overview" as const, label: "BOI Overview" },
-  ];
+  const handleViewChange = (view: string) => {
+    setActiveView(view as ViewType);
+  };
 
-  const renderTabContent = () => {
-    switch (activeTab) {
+  const renderContent = () => {
+    switch (activeView) {
       case "data-integration":
         return <DataIntegrationTab />;
-      case "automation-list":
+      case "automation":
         return <AutomationListTab />;
-      case "ai-models":
-        return <AIModelManagementTab />;
+      case "model-upload":
+      case "model-configuration":
+      case "model-testing":
+        return <AIModelManagementTab activeTab={activeView} />;
       case "boi-overview":
-        return <BOIOverviewTab />;
+      case "boi-insights":
+      case "boi-reports":
+        return <BOIOverviewTab activeTab={activeView} />;
+      case "user-management":
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">User Management</h1>
+            <p className="text-gray-600">User management functionality will be implemented here.</p>
+          </div>
+        );
+      case "api-keys":
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">API Key Management</h1>
+            <p className="text-gray-600">API key management functionality will be implemented here.</p>
+          </div>
+        );
       default:
         return <DataIntegrationTab />;
     }
@@ -38,30 +53,11 @@ export default function Dashboard() {
       <Header />
       
       <div className="flex flex-1 pt-12">
-        <Sidebar />
+        <Sidebar activeView={activeView} onViewChange={handleViewChange} />
         
         <main className="flex-1 overflow-hidden">
-          {/* Tab Navigation */}
-          <div className="bg-white border-b border-gray-200 px-6 py-3">
-            <div className="flex space-x-6">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? "tab-active"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="h-full overflow-y-auto">
-            {renderTabContent()}
+            {renderContent()}
           </div>
         </main>
       </div>

@@ -96,11 +96,35 @@ const sampleModels: AIModel[] = [
   }
 ];
 
-export default function AIModelManagementTab() {
+interface AIModelManagementTabProps {
+  activeTab?: string;
+}
+
+export default function AIModelManagementTab({ activeTab: propActiveTab }: AIModelManagementTabProps) {
   const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState('models');
+  
+  // Map sidebar menu items to internal tab structure
+  const getInternalTab = (sidebarTab?: string) => {
+    switch (sidebarTab) {
+      case 'model-upload':
+        return 'upload';
+      case 'model-configuration':
+        return 'models';
+      case 'model-testing':
+        return 'testing';
+      default:
+        return 'models';
+    }
+  };
+  
+  const [activeTab, setActiveTab] = useState(() => getInternalTab(propActiveTab));
+  
+  // Update internal tab when prop changes
+  React.useEffect(() => {
+    setActiveTab(getInternalTab(propActiveTab));
+  }, [propActiveTab]);
   const [uploadConfig, setUploadConfig] = useState({
     name: '',
     type: 'classification',
@@ -193,10 +217,35 @@ export default function AIModelManagementTab() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="models">AI Models</TabsTrigger>
-          <TabsTrigger value="create">Create AI Model</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="upload">Upload Models</TabsTrigger>
+          <TabsTrigger value="models">Model Configuration</TabsTrigger>
+          <TabsTrigger value="testing">Model Testing</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="upload" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                Upload AI Models
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload Your AI Models</h3>
+                <p className="text-gray-600 mb-4">
+                  Upload trained AI models in various formats (.pkl, .joblib, .h5, .onnx, .pb)
+                </p>
+                <Button onClick={() => setShowUploadDialog(true)} size="lg">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Model
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="models" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -288,30 +337,30 @@ export default function AIModelManagementTab() {
           </div>
         </TabsContent>
 
-        <TabsContent value="create" className="space-y-6">
+        <TabsContent value="testing" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5" />
-                Create AI Model
+                <Play className="w-5 h-5" />
+                Model Testing
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">
-                <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Visual Model Builder</h3>
+                <Play className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Test Your AI Models</h3>
                 <p className="text-gray-600 mb-4">
-                  Drag and drop interface for connecting data sources to AI models will be implemented here.
-                  This will allow you to visually configure input/output mappings and model parameters.
+                  Test your deployed models with sample data to validate performance and accuracy.
+                  Run batch tests and monitor real-time predictions.
                 </p>
                 <div className="flex gap-3 justify-center">
                   <Button variant="outline">
                     <Database className="w-4 h-4 mr-2" />
-                    Connect Data Source
+                    Load Test Data
                   </Button>
                   <Button variant="outline">
-                    <Brain className="w-4 h-4 mr-2" />
-                    Configure Model
+                    <Play className="w-4 h-4 mr-2" />
+                    Run Tests
                   </Button>
                 </div>
               </div>

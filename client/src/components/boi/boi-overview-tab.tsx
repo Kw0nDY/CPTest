@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -117,8 +117,33 @@ const mockInsights: AIInsight[] = [
   }
 ];
 
-export default function BOIOverviewTab() {
+interface BOIOverviewTabProps {
+  activeTab?: string;
+}
+
+export default function BOIOverviewTab({ activeTab: propActiveTab }: BOIOverviewTabProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState('today');
+  
+  // Map sidebar menu items to internal tab structure
+  const getInternalTab = (sidebarTab?: string) => {
+    switch (sidebarTab) {
+      case 'boi-overview':
+        return 'overview';
+      case 'boi-insights':
+        return 'insights';
+      case 'boi-reports':
+        return 'reports';
+      default:
+        return 'overview';
+    }
+  };
+  
+  const [activeInternalTab, setActiveInternalTab] = useState(() => getInternalTab(propActiveTab));
+  
+  // Update internal tab when prop changes
+  React.useEffect(() => {
+    setActiveInternalTab(getInternalTab(propActiveTab));
+  }, [propActiveTab]);
 
   const { data: overview = mockOverview } = useQuery({
     queryKey: ['/api/boi/overview', selectedTimeframe],
@@ -321,13 +346,14 @@ export default function BOIOverviewTab() {
         </Card>
       </div>
 
-      <Tabs defaultValue="flows" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="flows">Data Flows</TabsTrigger>
+      <Tabs value={activeInternalTab} onValueChange={setActiveInternalTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="flows" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -415,6 +441,37 @@ export default function BOIOverviewTab() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Business Intelligence Reports
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Comprehensive Reports</h3>
+                <p className="text-gray-600 mb-4">
+                  Generate detailed reports combining data from all integrated systems.
+                  Export in various formats for executive dashboards and compliance.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    Performance Report
+                  </Button>
+                  <Button variant="outline">
+                    <Target className="w-4 h-4 mr-2" />
+                    Compliance Report
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
