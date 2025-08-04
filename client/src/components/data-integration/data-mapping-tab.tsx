@@ -15,11 +15,11 @@ interface DataMappingTabProps {
 }
 
 const sampleSourceFields: DataField[] = [
-  { name: 'Account.Name', type: '문자열', description: '회사명' },
-  { name: 'Account.Industry', type: '문자열', description: '업종' },
-  { name: 'Account.Revenue', type: '숫자', description: '연매출' },
-  { name: 'Contact.Email', type: '이메일', description: '연락처 이메일' },
-  { name: 'Opportunity.Amount', type: '통화', description: '기회 금액' },
+  { name: 'Account.Name', type: 'string', description: 'Company Name' },
+  { name: 'Account.Industry', type: 'string', description: 'Industry' },
+  { name: 'Account.Revenue', type: 'number', description: 'Annual Revenue' },
+  { name: 'Contact.Email', type: 'email', description: 'Contact Email' },
+  { name: 'Opportunity.Amount', type: 'currency', description: 'Opportunity Amount' },
 ];
 
 interface MappedField {
@@ -31,8 +31,8 @@ interface MappedField {
 
 export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) {
   const [mappedFields, setMappedFields] = useState<MappedField[]>([
-    { id: '1', sourceField: 'Account.Name', targetField: 'company_name', type: '문자열' },
-    { id: '2', sourceField: 'Account.Industry', targetField: 'industry_type', type: '문자열' },
+    { id: '1', sourceField: 'Account.Name', targetField: 'company_name', type: 'string' },
+    { id: '2', sourceField: 'Account.Industry', targetField: 'industry_type', type: 'string' },
   ]);
 
   const [transformationRules, setTransformationRules] = useState({
@@ -67,8 +67,8 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
   };
 
   const sampleData = [
-    { company_name: '삼성전자', industry_type: 'Technology', annual_revenue: '₩200,000,000,000', contact_email: 'contact@samsung.com' },
-    { company_name: 'LG화학', industry_type: 'Chemical', annual_revenue: '₩50,000,000,000', contact_email: 'info@lgchem.com' },
+    { company_name: 'Samsung Electronics', industry_type: 'Technology', annual_revenue: '$200,000,000,000', contact_email: 'contact@samsung.com' },
+    { company_name: 'LG Chem', industry_type: 'Chemical', annual_revenue: '$50,000,000,000', contact_email: 'info@lgchem.com' },
   ];
 
   return (
@@ -214,8 +214,10 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
           <CardContent className="space-y-3">
             <DragDropZone 
               onDrop={handleDrop}
-              placeholder="필드를 여기로 드래그하세요"
-            />
+              placeholder="Drag fields here"
+            >
+              <div></div>
+            </DragDropZone>
             
             {/* Mapped Fields */}
             <div className="space-y-2">

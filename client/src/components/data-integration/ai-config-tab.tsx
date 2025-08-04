@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import { CloudUpload, CheckCircle } from "lucide-react";
+import { type AiModel } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ModelTestInput, ModelTestOutput } from "@/types/integration";
@@ -36,7 +37,7 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: aiModels = [] } = useQuery({
+  const { data: aiModels = [] } = useQuery<AiModel[]>({
     queryKey: ['/api/ai-models'],
   });
 

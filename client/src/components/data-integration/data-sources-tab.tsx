@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, CheckCircle } from "lucide-react";
 import { SystemSource } from "@/types/integration";
+import { type DataSource } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -37,7 +38,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: dataSources = [] } = useQuery({
+  const { data: dataSources = [] } = useQuery<DataSource[]>({
     queryKey: ['/api/data-sources'],
   });
 
@@ -113,12 +114,12 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     return colors[color as keyof typeof colors] || 'bg-gray-100 text-gray-600';
   };
 
-  const connectedSources = dataSources.filter((ds: any) => ds.status === 'connected');
+  const connectedSources = dataSources.filter((ds) => ds.status === 'connected');
 
   return (
     <div className="p-6 space-y-6">
       <ProgressIndicator 
-        title="데이터 소스 연결 진행 상황" 
+        title="Data Source Connection Progress" 
         currentStep={1} 
         totalSteps={5}
       />
@@ -127,13 +128,13 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
         {/* Available Data Sources */}
         <Card>
           <CardHeader>
-            <CardTitle>사용 가능한 데이터 소스</CardTitle>
-            <p className="text-sm text-gray-600">연결할 시스템을 선택하세요</p>
+            <CardTitle>Available Data Sources</CardTitle>
+            <p className="text-sm text-gray-600">Select a system to connect</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* ERP Systems */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">ERP 시스템</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">ERP Systems</h4>
               <div className="grid grid-cols-1 gap-3">
                 {systemSources.filter(s => s.type === 'erp').map((source) => (
                   <div
@@ -161,7 +162,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
 
             {/* CRM Systems */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">CRM 시스템</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">CRM Systems</h4>
               <div className="grid grid-cols-1 gap-3">
                 {systemSources.filter(s => s.type === 'crm').map((source) => (
                   <div
@@ -189,7 +190,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
 
             {/* Other Systems */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">기타 시스템</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Other Systems</h4>
               <div className="grid grid-cols-1 gap-3">
                 {systemSources.filter(s => s.type === 'database' || s.type === 'file').map((source) => (
                   <div
@@ -221,27 +222,27 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
         <Card>
           <CardHeader>
             <CardTitle>
-              {selectedSource ? `${selectedSource.name} 연결 설정` : '데이터 소스 선택'}
+              {selectedSource ? `${selectedSource.name} Connection Setup` : 'Select Data Source'}
             </CardTitle>
             <p className="text-sm text-gray-600">
-              {selectedSource ? 'API 연결 정보를 입력하세요' : '왼쪽에서 연결할 시스템을 선택하세요'}
+              {selectedSource ? 'Enter API connection information' : 'Select a system to connect from the left'}
             </p>
           </CardHeader>
           <CardContent>
             {selectedSource ? (
               <div className="space-y-6">
                 <div>
-                  <Label htmlFor="connection-name">연결 이름</Label>
+                  <Label htmlFor="connection-name">Connection Name</Label>
                   <Input
                     id="connection-name"
                     value={connectionForm.name}
                     onChange={(e) => setConnectionForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="예: 영업팀 Salesforce"
+                    placeholder="e.g. Sales Team Salesforce"
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor="endpoint">API 엔드포인트</Label>
+                  <Label htmlFor="endpoint">API Endpoint</Label>
                   <Input
                     id="endpoint"
                     type="url"
@@ -252,7 +253,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                 </div>
 
                 <div>
-                  <Label htmlFor="auth-method">인증 방식</Label>
+                  <Label htmlFor="auth-method">Authentication Method</Label>
                   <Select
                     value={connectionForm.authMethod}
                     onValueChange={(value) => setConnectionForm(prev => ({ ...prev, authMethod: value }))}
@@ -270,16 +271,16 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="client-id">클라이언트 ID</Label>
+                    <Label htmlFor="client-id">Client ID</Label>
                     <Input
                       id="client-id"
                       value={connectionForm.clientId}
                       onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
-                      placeholder="입력하세요"
+                      placeholder="Enter client ID"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="client-secret">클라이언트 시크릿</Label>
+                    <Label htmlFor="client-secret">Client Secret</Label>
                     <Input
                       id="client-secret"
                       type="password"
@@ -299,13 +300,13 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                       handleSaveConnection();
                     }}
                   >
-                    연결 테스트
+                    Test Connection
                   </Button>
                   <Button 
                     onClick={handleSaveConnection}
                     disabled={createDataSourceMutation.isPending || !connectionForm.name}
                   >
-                    {createDataSourceMutation.isPending ? '저장 중...' : '저장 및 계속'}
+                    {createDataSourceMutation.isPending ? 'Saving...' : 'Save & Continue'}
                   </Button>
                 </div>
 
@@ -314,10 +315,10 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                   <div className="border border-green-200 bg-green-50 rounded-lg p-3">
                     <div className="flex items-center space-x-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">연결 성공</span>
+                      <span className="text-sm font-medium text-green-800">Connection Successful</span>
                     </div>
                     <p className="text-sm text-green-700 mt-1">
-                      {connectedSources.length}개의 데이터 소스가 연결되었습니다.
+                      {connectedSources.length} data source{connectedSources.length > 1 ? 's' : ''} connected.
                     </p>
                   </div>
                 )}
@@ -325,7 +326,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <Database className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>연결할 데이터 소스를 선택해주세요</p>
+                <p>Please select a data source to connect</p>
               </div>
             )}
           </CardContent>
@@ -336,11 +337,11 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
       {dataSources.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>연결된 데이터 소스</CardTitle>
+            <CardTitle>Connected Data Sources</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {dataSources.map((source: any) => (
+              {dataSources.map((source) => (
                 <div key={source.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className={`w-8 h-8 rounded flex items-center justify-center ${
@@ -361,7 +362,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         ? 'bg-red-100 text-red-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {source.status === 'connected' ? '연결됨' : source.status === 'error' ? '오류' : '미연결'}
+                      {source.status === 'connected' ? 'Connected' : source.status === 'error' ? 'Error' : 'Disconnected'}
                     </span>
                     {source.status !== 'connected' && (
                       <Button
@@ -370,7 +371,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         onClick={() => handleTestConnection(source.id)}
                         disabled={testConnectionMutation.isPending}
                       >
-                        {testConnectionMutation.isPending ? '테스트 중...' : '연결 테스트'}
+                        {testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
                       </Button>
                     )}
                   </div>
@@ -386,7 +387,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
           onClick={onNext}
           disabled={connectedSources.length === 0}
         >
-          데이터 매핑으로 계속
+Continue to Data Mapping
         </Button>
       </div>
     </div>

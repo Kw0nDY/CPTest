@@ -10,6 +10,7 @@ import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import { DragDropZone } from "@/components/ui/drag-drop-zone";
 import { GripVertical, X, CheckCircle } from "lucide-react";
 import { DataField, BOIMapping } from "@/types/integration";
+import { type AiModel, type DataSource, type BoiConfiguration } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,15 +61,15 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: aiModels = [] } = useQuery({
+  const { data: aiModels = [] } = useQuery<AiModel[]>({
     queryKey: ['/api/ai-models'],
   });
 
-  const { data: dataSources = [] } = useQuery({
+  const { data: dataSources = [] } = useQuery<DataSource[]>({
     queryKey: ['/api/data-sources'],
   });
 
-  const { data: boiConfigurations = [] } = useQuery({
+  const { data: boiConfigurations = [] } = useQuery<BoiConfiguration[]>({
     queryKey: ['/api/boi-configurations'],
   });
 

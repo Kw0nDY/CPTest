@@ -8,8 +8,8 @@ export default function Header() {
         <Home className="w-4 h-4 text-yellow-300" />
       </div>
       <div className="flex items-center space-x-4 text-sm">
-        <span>관리자님안녕</span>
-        <span className="cursor-pointer hover:text-yellow-300">로그아웃</span>
+        <span>Hello Admin</span>
+        <span className="cursor-pointer hover:text-yellow-300">Logout</span>
       </div>
     </header>
   );

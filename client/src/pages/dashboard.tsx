@@ -13,11 +13,11 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabType>("data-sources");
 
   const tabs = [
-    { id: "data-sources" as const, label: "데이터 소스 연결", step: 1 },
-    { id: "data-mapping" as const, label: "데이터 매핑", step: 2 },
-    { id: "automation" as const, label: "자동화 설정", step: 3 },
-    { id: "ai-config" as const, label: "AI 모델 연동", step: 4 },
-    { id: "boi-settings" as const, label: "BOI 설정", step: 5 },
+    { id: "data-sources" as const, label: "Data Source Connection", step: 1 },
+    { id: "data-mapping" as const, label: "Data Mapping", step: 2 },
+    { id: "automation" as const, label: "Automation Setup", step: 3 },
+    { id: "ai-config" as const, label: "AI Model Integration", step: 4 },
+    { id: "boi-settings" as const, label: "BOI Settings", step: 5 },
   ];
 
   const currentStep = tabs.find(tab => tab.id === activeTab)?.step || 1;

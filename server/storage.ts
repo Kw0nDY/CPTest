@@ -105,6 +105,7 @@ export class MemStorage implements IStorage {
       id,
       createdAt: new Date(),
       lastSync: null,
+      status: insertDataSource.status || 'disconnected',
     };
     this.dataSources.set(id, dataSource);
     return dataSource;
@@ -138,6 +139,7 @@ export class MemStorage implements IStorage {
       ...insertMapping,
       id,
       createdAt: new Date(),
+      transformationRules: insertMapping.transformationRules || null,
     };
     this.dataMappings.set(id, mapping);
     return mapping;
@@ -163,6 +165,7 @@ export class MemStorage implements IStorage {
       id,
       createdAt: new Date(),
       lastRun: null,
+      description: insertWorkflow.description || null,
     };
     this.workflows.set(id, workflow);
     return workflow;
@@ -196,6 +199,10 @@ export class MemStorage implements IStorage {
       ...insertModel,
       id,
       createdAt: new Date(),
+      description: insertModel.description || null,
+      filePath: insertModel.filePath || null,
+      performanceMetrics: insertModel.performanceMetrics || null,
+      isActive: insertModel.isActive || false,
     };
     this.aiModels.set(id, model);
     return model;
@@ -229,6 +236,10 @@ export class MemStorage implements IStorage {
       ...insertConfig,
       id,
       createdAt: new Date(),
+      batchSize: insertConfig.batchSize || 100,
+      processingInterval: insertConfig.processingInterval || 'realtime',
+      transformationRules: insertConfig.transformationRules || null,
+      isActive: insertConfig.isActive || false,
     };
     this.boiConfigurations.set(id, config);
     return config;

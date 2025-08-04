@@ -18,25 +18,25 @@ interface AutomationTabProps {
 }
 
 const actionTypes = [
-  { id: 'email', name: '이메일 발송', icon: Mail, color: 'purple' },
-  { id: 'slack', name: '슬랙 메시지', icon: MessageSquare, color: 'purple' },
-  { id: 'database', name: '데이터베이스 저장', icon: Database, color: 'orange' },
-  { id: 'ai_model', name: 'AI 모델 실행', icon: Bot, color: 'red' },
+  { id: 'email', name: 'Send Email', icon: Mail, color: 'purple' },
+  { id: 'slack', name: 'Slack Message', icon: MessageSquare, color: 'purple' },
+  { id: 'database', name: 'Save to Database', icon: Database, color: 'orange' },
+  { id: 'ai_model', name: 'Run AI Model', icon: Bot, color: 'red' },
 ];
 
 const triggerTypes = [
-  { id: 'schedule', name: '스케줄', icon: Clock, color: 'blue' },
-  { id: 'webhook', name: '웹훅', icon: Webhook, color: 'green' },
+  { id: 'schedule', name: 'Schedule', icon: Clock, color: 'blue' },
+  { id: 'webhook', name: 'Webhook', icon: Webhook, color: 'green' },
 ];
 
 const conditionTypes = [
   { id: 'if_else', name: 'IF/ELSE', icon: HelpCircle, color: 'yellow' },
-  { id: 'filter', name: '필터', icon: Filter, color: 'blue' },
+  { id: 'filter', name: 'Filter', icon: Filter, color: 'blue' },
 ];
 
 export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
   const [workflowConfig, setWorkflowConfig] = useState({
-    name: '고객사 데이터 자동 분석',
+    name: 'Automated Customer Data Analysis',
     schedule: 'daily',
     notifyOnSuccess: true,
     notifyOnError: true,
