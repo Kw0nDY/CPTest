@@ -46,35 +46,35 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
     {
       id: 'start',
       type: 'trigger',
-      name: '데이터 수집 시작',
+      name: 'Start Data Collection',
       icon: 'Play',
       position: { x: 50, y: 50 },
     },
     {
       id: 'transform',
       type: 'action',
-      name: '데이터 변환',
+      name: 'Data Transformation',
       icon: 'Settings',
       position: { x: 300, y: 50 },
     },
     {
       id: 'condition',
       type: 'condition',
-      name: '조건 확인',
+      name: 'Check Condition',
       icon: 'HelpCircle',
       position: { x: 175, y: 150 },
     },
     {
       id: 'email',
       type: 'action',
-      name: '이메일 발송',
+      name: 'Send Email',
       icon: 'Mail',
       position: { x: 50, y: 250 },
     },
     {
       id: 'save',
       type: 'action',
-      name: '데이터 저장',
+      name: 'Save Data',
       icon: 'Database',
       position: { x: 300, y: 250 },
     },
@@ -98,7 +98,7 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
   return (
     <div className="p-6 space-y-6">
       <ProgressIndicator 
-        title="자동화 워크플로우 설정" 
+        title="Automation Workflow Configuration" 
         currentStep={3} 
         totalSteps={5}
       />
@@ -108,8 +108,8 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>워크플로우 빌더</CardTitle>
-              <p className="text-sm text-gray-600">드래그 앤 드롭으로 자동화 프로세스를 구성하세요</p>
+              <CardTitle>Workflow Builder</CardTitle>
+              <p className="text-sm text-gray-600">Configure automation process with drag and drop</p>
             </CardHeader>
             <CardContent>
               <div 
@@ -132,11 +132,11 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
                       <span className="text-sm font-medium">{node.name}</span>
                     </div>
                     <p className="text-xs mt-1">
-                      {node.id === 'start' && 'Salesforce에서 데이터를 가져옵니다'}
-                      {node.id === 'transform' && '설정된 규칙에 따라 데이터를 변환합니다'}
-                      {node.id === 'condition' && '매출액 > 10억원'}
-                      {node.id === 'email' && '영업팀에 알림 발송'}
-                      {node.id === 'save' && '고객 DB에 저장'}
+                      {node.id === 'start' && 'Fetch data from Salesforce'}
+                      {node.id === 'transform' && 'Transform data according to configured rules'}
+                      {node.id === 'condition' && 'Revenue > $1B'}
+                      {node.id === 'email' && 'Send notification to sales team'}
+                      {node.id === 'save' && 'Save to customer DB'}
                     </p>
                   </div>
                 ))}
@@ -200,12 +200,12 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
         {/* Actions Panel */}
         <Card>
           <CardHeader>
-            <CardTitle>사용 가능한 액션</CardTitle>
+            <CardTitle>Available Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Triggers */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">트리거</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Triggers</h4>
               <div className="space-y-2">
                 {triggerTypes.map((trigger) => (
                   <div key={trigger.id} className="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
@@ -220,7 +220,7 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
 
             {/* Actions */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">액션</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Actions</h4>
               <div className="space-y-2">
                 {actionTypes.map((action) => (
                   <div key={action.id} className="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
@@ -235,7 +235,7 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
 
             {/* Conditions */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">조건</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Conditions</h4>
               <div className="space-y-2">
                 {conditionTypes.map((condition) => (
                   <div key={condition.id} className="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
@@ -254,22 +254,22 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
       {/* Workflow Settings */}
       <Card>
         <CardHeader>
-          <CardTitle>워크플로우 설정</CardTitle>
+          <CardTitle>Workflow Settings</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <Label htmlFor="workflow-name">워크플로우 이름</Label>
+              <Label htmlFor="workflow-name">Workflow Name</Label>
               <Input
                 id="workflow-name"
                 value={workflowConfig.name}
                 onChange={(e) => setWorkflowConfig(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="예: 고객사 데이터 자동 분석"
+                placeholder="e.g. Automated Customer Data Analysis"
               />
             </div>
             
             <div>
-              <Label htmlFor="schedule">실행 주기</Label>
+              <Label htmlFor="schedule">Execution Schedule</Label>
               <Select
                 value={workflowConfig.schedule}
                 onValueChange={(value) => setWorkflowConfig(prev => ({ ...prev, schedule: value }))}
@@ -278,16 +278,16 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="daily">매일</SelectItem>
-                  <SelectItem value="weekly">매주</SelectItem>
-                  <SelectItem value="monthly">매월</SelectItem>
-                  <SelectItem value="realtime">실시간</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="realtime">Real-time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div>
-              <Label>알림 설정</Label>
+              <Label>Notification Settings</Label>
               <div className="flex items-center space-x-4 mt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -297,7 +297,7 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
                       setWorkflowConfig(prev => ({ ...prev, notifyOnSuccess: !!checked }))
                     }
                   />
-                  <Label htmlFor="notify-success" className="text-sm">성공시</Label>
+                  <Label htmlFor="notify-success" className="text-sm">On Success</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -307,7 +307,7 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
                       setWorkflowConfig(prev => ({ ...prev, notifyOnError: !!checked }))
                     }
                   />
-                  <Label htmlFor="notify-error" className="text-sm">실패시</Label>
+                  <Label htmlFor="notify-error" className="text-sm">On Failure</Label>
                 </div>
               </div>
             </div>
@@ -317,10 +317,10 @@ export default function AutomationTab({ onNext, onPrev }: AutomationTabProps) {
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev}>
-          이전
+Previous
         </Button>
         <Button onClick={onNext}>
-          AI 모델 연동으로 계속
+Continue to AI Model
         </Button>
       </div>
     </div>

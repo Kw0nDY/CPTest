@@ -74,7 +74,7 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
   return (
     <div className="p-6 space-y-6">
       <ProgressIndicator 
-        title="데이터 매핑 설정" 
+        title="Data Mapping Configuration" 
         currentStep={2} 
         totalSteps={5}
       />
@@ -83,8 +83,8 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
         {/* Source Data */}
         <Card>
           <CardHeader>
-            <CardTitle>소스 데이터</CardTitle>
-            <p className="text-sm text-gray-600">연결된 데이터 소스에서 가져온 필드</p>
+            <CardTitle>Source Data</CardTitle>
+            <p className="text-sm text-gray-600">Fields from connected data sources</p>
           </CardHeader>
           <CardContent className="max-h-96 overflow-y-auto">
             <div className="space-y-2">
@@ -112,12 +112,12 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
         {/* Transformation Rules */}
         <Card>
           <CardHeader>
-            <CardTitle>변환 규칙</CardTitle>
-            <p className="text-sm text-gray-600">데이터 처리 규칙 설정</p>
+            <CardTitle>Transformation Rules</CardTitle>
+            <p className="text-sm text-gray-600">Configure data processing rules</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">필터</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Filter</h4>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Select
@@ -148,7 +148,7 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
                   </Select>
                 </div>
                 <Input
-                  placeholder="값 입력"
+                  placeholder="Enter value"
                   value={transformationRules.filterValue}
                   onChange={(e) => setTransformationRules(prev => ({ ...prev, filterValue: e.target.value }))}
                 />
@@ -156,16 +156,16 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
             </div>
 
             <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">그룹화</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Grouping</h4>
               <Select
                 value={transformationRules.groupByField}
                 onValueChange={(value) => setTransformationRules(prev => ({ ...prev, groupByField: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="필드 선택" />
+                  <SelectValue placeholder="Select field" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">선택 안함</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   <SelectItem value="Account.Industry">Account.Industry</SelectItem>
                   <SelectItem value="Account.Type">Account.Type</SelectItem>
                 </SelectContent>
@@ -173,7 +173,7 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
             </div>
 
             <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">정렬</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Sorting</h4>
               <div className="flex space-x-2">
                 <Select
                   value={transformationRules.sortField}
@@ -196,8 +196,8 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="desc">내림차순</SelectItem>
-                    <SelectItem value="asc">오름차순</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                    <SelectItem value="asc">Ascending</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -208,8 +208,8 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
         {/* Target Schema */}
         <Card>
           <CardHeader>
-            <CardTitle>대상 스키마</CardTitle>
-            <p className="text-sm text-gray-600">생성될 오브젝트 구조</p>
+            <CardTitle>Target Schema</CardTitle>
+            <p className="text-sm text-gray-600">Structure of objects to be created</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <DragDropZone 
@@ -245,8 +245,8 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
       {/* Data Preview */}
       <Card>
         <CardHeader>
-          <CardTitle>데이터 미리보기</CardTitle>
-          <p className="text-sm text-gray-600">변환된 데이터 샘플</p>
+          <CardTitle>Data Preview</CardTitle>
+          <p className="text-sm text-gray-600">Sample of transformed data</p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -278,10 +278,10 @@ export default function DataMappingTab({ onNext, onPrev }: DataMappingTabProps) 
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev}>
-          이전
+Previous
         </Button>
         <Button onClick={onNext} disabled={mappedFields.length === 0}>
-          자동화 설정으로 계속
+Continue to Automation
         </Button>
       </div>
     </div>

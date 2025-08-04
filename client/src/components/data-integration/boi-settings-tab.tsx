@@ -134,7 +134,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
     }
 
     const configData = {
-      name: 'BOI 고객 분류 파이프라인',
+      name: 'BOI Customer Classification Pipeline',
       aiModelId: aiModels[0].id,
       dataSourceId: dataSources[0].id,
       inputMappings: mappings.reduce((acc, mapping) => {
@@ -163,7 +163,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
   const handleTestPipeline = () => {
     if (boiConfigurations.length === 0) {
-      toast({ title: "오류", description: "먼저 BOI 설정을 저장해주세요.", variant: "destructive" });
+      toast({ title: "Error", description: "Please save BOI settings first.", variant: "destructive" });
       return;
     }
 
@@ -184,21 +184,21 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
   const handleActivateBOI = () => {
     if (boiConfigurations.length === 0) {
-      toast({ title: "오류", description: "먼저 BOI 설정을 저장해주세요.", variant: "destructive" });
+      toast({ title: "Error", description: "Please save BOI settings first.", variant: "destructive" });
       return;
     }
 
     // In a real implementation, this would update the BOI configuration to active status
     toast({ 
-      title: "BOI 활성화", 
-      description: "BOI 파이프라인이 활성화되어 실시간으로 데이터를 처리합니다." 
+      title: "BOI Activated", 
+      description: "BOI pipeline is now active and processing data in real-time." 
     });
   };
 
   return (
     <div className="p-6 space-y-6">
       <ProgressIndicator 
-        title="BOI (Business Object Intelligence) 설정" 
+        title="BOI (Business Object Intelligence) Configuration" 
         currentStep={5} 
         totalSteps={5}
       />
@@ -207,8 +207,8 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
         {/* Data Source Mapping */}
         <Card>
           <CardHeader>
-            <CardTitle>데이터 소스</CardTitle>
-            <p className="text-sm text-gray-600">가져온 데이터 필드</p>
+            <CardTitle>Data Source</CardTitle>
+            <p className="text-sm text-gray-600">Imported data fields</p>
           </CardHeader>
           <CardContent className="space-y-3 max-h-96 overflow-y-auto">
             {sampleDataFields.map((field) => (
@@ -231,9 +231,9 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
         {/* AI Model Input Mapping */}
         <Card>
           <CardHeader>
-            <CardTitle>AI 모델 입력 매핑</CardTitle>
+            <CardTitle>AI Model Input Mapping</CardTitle>
             <p className="text-sm text-gray-600">
-              {aiModels.length > 0 ? aiModels[0].name : '고객 분류 모델 v1.0'}
+              {aiModels.length > 0 ? aiModels[0].name : 'Customer Classification Model v1.0'}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -275,13 +275,13 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
             {/* Data Transformation Rules */}
             <div className="mt-6">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">데이터 변환 규칙</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Data Transformation Rules</h4>
               <div className="space-y-3">
                 {mappings.filter(m => m.transformation).map((mapping) => (
                   <div key={mapping.targetField} className="border border-gray-200 rounded p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{mapping.sourceField}</span>
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">변환</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Transform</span>
                     </div>
                     <p className="text-xs text-gray-600">{mapping.transformation}</p>
                   </div>
@@ -294,19 +294,19 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
         {/* Output Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle>출력 설정</CardTitle>
-            <p className="text-sm text-gray-600">AI 예측 결과 처리</p>
+            <CardTitle>Output Configuration</CardTitle>
+            <p className="text-sm text-gray-600">AI prediction result processing</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Output Fields */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">출력 필드</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Output Fields</h4>
               <div className="space-y-3">
                 {aiModelOutputs.map((output) => (
                   <div key={output.name} className="bg-gray-50 border border-gray-200 rounded p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{output.name}</span>
-                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">출력</span>
+                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Output</span>
                     </div>
                     <p className="text-xs text-gray-600">{output.description}</p>
                   </div>
@@ -316,7 +316,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
             {/* Post-processing Rules */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">후처리 규칙</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Post-processing Rules</h4>
               <div className="space-y-3">
                 <div className="border border-gray-200 rounded p-3">
                   <div className="flex items-center space-x-2">
@@ -327,7 +327,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                         setOutputSettings(prev => ({ ...prev, combineWithOriginal: !!checked }))
                       }
                     />
-                    <Label htmlFor="combine-original" className="text-sm">원본 데이터와 결합</Label>
+                    <Label htmlFor="combine-original" className="text-sm">Combine with original data</Label>
                   </div>
                 </div>
                 <div className="border border-gray-200 rounded p-3">
@@ -339,7 +339,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                         setOutputSettings(prev => ({ ...prev, saveToDatabase: !!checked }))
                       }
                     />
-                    <Label htmlFor="save-database" className="text-sm">데이터베이스에 저장</Label>
+                    <Label htmlFor="save-database" className="text-sm">Save to database</Label>
                   </div>
                 </div>
                 <div className="border border-gray-200 rounded p-3">
@@ -351,7 +351,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                         setOutputSettings(prev => ({ ...prev, sendNotifications: !!checked }))
                       }
                     />
-                    <Label htmlFor="send-notifications" className="text-sm">실시간 알림 발송</Label>
+                    <Label htmlFor="send-notifications" className="text-sm">Send real-time notifications</Label>
                   </div>
                 </div>
               </div>
@@ -359,10 +359,10 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
             {/* Batch Processing */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">배치 처리 설정</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Batch Processing Settings</h4>
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="batch-size" className="text-xs text-gray-600">배치 크기</Label>
+                  <Label htmlFor="batch-size" className="text-xs text-gray-600">Batch Size</Label>
                   <Input
                     id="batch-size"
                     type="number"
@@ -373,7 +373,7 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="processing-interval" className="text-xs text-gray-600">처리 간격</Label>
+                  <Label htmlFor="processing-interval" className="text-xs text-gray-600">Processing Interval</Label>
                   <Select
                     value={batchSettings.processingInterval}
                     onValueChange={(value) => setBatchSettings(prev => ({ ...prev, processingInterval: value }))}
@@ -382,10 +382,10 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="realtime">실시간</SelectItem>
-                      <SelectItem value="5min">5분마다</SelectItem>
-                      <SelectItem value="1hour">1시간마다</SelectItem>
-                      <SelectItem value="daily">매일</SelectItem>
+                      <SelectItem value="realtime">Real-time</SelectItem>
+                      <SelectItem value="5min">Every 5 minutes</SelectItem>
+                      <SelectItem value="1hour">Every hour</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -398,17 +398,17 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
       {/* BOI Test and Preview */}
       <Card>
         <CardHeader>
-          <CardTitle>BOI 테스트 및 미리보기</CardTitle>
-          <p className="text-sm text-gray-600">설정된 BOI 파이프라인을 테스트해보세요</p>
+          <CardTitle>BOI Test and Preview</CardTitle>
+          <p className="text-sm text-gray-600">Test the configured BOI pipeline</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Test Input */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">테스트 데이터</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Test Data</h4>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                  <span className="text-xs font-medium text-gray-700">입력 데이터 샘플</span>
+                  <span className="text-xs font-medium text-gray-700">Input Data Sample</span>
                 </div>
                 <div className="p-4 max-h-48 overflow-y-auto">
                   <pre className="text-xs text-gray-600">{JSON.stringify({
@@ -426,23 +426,23 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                 disabled={testBoiPipelineMutation.isPending}
                 className="w-full mt-3"
               >
-                {testBoiPipelineMutation.isPending ? 'BOI 파이프라인 실행 중...' : 'BOI 파이프라인 실행'}
+                {testBoiPipelineMutation.isPending ? 'Running BOI Pipeline...' : 'Run BOI Pipeline'}
               </Button>
             </div>
 
             {/* Test Output */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">예측 결과</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Prediction Result</h4>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                  <span className="text-xs font-medium text-gray-700">BOI 출력</span>
+                  <span className="text-xs font-medium text-gray-700">BOI Output</span>
                 </div>
                 <div className="p-4 max-h-48 overflow-y-auto">
                   {testResult ? (
                     <pre className="text-xs text-gray-600">{JSON.stringify(testResult, null, 2)}</pre>
                   ) : (
                     <p className="text-sm text-gray-500 text-center py-8">
-                      BOI 파이프라인을 실행하여 결과를 확인하세요
+                      Run the BOI pipeline to see results
                     </p>
                   )}
                 </div>
@@ -452,9 +452,9 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">BOI 파이프라인 테스트 성공</span>
+                    <span className="text-sm font-medium text-green-800">BOI Pipeline Test Successful</span>
                   </div>
-                  <p className="text-sm text-green-700 mt-1">데이터 변환 및 AI 예측이 정상적으로 완료되었습니다.</p>
+                  <p className="text-sm text-green-700 mt-1">Data transformation and AI prediction completed successfully.</p>
                 </div>
               )}
             </div>
@@ -467,8 +467,8 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">설정 완료</h3>
-              <p className="text-sm text-gray-600">모든 설정이 완료되었습니다. BOI 파이프라인을 활성화하세요.</p>
+              <h3 className="text-lg font-semibold text-gray-900">Configuration Complete</h3>
+              <p className="text-sm text-gray-600">All settings are complete. Activate the BOI pipeline.</p>
             </div>
             <div className="flex space-x-3">
               <Button 
@@ -476,13 +476,13 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
                 onClick={handleSaveConfiguration}
                 disabled={createBoiConfigMutation.isPending}
               >
-                {createBoiConfigMutation.isPending ? '저장 중...' : '저장하기'}
+                {createBoiConfigMutation.isPending ? 'Saving...' : 'Save'}
               </Button>
               <Button 
                 onClick={handleActivateBOI}
                 disabled={boiConfigurations.length === 0}
               >
-                BOI 활성화
+Activate BOI
               </Button>
             </div>
           </div>
@@ -491,14 +491,14 @@ export default function BoiSettingsTab({ onPrev }: BoiSettingsTabProps) {
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev}>
-          이전
+Previous
         </Button>
         <Button 
           onClick={handleActivateBOI}
           disabled={boiConfigurations.length === 0}
           className="bg-green-600 hover:bg-green-700"
         >
-          완료
+Complete
         </Button>
       </div>
     </div>

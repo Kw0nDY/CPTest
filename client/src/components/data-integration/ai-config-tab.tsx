@@ -105,7 +105,7 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
   return (
     <div className="p-6 space-y-6">
       <ProgressIndicator 
-        title="AI 모델 설정" 
+        title="AI Model Configuration" 
         currentStep={4} 
         totalSteps={5}
       />
@@ -114,32 +114,32 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
         {/* Model Upload */}
         <Card>
           <CardHeader>
-            <CardTitle>AI 모델 업로드</CardTitle>
-            <p className="text-sm text-gray-600">학습된 모델 파일을 업로드하세요</p>
+            <CardTitle>AI Model Upload</CardTitle>
+            <p className="text-sm text-gray-600">Upload your trained model file</p>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* File Upload Zone */}
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer">
               <CloudUpload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">모델 파일 업로드</h4>
-              <p className="text-sm text-gray-600 mb-4">드래그 앤 드롭하거나 클릭하여 파일을 선택하세요</p>
-              <p className="text-xs text-gray-500">지원 형식: .pkl, .h5, .onnx, .pt (최대 500MB)</p>
+              <h4 className="text-lg font-medium text-gray-900 mb-2">Upload Model File</h4>
+              <p className="text-sm text-gray-600 mb-4">Drag and drop or click to select file</p>
+              <p className="text-xs text-gray-500">Supported formats: .pkl, .h5, .onnx, .pt (Max 500MB)</p>
             </div>
 
             {/* Model Information */}
             <div className="space-y-4">
               <div>
-                <Label htmlFor="model-name">모델 이름</Label>
+                <Label htmlFor="model-name">Model Name</Label>
                 <Input
                   id="model-name"
                   value={modelForm.name}
                   onChange={(e) => setModelForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="예: 고객 분류 모델 v1.0"
+                  placeholder="e.g. Customer Classification Model v1.0"
                 />
               </div>
               
               <div>
-                <Label htmlFor="model-type">모델 타입</Label>
+                <Label htmlFor="model-type">Model Type</Label>
                 <Select
                   value={modelForm.type}
                   onValueChange={(value) => setModelForm(prev => ({ ...prev, type: value }))}
@@ -148,23 +148,23 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="classification">분류 (Classification)</SelectItem>
-                    <SelectItem value="regression">회귀 (Regression)</SelectItem>
-                    <SelectItem value="clustering">클러스터링 (Clustering)</SelectItem>
-                    <SelectItem value="nlp">자연어 처리 (NLP)</SelectItem>
-                    <SelectItem value="computer_vision">컴퓨터 비전 (Computer Vision)</SelectItem>
+                    <SelectItem value="classification">Classification</SelectItem>
+                    <SelectItem value="regression">Regression</SelectItem>
+                    <SelectItem value="clustering">Clustering</SelectItem>
+                    <SelectItem value="nlp">Natural Language Processing (NLP)</SelectItem>
+                    <SelectItem value="computer_vision">Computer Vision</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <div>
-                <Label htmlFor="model-description">설명</Label>
+                <Label htmlFor="model-description">Description</Label>
                 <Textarea
                   id="model-description"
                   value={modelForm.description}
                   onChange={(e) => setModelForm(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
-                  placeholder="모델의 목적과 사용 방법을 설명하세요"
+                  placeholder="Describe the model's purpose and usage"
                 />
               </div>
             </div>
@@ -178,11 +178,11 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
               <div className="w-full bg-green-200 rounded-full h-2">
                 <div className="bg-green-600 h-2 rounded-full w-full transition-all duration-500" />
               </div>
-              <p className="text-xs text-green-700 mt-1">업로드 완료 (2.3 MB)</p>
+              <p className="text-xs text-green-700 mt-1">Upload Complete (2.3 MB)</p>
             </div>
 
             <Button onClick={handleSaveModel} disabled={createModelMutation.isPending} className="w-full">
-              {createModelMutation.isPending ? '저장 중...' : '모델 저장'}
+              {createModelMutation.isPending ? 'Saving...' : 'Save Model'}
             </Button>
           </CardContent>
         </Card>
@@ -190,66 +190,66 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
         {/* Model Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle>모델 설정</CardTitle>
-            <p className="text-sm text-gray-600">입력/출력 스키마를 정의하세요</p>
+            <CardTitle>Model Configuration</CardTitle>
+            <p className="text-sm text-gray-600">Define input/output schema</p>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Input Schema */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">입력 스키마</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Input Schema</h4>
               <div className="space-y-3">
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">company_revenue</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">number</span>
                   </div>
-                  <p className="text-xs text-gray-600">회사 연매출 (단위: 원)</p>
+                  <p className="text-xs text-gray-600">Company annual revenue (in currency)</p>
                 </div>
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">industry_type</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">문자열</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">string</span>
                   </div>
-                  <p className="text-xs text-gray-600">산업 분류 코드</p>
+                  <p className="text-xs text-gray-600">Industry classification code</p>
                 </div>
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">employee_count</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">number</span>
                   </div>
-                  <p className="text-xs text-gray-600">직원 수</p>
+                  <p className="text-xs text-gray-600">Number of employees</p>
                 </div>
               </div>
             </div>
 
             {/* Output Schema */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">출력 스키마</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Output Schema</h4>
               <div className="space-y-3">
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">customer_segment</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">문자열</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">string</span>
                   </div>
-                  <p className="text-xs text-gray-600">고객 세그먼트: Premium, Standard, Basic</p>
+                  <p className="text-xs text-gray-600">Customer segment: Premium, Standard, Basic</p>
                 </div>
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">confidence_score</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">number</span>
                   </div>
-                  <p className="text-xs text-gray-600">예측 신뢰도 (0-1)</p>
+                  <p className="text-xs text-gray-600">Prediction confidence (0-1)</p>
                 </div>
               </div>
             </div>
 
             {/* Model Performance */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">모델 성능 지표</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Model Performance Metrics</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 rounded p-3 text-center">
                   <div className="text-lg font-semibold text-gray-900">94.2%</div>
-                  <div className="text-xs text-gray-600">정확도</div>
+                  <div className="text-xs text-gray-600">Accuracy</div>
                 </div>
                 <div className="bg-gray-50 rounded p-3 text-center">
                   <div className="text-lg font-semibold text-gray-900">91.8%</div>
@@ -261,7 +261,7 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
                 </div>
                 <div className="bg-gray-50 rounded p-3 text-center">
                   <div className="text-lg font-semibold text-gray-900">2.3ms</div>
-                  <div className="text-xs text-gray-600">추론 시간</div>
+                  <div className="text-xs text-gray-600">Inference Time</div>
                 </div>
               </div>
             </div>
@@ -272,14 +272,14 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
       {/* Model Testing */}
       <Card>
         <CardHeader>
-          <CardTitle>모델 테스트</CardTitle>
-          <p className="text-sm text-gray-600">샘플 데이터로 모델을 테스트해보세요</p>
+          <CardTitle>Model Testing</CardTitle>
+          <p className="text-sm text-gray-600">Test the model with sample data</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Input Data */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">테스트 입력</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Test Input</h4>
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="test-revenue" className="text-xs text-gray-600">company_revenue</Label>
@@ -316,13 +316,13 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
                 disabled={testModelMutation.isPending || aiModels.length === 0}
                 className="w-full mt-4"
               >
-                {testModelMutation.isPending ? '모델 실행 중...' : '모델 실행'}
+                {testModelMutation.isPending ? 'Running Model...' : 'Run Model'}
               </Button>
             </div>
 
             {/* Output Result */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 mb-3">예측 결과</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Prediction Result</h4>
               <div className="bg-gray-50 rounded-lg p-4">
                 {testResult ? (
                   <div className="space-y-3">
@@ -336,7 +336,7 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 text-center">모델을 실행하여 결과를 확인하세요</p>
+                  <p className="text-sm text-gray-500 text-center">Run the model to see results</p>
                 )}
               </div>
               
@@ -344,9 +344,9 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">테스트 성공</span>
+                    <span className="text-sm font-medium text-green-800">Test Successful</span>
                   </div>
-                  <p className="text-sm text-green-700 mt-1">모델이 정상적으로 작동합니다.</p>
+                  <p className="text-sm text-green-700 mt-1">Model is working correctly.</p>
                 </div>
               )}
             </div>
@@ -356,10 +356,10 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev}>
-          이전
+Previous
         </Button>
         <Button onClick={onNext} disabled={aiModels.length === 0}>
-          BOI 설정으로 계속
+Continue to BOI Settings
         </Button>
       </div>
     </div>

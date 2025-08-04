@@ -4,6 +4,8 @@
 
 This is a data integration and AI-powered workflow platform built with React, Express, and PostgreSQL. The application provides a comprehensive data management system with features for connecting various data sources (SAP, Salesforce, Oracle, etc.), mapping data fields, automating workflows, integrating AI models, and configuring BOI (Business Operations Intelligence) settings. The platform follows a step-by-step workflow design to guide users through the complete data integration process.
 
+The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
