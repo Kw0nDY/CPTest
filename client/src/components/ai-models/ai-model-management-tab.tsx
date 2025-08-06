@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -218,9 +218,9 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="upload">Upload Models</TabsTrigger>
-          <TabsTrigger value="models">Model Configuration</TabsTrigger>
-          <TabsTrigger value="testing">Model Testing</TabsTrigger>
+          <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="models">Configuration</TabsTrigger>
+          <TabsTrigger value="testing">Testing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">

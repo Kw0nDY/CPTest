@@ -349,7 +349,7 @@ export default function BOIOverviewTab({ activeTab: propActiveTab }: BOIOverview
       <Tabs value={activeInternalTab} onValueChange={setActiveInternalTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="insights">AI Insights</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 

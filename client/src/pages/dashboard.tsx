@@ -5,6 +5,8 @@ import DataIntegrationTab from "@/components/data-integration/data-integration-t
 import AutomationListTab from "@/components/automation/automation-list-tab";
 import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
 import BOIOverviewTab from "@/components/boi/boi-overview-tab";
+import UserManagementPage from "@/components/settings/user-management";
+import APIKeyManagementPage from "@/components/settings/api-key-management";
 
 type ViewType = "data-integration" | "automation" | "model-upload" | "model-configuration" | "model-testing" | "boi-overview" | "boi-insights" | "boi-reports" | "user-management" | "api-keys";
 
@@ -30,19 +32,9 @@ export default function Dashboard() {
       case "boi-reports":
         return <BOIOverviewTab activeTab={activeView} />;
       case "user-management":
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">User Management</h1>
-            <p className="text-gray-600">User management functionality will be implemented here.</p>
-          </div>
-        );
+        return <UserManagementPage />;
       case "api-keys":
-        return (
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">API Key Management</h1>
-            <p className="text-gray-600">API key management functionality will be implemented here.</p>
-          </div>
-        );
+        return <APIKeyManagementPage />;
       default:
         return <DataIntegrationTab />;
     }
