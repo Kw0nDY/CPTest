@@ -19,8 +19,12 @@ import {
   Settings,
   Filter,
   ExternalLink,
-  Zap
+  Zap,
+  Eye,
+  Server,
+  Table
 } from 'lucide-react';
+import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
   id: string;
@@ -35,6 +39,23 @@ interface DataSource {
     database?: string;
     username?: string;
   };
+  connectionDetails: {
+    server?: string;
+    database?: string;
+    port?: number;
+    protocol?: string;
+  };
+  dataSchema: Array<{
+    table: string;
+    fields: Array<{
+      name: string;
+      type: string;
+      description: string;
+    }>;
+    recordCount: number;
+    lastUpdated: string;
+  }>;
+  sampleData: Record<string, any[]>;
 }
 
 interface AvailableDataSource {
@@ -143,6 +164,10 @@ export default function DataIntegrationTab() {
     username: '',
     password: ''
   });
+  
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
+  const [selectedTable, setSelectedTable] = useState('');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -215,6 +240,12 @@ export default function DataIntegrationTab() {
     return variants[status as keyof typeof variants] || variants.disconnected;
   };
 
+  const handleViewDetails = (dataSource: DataSource) => {
+    setSelectedDetailSource(dataSource);
+    setSelectedTable(dataSource.dataSchema[0]?.table || '');
+    setShowDetailDialog(true);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -284,13 +315,13 @@ export default function DataIntegrationTab() {
                         </div>
 
                         <div className="flex gap-2 mt-4">
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewDetails(ds)}>
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
                           <Button variant="outline" size="sm" className="flex-1">
                             <Settings className="w-4 h-4 mr-1" />
                             Configure
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1">
-                            <Zap className="w-4 h-4 mr-1" />
-                            Test
                           </Button>
                         </div>
                       </CardContent>
@@ -463,6 +494,175 @@ export default function DataIntegrationTab() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Source Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Server className="w-5 h-5" />
+              {selectedDetailSource?.name} - Data Source Details
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedDetailSource && (
+            <div className="space-y-6">
+              {/* Connection Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Connection Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <Label className="text-sm text-gray-600">Server</Label>
+                      <p className="font-medium">{selectedDetailSource.connectionDetails.server}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">Database</Label>
+                      <p className="font-medium">{selectedDetailSource.connectionDetails.database}</p>
+                    </div>
+                    {selectedDetailSource.connectionDetails.port && (
+                      <div>
+                        <Label className="text-sm text-gray-600">Port</Label>
+                        <p className="font-medium">{selectedDetailSource.connectionDetails.port}</p>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-sm text-gray-600">Protocol</Label>
+                      <p className="font-medium">{selectedDetailSource.connectionDetails.protocol}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <Label className="text-sm text-gray-600">Status</Label>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(selectedDetailSource.status)}
+                        <Badge className={getStatusBadge(selectedDetailSource.status)}>
+                          {selectedDetailSource.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">Total Records</Label>
+                      <p className="font-medium">{selectedDetailSource.recordCount?.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">Last Sync</Label>
+                      <p className="font-medium">{new Date(selectedDetailSource.lastSync!).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Data Schema and Sample Data */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Table className="w-5 h-5" />
+                    Data Schema & Sample Data
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Table Selector */}
+                    <div>
+                      <Label htmlFor="tableSelect">Select Table</Label>
+                      <Select value={selectedTable} onValueChange={setSelectedTable}>
+                        <SelectTrigger className="w-64">
+                          <SelectValue placeholder="Select a table" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedDetailSource.dataSchema.map((schema) => (
+                            <SelectItem key={schema.table} value={schema.table}>
+                              {schema.table} ({schema.recordCount.toLocaleString()} records)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {selectedTable && (() => {
+                      const currentSchema = selectedDetailSource.dataSchema.find(s => s.table === selectedTable);
+                      const sampleData = selectedDetailSource.sampleData[selectedTable] || [];
+                      
+                      return (
+                        <div className="space-y-4">
+                          {/* Schema Information */}
+                          <div>
+                            <h4 className="font-medium mb-3">Table Schema: {selectedTable}</h4>
+                            <div className="border rounded-lg overflow-hidden">
+                              <UITable>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Field Name</TableHead>
+                                    <TableHead>Data Type</TableHead>
+                                    <TableHead>Description</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {currentSchema?.fields.map((field, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="font-medium">{field.name}</TableCell>
+                                      <TableCell>
+                                        <Badge variant="secondary">{field.type}</Badge>
+                                      </TableCell>
+                                      <TableCell className="text-sm text-gray-600">{field.description}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </UITable>
+                            </div>
+                            <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                              <span>Total Records: {currentSchema?.recordCount.toLocaleString()}</span>
+                              <span>Last Updated: {new Date(currentSchema?.lastUpdated!).toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          {/* Sample Data */}
+                          <div>
+                            <h4 className="font-medium mb-3">Sample Data (First 5 records)</h4>
+                            <div className="border rounded-lg overflow-hidden">
+                              <div className="max-h-64 overflow-auto">
+                                <UITable>
+                                  <TableHeader>
+                                    <TableRow>
+                                      {currentSchema?.fields.map((field) => (
+                                        <TableHead key={field.name}>{field.name}</TableHead>
+                                      ))}
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {sampleData.map((row, rowIndex) => (
+                                      <TableRow key={rowIndex}>
+                                        {currentSchema?.fields.map((field) => (
+                                          <TableCell key={field.name} className="text-sm">
+                                            {typeof row[field.name] === 'number' 
+                                              ? row[field.name].toLocaleString()
+                                              : row[field.name]?.toString() || '-'
+                                            }
+                                          </TableCell>
+                                        ))}
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </UITable>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-2">
+                              Showing sample data from {selectedDetailSource.name}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
