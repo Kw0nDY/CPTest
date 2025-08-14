@@ -73,27 +73,23 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
   const menuItems: MenuItem[] = [
     {
-      id: "data-integration",
-      label: "Data Integration",
-      icon: Database,
-      items: [
-        { id: "data-integration", label: "Data Integration" },
-      ]
-    },
-    {
       id: "setting",
       label: "Setting",
       icon: Settings2,
       items: [
-        { id: "setting", label: "Assignment Management" },
+        { id: "data-integration", label: "Data Integration" },
+        { id: "view-setting", label: "View Setting" },
+        { id: "automation", label: "Automation" },
       ]
     },
     {
-      id: "management",
-      label: "Management",
-      icon: Users,
+      id: "ai-fac",
+      label: "AI Fac",
+      icon: Bot,
       items: [
-        { id: "management", label: "System Management" },
+        { id: "model-upload", label: "Upload Models" },
+        { id: "model-configuration", label: "Model Configuration" },
+        { id: "model-testing", label: "Model Testing" },
       ]
     },
     {
@@ -109,21 +105,11 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
       ]
     },
     {
-      id: "automation",
-      label: "Automation",
-      icon: Zap,
+      id: "management",
+      label: "Management",
+      icon: Users,
       items: [
-        { id: "automation", label: "Workflow Automation" },
-      ]
-    },
-    {
-      id: "ai-models",
-      label: "AI Model Management",
-      icon: Bot,
-      items: [
-        { id: "model-upload", label: "Upload Models" },
-        { id: "model-configuration", label: "Model Configuration" },
-        { id: "model-testing", label: "Model Testing" },
+        { id: "management", label: "System Management" },
       ]
     },
     {
