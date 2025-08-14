@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import CreateViewEditor from './create-view-editor';
 import { 
   Plus, 
   Play, 
@@ -218,15 +219,7 @@ const sampleAutomationViews: AutomationView[] = [
 export default function AutomationListTab() {
   const [selectedView, setSelectedView] = useState<AutomationView | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [createStep, setCreateStep] = useState(1);
-  const [newViewConfig, setNewViewConfig] = useState({
-    name: '',
-    description: '',
-    type: 'asset' as 'asset' | 'event' | 'streaming',
-    dataSource: '',
-    runMode: 'continuous' as 'once' | 'continuous' | 'scheduled'
-  });
+  const [showCreateEditor, setShowCreateEditor] = useState(false);
 
   const { toast } = useToast();
 
@@ -286,16 +279,16 @@ export default function AutomationListTab() {
   };
 
   const handleCreateView = () => {
-    setShowCreateDialog(true);
-    setCreateStep(1);
-    setNewViewConfig({
-      name: '',
-      description: '',
-      type: 'asset',
-      dataSource: '',
-      runMode: 'continuous'
-    });
+    setShowCreateEditor(true);
   };
+
+  const handleBackFromEditor = () => {
+    setShowCreateEditor(false);
+  };
+
+  if (showCreateEditor) {
+    return <CreateViewEditor onBack={handleBackFromEditor} />;
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -395,149 +388,7 @@ export default function AutomationListTab() {
         ))}
       </div>
 
-      {/* Create View Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create Automation View</DialogTitle>
-            <DialogDescription>
-              Create a new view following the PI System approach: Select Data → Configure View → Setup Automation
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Tabs value={`step-${createStep}`} className="w-full">
-            <TabsList className="grid grid-cols-3 w-full">
-              <TabsTrigger value="step-1" className="flex items-center space-x-2">
-                <Database className="h-4 w-4" />
-                <span>Select Data</span>
-              </TabsTrigger>
-              <TabsTrigger value="step-2" className="flex items-center space-x-2">
-                <BarChart3 className="h-4 w-4" />
-                <span>Configure View</span>
-              </TabsTrigger>
-              <TabsTrigger value="step-3" className="flex items-center space-x-2">
-                <Zap className="h-4 w-4" />
-                <span>Setup Automation</span>
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="step-1" className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="view-name">View Name</Label>
-                  <Input
-                    id="view-name"
-                    value={newViewConfig.name}
-                    onChange={(e) => setNewViewConfig(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Drilling Operations Monitor"
-                    data-testid="input-view-name"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="view-description">Description</Label>
-                  <Input
-                    id="view-description"
-                    value={newViewConfig.description}
-                    onChange={(e) => setNewViewConfig(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Brief description of the automation view"
-                    data-testid="input-view-description"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="view-type">View Type</Label>
-                  <Select value={newViewConfig.type} onValueChange={(value: 'asset' | 'event' | 'streaming') => setNewViewConfig(prev => ({ ...prev, type: value }))}>
-                    <SelectTrigger data-testid="select-view-type">
-                      <SelectValue placeholder="Select view type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="asset">Asset View - Monitor asset hierarchy and performance</SelectItem>
-                      <SelectItem value="event">Event View - Track events and alerts</SelectItem>
-                      <SelectItem value="streaming">Streaming View - Real-time data streaming</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="data-source">Data Source</Label>
-                  <Select value={newViewConfig.dataSource} onValueChange={(value) => setNewViewConfig(prev => ({ ...prev, dataSource: value }))}>
-                    <SelectTrigger data-testid="select-data-source">
-                      <SelectValue placeholder="Select connected data source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="aveva-pi">AVEVA PI System</SelectItem>
-                      <SelectItem value="sap-erp">SAP ERP</SelectItem>
-                      <SelectItem value="salesforce-crm">Salesforce CRM</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button onClick={() => setCreateStep(2)} data-testid="button-next-step">
-                  Next: Configure View
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="step-2" className="space-y-4">
-              <div className="text-center py-8">
-                <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Configure view columns, filters, and time ranges</p>
-                <p className="text-sm text-gray-500 mt-2">This step would allow selecting specific data columns and setting up view parameters</p>
-              </div>
-              
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCreateStep(1)} data-testid="button-prev-step">
-                  Previous
-                </Button>
-                <Button onClick={() => setCreateStep(3)} data-testid="button-next-automation">
-                  Next: Setup Automation
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="step-3" className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="run-mode">Run Mode</Label>
-                  <Select value={newViewConfig.runMode} onValueChange={(value: 'once' | 'continuous' | 'scheduled') => setNewViewConfig(prev => ({ ...prev, runMode: value }))}>
-                    <SelectTrigger data-testid="select-run-mode">
-                      <SelectValue placeholder="Select run mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="once">Run Once - Single execution</SelectItem>
-                      <SelectItem value="continuous">Continuous - Real-time monitoring</SelectItem>
-                      <SelectItem value="scheduled">Scheduled - Time-based execution</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Automation Rules</h4>
-                  <p className="text-sm text-blue-800">Define triggers, conditions, and actions for automated responses</p>
-                  <p className="text-xs text-blue-600 mt-1">This would include setting up alert thresholds, notification rules, and workflow triggers</p>
-                </div>
-              </div>
-              
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCreateStep(2)} data-testid="button-prev-automation">
-                  Previous
-                </Button>
-                <Button onClick={() => {
-                  toast({ title: "View Created", description: "Automation view created successfully" });
-                  setShowCreateDialog(false);
-                }} data-testid="button-create-final">
-                  Create View
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+
 
       {/* View Details Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
