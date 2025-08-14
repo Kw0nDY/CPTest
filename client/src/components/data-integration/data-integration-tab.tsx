@@ -172,8 +172,136 @@ export default function DataIntegrationTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: dataSources = [] } = useQuery<DataSource[]>({
+  // Mock connected data sources - showing only 2 connected sources
+  const mockConnectedSources: DataSource[] = [
+    {
+      id: '1',
+      name: 'SAP ERP Production',
+      type: 'ERP',
+      status: 'connected',
+      lastSync: '2025-01-15 09:30:00',
+      recordCount: 104650,
+      config: {
+        host: 'sap-prod.company.com',
+        port: '3200',
+        database: 'SAPDB_PROD',
+        username: 'sap_user'
+      },
+      connectionDetails: {
+        server: 'sap-prod.company.com',
+        database: 'SAPDB_PROD',
+        port: 3200,
+        protocol: 'RFC'
+      },
+      dataSchema: [
+        {
+          table: 'CUSTOMERS',
+          fields: [
+            { name: 'CUSTOMER_ID', type: 'VARCHAR(10)', description: 'Unique customer identifier' },
+            { name: 'CUSTOMER_NAME', type: 'VARCHAR(100)', description: 'Customer company name' },
+            { name: 'COUNTRY', type: 'VARCHAR(50)', description: 'Customer country' },
+            { name: 'CREDIT_LIMIT', type: 'DECIMAL(15,2)', description: 'Customer credit limit' },
+            { name: 'CREATED_DATE', type: 'DATE', description: 'Account creation date' }
+          ],
+          recordCount: 15420,
+          lastUpdated: '2025-01-15 09:30:00'
+        },
+        {
+          table: 'ORDERS',
+          fields: [
+            { name: 'ORDER_ID', type: 'VARCHAR(12)', description: 'Sales order number' },
+            { name: 'CUSTOMER_ID', type: 'VARCHAR(10)', description: 'Customer reference' },
+            { name: 'ORDER_DATE', type: 'DATE', description: 'Order placement date' },
+            { name: 'TOTAL_AMOUNT', type: 'DECIMAL(15,2)', description: 'Total order value' },
+            { name: 'STATUS', type: 'VARCHAR(20)', description: 'Order processing status' }
+          ],
+          recordCount: 89230,
+          lastUpdated: '2025-01-15 09:28:00'
+        }
+      ],
+      sampleData: {
+        'CUSTOMERS': [
+          { CUSTOMER_ID: 'CUST001', CUSTOMER_NAME: 'Acme Manufacturing Co.', COUNTRY: 'USA', CREDIT_LIMIT: 500000.00, CREATED_DATE: '2023-03-15' },
+          { CUSTOMER_ID: 'CUST002', CUSTOMER_NAME: 'Global Tech Solutions', COUNTRY: 'Germany', CREDIT_LIMIT: 750000.00, CREATED_DATE: '2023-01-08' },
+          { CUSTOMER_ID: 'CUST003', CUSTOMER_NAME: 'Pacific Industries Ltd.', COUNTRY: 'Japan', CREDIT_LIMIT: 1000000.00, CREATED_DATE: '2022-11-22' },
+          { CUSTOMER_ID: 'CUST004', CUSTOMER_NAME: 'European Parts Supplier', COUNTRY: 'France', CREDIT_LIMIT: 300000.00, CREATED_DATE: '2024-02-14' },
+          { CUSTOMER_ID: 'CUST005', CUSTOMER_NAME: 'Nordic Components AS', COUNTRY: 'Norway', CREDIT_LIMIT: 450000.00, CREATED_DATE: '2023-09-07' }
+        ],
+        'ORDERS': [
+          { ORDER_ID: 'ORD25-001', CUSTOMER_ID: 'CUST001', ORDER_DATE: '2025-01-14', TOTAL_AMOUNT: 125000.00, STATUS: 'Processing' },
+          { ORDER_ID: 'ORD25-002', CUSTOMER_ID: 'CUST002', ORDER_DATE: '2025-01-15', TOTAL_AMOUNT: 89500.00, STATUS: 'Confirmed' },
+          { ORDER_ID: 'ORD25-003', CUSTOMER_ID: 'CUST003', ORDER_DATE: '2025-01-13', TOTAL_AMOUNT: 245000.00, STATUS: 'Shipped' },
+          { ORDER_ID: 'ORD25-004', CUSTOMER_ID: 'CUST001', ORDER_DATE: '2025-01-12', TOTAL_AMOUNT: 67800.00, STATUS: 'Delivered' },
+          { ORDER_ID: 'ORD25-005', CUSTOMER_ID: 'CUST004', ORDER_DATE: '2025-01-15', TOTAL_AMOUNT: 34500.00, STATUS: 'Processing' }
+        ]
+      }
+    },
+    {
+      id: '2',
+      name: 'Salesforce CRM',
+      type: 'CRM',
+      status: 'connected',
+      lastSync: '2025-01-15 09:25:00',
+      recordCount: 32200,
+      config: {
+        host: 'company.salesforce.com',
+        database: 'Production Org',
+        username: 'api_user'
+      },
+      connectionDetails: {
+        server: 'company.salesforce.com',
+        protocol: 'HTTPS',
+        database: 'Production Org'
+      },
+      dataSchema: [
+        {
+          table: 'ACCOUNTS',
+          fields: [
+            { name: 'Id', type: 'ID', description: 'Salesforce record ID' },
+            { name: 'Name', type: 'STRING', description: 'Account name' },
+            { name: 'Industry', type: 'PICKLIST', description: 'Industry classification' },
+            { name: 'AnnualRevenue', type: 'CURRENCY', description: 'Annual revenue amount' },
+            { name: 'NumberOfEmployees', type: 'NUMBER', description: 'Employee count' }
+          ],
+          recordCount: 8750,
+          lastUpdated: '2025-01-15 09:25:00'
+        },
+        {
+          table: 'OPPORTUNITIES',
+          fields: [
+            { name: 'Id', type: 'ID', description: 'Opportunity record ID' },
+            { name: 'Name', type: 'STRING', description: 'Opportunity name' },
+            { name: 'AccountId', type: 'REFERENCE', description: 'Associated account ID' },
+            { name: 'Amount', type: 'CURRENCY', description: 'Opportunity value' },
+            { name: 'StageName', type: 'PICKLIST', description: 'Sales stage' },
+            { name: 'CloseDate', type: 'DATE', description: 'Expected close date' }
+          ],
+          recordCount: 23450,
+          lastUpdated: '2025-01-15 09:20:00'
+        }
+      ],
+      sampleData: {
+        'ACCOUNTS': [
+          { Id: '001xx000003DHPx', Name: 'TechCorp Solutions', Industry: 'Technology', AnnualRevenue: 25000000, NumberOfEmployees: 250 },
+          { Id: '001xx000003DHPy', Name: 'Manufacturing Plus', Industry: 'Manufacturing', AnnualRevenue: 45000000, NumberOfEmployees: 580 },
+          { Id: '001xx000003DHPz', Name: 'Healthcare Innovations', Industry: 'Healthcare', AnnualRevenue: 18000000, NumberOfEmployees: 180 },
+          { Id: '001xx000003DHP0', Name: 'Retail Dynamics', Industry: 'Retail', AnnualRevenue: 32000000, NumberOfEmployees: 420 },
+          { Id: '001xx000003DHP1', Name: 'Energy Solutions Ltd', Industry: 'Energy', AnnualRevenue: 78000000, NumberOfEmployees: 890 }
+        ],
+        'OPPORTUNITIES': [
+          { Id: '006xx000001T2Zs', Name: 'Q1 Software License Deal', AccountId: '001xx000003DHPx', Amount: 150000, StageName: 'Negotiation', CloseDate: '2025-03-15' },
+          { Id: '006xx000001T2Zt', Name: 'Manufacturing Equipment Upgrade', AccountId: '001xx000003DHPy', Amount: 850000, StageName: 'Proposal', CloseDate: '2025-02-28' },
+          { Id: '006xx000001T2Zu', Name: 'Healthcare System Integration', AccountId: '001xx000003DHPz', Amount: 320000, StageName: 'Closed Won', CloseDate: '2025-01-15' },
+          { Id: '006xx000001T2Zv', Name: 'Retail Analytics Platform', AccountId: '001xx000003DHP0', Amount: 95000, StageName: 'Prospecting', CloseDate: '2025-04-30' },
+          { Id: '006xx000001T2Zw', Name: 'Energy Management Solution', AccountId: '001xx000003DHP1', Amount: 1200000, StageName: 'Qualification', CloseDate: '2025-06-15' }
+        ]
+      }
+    }
+  ];
+
+  const { data: dataSources = mockConnectedSources } = useQuery<DataSource[]>({
     queryKey: ['/api/data-sources'],
+    queryFn: () => Promise.resolve(mockConnectedSources)
   });
 
   const createDataSourceMutation = useMutation({
@@ -281,45 +409,81 @@ export default function DataIntegrationTab() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {dataSources.map((ds: DataSource) => (
-                    <Card key={ds.id} className="border border-gray-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
+                    <Card 
+                      key={ds.id} 
+                      className="border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors" 
+                      onClick={() => handleViewDetails(ds)}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
                             {getStatusIcon(ds.status)}
-                            <h4 className="font-medium text-gray-900">{ds.name}</h4>
+                            <div>
+                              <h4 className="font-semibold text-gray-900 text-lg">{ds.name}</h4>
+                              <p className="text-sm text-gray-500">{ds.connectionDetails.server}</p>
+                            </div>
                           </div>
                           <Badge className={getStatusBadge(ds.status)}>
                             {ds.status}
                           </Badge>
                         </div>
                         
-                        <div className="space-y-2 text-sm text-gray-600">
-                          <div className="flex justify-between">
-                            <span>Type:</span>
-                            <span>{ds.type}</span>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Type:</span>
+                            <p className="font-medium">{ds.type}</p>
                           </div>
-                          {ds.recordCount && (
-                            <div className="flex justify-between">
-                              <span>Records:</span>
-                              <span>{ds.recordCount.toLocaleString()}</span>
-                            </div>
-                          )}
-                          {ds.lastSync && (
-                            <div className="flex justify-between">
-                              <span>Last Sync:</span>
-                              <span>{new Date(ds.lastSync).toLocaleDateString()}</span>
-                            </div>
-                          )}
+                          <div>
+                            <span className="text-gray-600">Records:</span>
+                            <p className="font-medium">{ds.recordCount?.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Tables:</span>
+                            <p className="font-medium">{ds.dataSchema.length}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Last Sync:</span>
+                            <p className="font-medium">{new Date(ds.lastSync!).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-2">Available Tables:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {ds.dataSchema.slice(0, 3).map((schema, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {schema.table}
+                              </Badge>
+                            ))}
+                            {ds.dataSchema.length > 3 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{ds.dataSchema.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex gap-2 mt-4">
-                          <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewDetails(ds)}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails(ds);
+                            }}
+                          >
                             <Eye className="w-4 h-4 mr-1" />
-                            View Details
+                            View Data
                           </Button>
-                          <Button variant="outline" size="sm" className="flex-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <Settings className="w-4 h-4 mr-1" />
                             Configure
                           </Button>
