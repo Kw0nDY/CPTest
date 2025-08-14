@@ -7,11 +7,20 @@ This is a data integration and AI-powered workflow platform built with React, Ex
 The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
 
 **Major Structural Reorganization (January 2025):**
-- Removed step-based workflow navigation in favor of dedicated tab structure
+- Complete navigation restructure completed on January 15, 2025
+- **Main Menu**: New personalized dashboard showing only views and automations assigned to current user or their department
 - **Data Integration Tab**: Shows connected data sources status first, then allows additional connections with search functionality across expanded categories (SCM, QMS, PLM, MES, ERP, CRM)
-- **Automation List Tab**: Dedicated view for managing existing automations with detailed workflow visualization
+- **View Tab**: Renamed from automation, focused on data visualization views with Create View editor featuring full-screen drag-and-drop interface
+- **Automation Tab**: New dedicated workflow automation management for business process automation
 - **AI Model Management Tab**: Upload functionality with CREATE AI MODEL section for visual model configuration
-- **BOI Overview Tab**: Comprehensive dashboard combining data from all integrated systems with real-time insights
+- **Setting Tab**: Assignment management where views and automations can be assigned to specific users or departments
+- **Management Tab**: Renamed from Setting, system administration for user management, API keys, and system configuration
+
+**User Assignment System:**
+- Views and automations can be assigned to individual users (e.g., Mike Chen) or departments (e.g., IT Department)  
+- Main Menu displays only content assigned to current user or their department
+- Role switching available via "Hello Admin" dropdown for testing different user perspectives
+- Assignment controls available in Setting tab for administrators
 
 ## User Preferences
 
