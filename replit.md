@@ -18,7 +18,19 @@ The platform has been fully localized to English while maintaining Korean commun
 - Data source integration from connected systems (AVEVA PI, SAP ERP, Oracle, Salesforce)
 - Drag-and-drop component editor with charts, tables, metrics, and visualization elements
 - Assignment management system for users and departments
-- Full-screen editor interface for comprehensive view customization
+- Full-screen editor interface with three main tabs:
+  * Design Tab: Visual component layout editor with drag-and-drop canvas
+  * Data Tab: Data source selection and field mapping interface
+  * Preview Tab: Live preview of the configured dashboard
+
+**View Editor Capabilities:**
+- Grid-based layout system with 12-column responsive design
+- Advanced component configuration with styling options (colors, fonts, spacing)
+- Real-time data field preview with sample values from connected sources
+- Component visibility controls and duplication features
+- Chart type selection (bar, line, pie, area, doughnut, scatter)
+- Refresh rate configuration and animation settings
+- Comprehensive properties panel for detailed customization
 
 **Management Section:**
 - Member (Member Management)

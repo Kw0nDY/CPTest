@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-// import ViewEditor from "./view-editor";
+import ViewEditor from "./view-editor";
 
 interface ViewConfig {
   id: string;
@@ -453,38 +453,14 @@ export default function ViewSettingTab() {
 
       {/* Full-screen View Editor */}
       {isEditorOpen && selectedView && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">View Editor</h3>
-            <p className="text-gray-600 mb-4">
-              Full-screen view editor will open here. This will allow you to:
-            </p>
-            <ul className="text-sm text-gray-600 mb-6 space-y-1">
-              <li>• Drag and drop UI components</li>
-              <li>• Configure data source connections</li>
-              <li>• Set up charts, tables, and metrics</li>
-              <li>• Customize layout and styling</li>
-            </ul>
-            <div className="flex space-x-2">
-              <Button 
-                onClick={() => {
-                  // Here would open the full-screen editor
-                  setIsEditorOpen(false);
-                }}
-                className="flex-1"
-              >
-                Open Editor
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsEditorOpen(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ViewEditor
+          view={selectedView}
+          onClose={() => setIsEditorOpen(false)}
+          onSave={(updatedView: ViewConfig) => {
+            setViews(views.map(v => v.id === updatedView.id ? updatedView : v));
+            setIsEditorOpen(false);
+          }}
+        />
       )}
     </div>
   );
