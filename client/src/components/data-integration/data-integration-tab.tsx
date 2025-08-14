@@ -296,6 +296,88 @@ export default function DataIntegrationTab() {
           { Id: '006xx000001T2Zw', Name: 'Energy Management Solution', AccountId: '001xx000003DHP1', Amount: 1200000, StageName: 'Qualification', CloseDate: '2025-06-15' }
         ]
       }
+    },
+    {
+      id: '3',
+      name: 'AVEVA PI System',
+      type: 'Historian',
+      status: 'connected',
+      lastSync: '2025-01-15 09:20:00',
+      recordCount: 125800,
+      config: {
+        host: 'pi-server.company.com',
+        port: '443',
+        database: 'PI Data Archive',
+        username: 'pi_service'
+      },
+      connectionDetails: {
+        server: 'pi-server.company.com',
+        database: 'PI Data Archive',
+        port: 443,
+        protocol: 'HTTPS (PI Web API)'
+      },
+      dataSchema: [
+        {
+          table: 'PI_POINTS',
+          fields: [
+            { name: 'Name', type: 'STRING', description: 'PI Point tag name' },
+            { name: 'WebId', type: 'STRING', description: 'Unique web identifier' },
+            { name: 'Descriptor', type: 'STRING', description: 'Point description' },
+            { name: 'PointType', type: 'STRING', description: 'Data type (Float32, Int32, Digital)' },
+            { name: 'EngineeringUnits', type: 'STRING', description: 'Units of measurement' },
+            { name: 'PointClass', type: 'STRING', description: 'Point classification' }
+          ],
+          recordCount: 8500,
+          lastUpdated: '2025-01-15 09:20:00'
+        },
+        {
+          table: 'PROCESS_DATA',
+          fields: [
+            { name: 'TagName', type: 'STRING', description: 'Process variable tag' },
+            { name: 'Timestamp', type: 'DATETIME', description: 'Data timestamp' },
+            { name: 'Value', type: 'FLOAT', description: 'Process value' },
+            { name: 'Quality', type: 'STRING', description: 'Data quality flag' },
+            { name: 'UnitsAbbreviation', type: 'STRING', description: 'Engineering units' }
+          ],
+          recordCount: 115000,
+          lastUpdated: '2025-01-15 09:19:00'
+        },
+        {
+          table: 'ASSET_ELEMENTS',
+          fields: [
+            { name: 'ElementId', type: 'STRING', description: 'Asset element identifier' },
+            { name: 'Name', type: 'STRING', description: 'Asset element name' },
+            { name: 'Path', type: 'STRING', description: 'Asset framework path' },
+            { name: 'TemplateName', type: 'STRING', description: 'Asset template' },
+            { name: 'Description', type: 'STRING', description: 'Asset description' }
+          ],
+          recordCount: 2300,
+          lastUpdated: '2025-01-15 09:15:00'
+        }
+      ],
+      sampleData: {
+        'PI_POINTS': [
+          { Name: 'REACTOR_TEMP_01', WebId: 'P0jUQU9MQVIrZo4', Descriptor: 'Reactor Temperature Sensor 1', PointType: 'Float32', EngineeringUnits: '°C', PointClass: 'classic' },
+          { Name: 'PUMP_SPEED_01', WebId: 'P0jUQU9MQVIrZo5', Descriptor: 'Primary Pump Speed', PointType: 'Float32', EngineeringUnits: 'RPM', PointClass: 'classic' },
+          { Name: 'PRESSURE_PT_01', WebId: 'P0jUQU9MQVIrZo6', Descriptor: 'Main Line Pressure', PointType: 'Float32', EngineeringUnits: 'PSI', PointClass: 'classic' },
+          { Name: 'FLOW_RATE_01', WebId: 'P0jUQU9MQVIrZo7', Descriptor: 'Feed Flow Rate', PointType: 'Float32', EngineeringUnits: 'GPM', PointClass: 'classic' },
+          { Name: 'VALVE_POS_01', WebId: 'P0jUQU9MQVIrZo8', Descriptor: 'Control Valve Position', PointType: 'Float32', EngineeringUnits: '%', PointClass: 'classic' }
+        ],
+        'PROCESS_DATA': [
+          { TagName: 'REACTOR_TEMP_01', Timestamp: '2025-01-15T09:19:30Z', Value: 85.4, Quality: 'Good', UnitsAbbreviation: '°C' },
+          { TagName: 'PUMP_SPEED_01', Timestamp: '2025-01-15T09:19:30Z', Value: 1750.2, Quality: 'Good', UnitsAbbreviation: 'RPM' },
+          { TagName: 'PRESSURE_PT_01', Timestamp: '2025-01-15T09:19:30Z', Value: 125.8, Quality: 'Good', UnitsAbbreviation: 'PSI' },
+          { TagName: 'FLOW_RATE_01', Timestamp: '2025-01-15T09:19:30Z', Value: 245.6, Quality: 'Good', UnitsAbbreviation: 'GPM' },
+          { TagName: 'VALVE_POS_01', Timestamp: '2025-01-15T09:19:30Z', Value: 67.3, Quality: 'Good', UnitsAbbreviation: '%' }
+        ],
+        'ASSET_ELEMENTS': [
+          { ElementId: 'E001', Name: 'Reactor Unit 1', Path: '\\PISERVER\\Plant\\ProcessArea\\Reactor01', TemplateName: 'ReactorTemplate', Description: 'Primary chemical reactor' },
+          { ElementId: 'E002', Name: 'Feed Pump 1', Path: '\\PISERVER\\Plant\\Utilities\\Pump01', TemplateName: 'PumpTemplate', Description: 'Main feed pump assembly' },
+          { ElementId: 'E003', Name: 'Heat Exchanger 1', Path: '\\PISERVER\\Plant\\ProcessArea\\HX01', TemplateName: 'HeatExchangerTemplate', Description: 'Process heat exchanger' },
+          { ElementId: 'E004', Name: 'Control Valve CV-101', Path: '\\PISERVER\\Plant\\Control\\CV101', TemplateName: 'ValveTemplate', Description: 'Primary flow control valve' },
+          { ElementId: 'E005', Name: 'Storage Tank T-201', Path: '\\PISERVER\\Plant\\Storage\\Tank201', TemplateName: 'TankTemplate', Description: 'Raw material storage tank' }
+        ]
+      }
     }
   ];
 
@@ -409,7 +491,7 @@ export default function DataIntegrationTab() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {dataSources.map((ds: DataSource) => (
                     <Card 
                       key={ds.id} 
