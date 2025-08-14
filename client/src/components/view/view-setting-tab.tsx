@@ -22,7 +22,33 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import ViewEditor from "./view-editor";
+import ViewEditor from "./view-editor-embedded";
+
+interface UIComponent {
+  id: string;
+  type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline';
+  gridPosition: number;
+  visible: boolean;
+  config: {
+    title?: string;
+    dataSource?: string;
+    chartType?: 'bar' | 'line' | 'pie' | 'area' | 'doughnut' | 'scatter';
+    metrics?: string[];
+    dimensions?: string[];
+    filters?: any[];
+    styling?: any;
+    refreshRate?: number;
+    showLegend?: boolean;
+    showGrid?: boolean;
+    animation?: boolean;
+  };
+}
+
+interface GridRow {
+  id: string;
+  columns: number;
+  components: UIComponent[];
+}
 
 interface ViewConfig {
   id: string;
@@ -33,7 +59,10 @@ interface ViewConfig {
   assignedTo: string[];
   assignedDepartments: string[];
   dataSources: string[];
-  layout: any; // Will store the dynamic UI configuration
+  layout: {
+    grids: GridRow[];
+    components?: UIComponent[]; // For backward compatibility
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +77,7 @@ const sampleViews: ViewConfig[] = [
     assignedTo: ['mike', 'david'],
     assignedDepartments: ['IT Department'],
     dataSources: ['aveva-pi', 'sap-erp'],
-    layout: { components: [] },
+    layout: { grids: [] },
     createdAt: '2024-01-15',
     updatedAt: '2024-01-15'
   },
@@ -61,7 +90,7 @@ const sampleViews: ViewConfig[] = [
     assignedTo: ['mike'],
     assignedDepartments: ['Operations'],
     dataSources: ['aveva-pi', 'oracle-db'],
-    layout: { components: [] },
+    layout: { grids: [] },
     createdAt: '2024-01-14',
     updatedAt: '2024-01-15'
   },
@@ -74,7 +103,7 @@ const sampleViews: ViewConfig[] = [
     assignedTo: ['sarah'],
     assignedDepartments: ['Operations'],
     dataSources: ['sap-erp'],
-    layout: { components: [] },
+    layout: { grids: [] },
     createdAt: '2024-01-13',
     updatedAt: '2024-01-14'
   }
@@ -140,7 +169,7 @@ export default function ViewSettingTab() {
       assignedTo: [],
       assignedDepartments: [],
       dataSources: newView.dataSources,
-      layout: { components: [] },
+      layout: { grids: [] },
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0]
     };
@@ -244,27 +273,7 @@ export default function ViewSettingTab() {
                 </Select>
               </div>
               
-              <div>
-                <Label>Data Sources</Label>
-                <div className="space-y-2 mt-2">
-                  {availableDataSources.map((source) => (
-                    <div key={source.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={source.id}
-                        checked={newView.dataSources.includes(source.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setNewView({ ...newView, dataSources: [...newView.dataSources, source.id] });
-                          } else {
-                            setNewView({ ...newView, dataSources: newView.dataSources.filter(id => id !== source.id) });
-                          }
-                        }}
-                      />
-                      <Label htmlFor={source.id} className="text-sm">{source.name}</Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
+
               
               <div className="flex space-x-2 pt-4">
                 <Button 
