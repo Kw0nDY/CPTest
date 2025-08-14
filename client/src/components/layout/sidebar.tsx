@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   ChevronRight, 
   ChevronDown, 
@@ -8,7 +8,8 @@ import {
   Users, 
   Key, 
   Settings2,
-  Zap
+  Zap,
+  Eye
 } from "lucide-react";
 
 interface MenuItem {
@@ -18,15 +19,57 @@ interface MenuItem {
   items: Array<{ id: string; label: string }>;
 }
 
+interface AssignedView {
+  id: string;
+  name: string;
+  description: string;
+  type: 'asset' | 'event' | 'streaming';
+  status: 'active' | 'paused' | 'draft';
+  assignedTo: string[];
+  assignedDepartments: string[];
+}
+
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
 }
 
+// Sample assigned views data - this would come from Setting page assignments
+const sampleAssignedViews: AssignedView[] = [
+  {
+    id: 'view-drilling',
+    name: 'Drilling Operations Monitor',
+    description: 'Real-time monitoring of drilling operations with automated alerts',
+    type: 'asset',
+    status: 'active',
+    assignedTo: ['mike', 'david'],
+    assignedDepartments: ['IT Department']
+  },
+  {
+    id: 'view-production',
+    name: 'Production Performance Dashboard',
+    description: 'Asset performance tracking with automated reporting',
+    type: 'asset',
+    status: 'active',
+    assignedTo: ['mike'],
+    assignedDepartments: ['Operations']
+  },
+  {
+    id: 'view-maintenance',
+    name: 'Equipment Maintenance Events',
+    description: 'Event-driven maintenance scheduling and tracking',
+    type: 'event',
+    status: 'draft',
+    assignedTo: ['sarah'],
+    assignedDepartments: ['Operations']
+  }
+];
+
 export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['data-integration'])
   );
+  const [assignedViews, setAssignedViews] = useState<AssignedView[]>(sampleAssignedViews);
 
   const menuItems: MenuItem[] = [
     {
@@ -35,7 +78,42 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
       icon: Database,
       items: [
         { id: "data-integration", label: "Data Integration" },
-        { id: "automation", label: "Automation" },
+      ]
+    },
+    {
+      id: "setting",
+      label: "Setting",
+      icon: Settings2,
+      items: [
+        { id: "setting", label: "Assignment Management" },
+      ]
+    },
+    {
+      id: "management",
+      label: "Management",
+      icon: Users,
+      items: [
+        { id: "management", label: "System Management" },
+      ]
+    },
+    {
+      id: "view",
+      label: "View",
+      icon: Eye,
+      items: [
+        { id: "view-list", label: "All Views" },
+        ...assignedViews.map(view => ({
+          id: view.id,
+          label: view.name
+        }))
+      ]
+    },
+    {
+      id: "automation",
+      label: "Automation",
+      icon: Zap,
+      items: [
+        { id: "automation", label: "Workflow Automation" },
       ]
     },
     {
@@ -60,10 +138,7 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
     }
   ];
 
-  const settingsItems = [
-    { id: "user-management", label: "User Management", icon: Users },
-    { id: "api-keys", label: "API Key Management", icon: Key },
-  ];
+  const settingsItems: any[] = [];
 
   const toggleSection = (sectionId: string) => {
     const newExpanded = new Set(expandedSections);

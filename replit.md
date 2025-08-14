@@ -6,21 +6,27 @@ This is a data integration and AI-powered workflow platform built with React, Ex
 
 The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
 
-**Major Structural Reorganization (January 2025):**
-- Complete navigation restructure completed on January 15, 2025
-- **Main Menu**: New personalized dashboard showing only views and automations assigned to current user or their department
-- **Data Integration Tab**: Shows connected data sources status first, then allows additional connections with search functionality across expanded categories (SCM, QMS, PLM, MES, ERP, CRM)
-- **View Tab**: Renamed from automation, focused on data visualization views with Create View editor featuring full-screen drag-and-drop interface
-- **Automation Tab**: New dedicated workflow automation management for business process automation
-- **AI Model Management Tab**: Upload functionality with CREATE AI MODEL section for visual model configuration
-- **Setting Tab**: Assignment management where views and automations can be assigned to specific users or departments
-- **Management Tab**: Renamed from Setting, system administration for user management, API keys, and system configuration
+**Final Navigation Structure (January 2025):**
+- **Setting**: Assignment management where views and automations can be assigned to specific users or departments
+- **Management**: System administration for user management, API keys, and system configuration
+- **View**: Data visualization management with dynamic view names from Setting page assignments
+  - All Views: Complete list of available views
+  - Dynamic view names: Shows specific views assigned to users (e.g., "Drilling Operations Monitor", "Production Performance Dashboard")
 
-**User Assignment System:**
-- Views and automations can be assigned to individual users (e.g., Mike Chen) or departments (e.g., IT Department)  
-- Main Menu displays only content assigned to current user or their department
-- Role switching available via "Hello Admin" dropdown for testing different user perspectives
-- Assignment controls available in Setting tab for administrators
+**Three-Category Organization:**
+1. **Setting** - User and view assignment controls
+2. **Management** - System-wide administrative functions  
+3. **View** - Data visualization and monitoring displays
+
+**Dynamic View System:**
+- View names are dynamically populated from Setting page configurations
+- Each user sees only views assigned to them or their department
+- Setting page controls which views appear in the View section for each user
+
+**Header Design:**
+- Restored to original compact design with "CP - Collaboration Portal" branding
+- "Hello [Username]" dropdown for user switching and role testing
+- Fixed header with clean, professional styling
 
 ## User Preferences
 

@@ -46,30 +46,17 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 h-12">
+      <div className="flex items-center justify-between px-6 h-full">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">CP - Collaboration Portal</h1>
-          <p className="text-sm text-gray-600">Manufacturing Enterprise Service Platform</p>
+          <h1 className="text-lg font-bold text-gray-900">CP - Collaboration Portal</h1>
         </div>
         
         <div className="flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center space-x-2" data-testid="user-menu-trigger">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="text-xs">
-                    {currentUser.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-left">
-                  <p className="text-sm font-medium">Hello {currentUser.name}</p>
-                  <p className="text-xs text-gray-600">{currentUser.department}</p>
-                </div>
-                <Badge className={`${getRoleColor(currentUser.role)} flex items-center space-x-1`}>
-                  {getRoleIcon(currentUser.role)}
-                  <span className="capitalize">{currentUser.role}</span>
-                </Badge>
+              <Button variant="ghost" size="sm" className="flex items-center space-x-2" data-testid="user-menu-trigger">
+                <span className="text-sm">Hello {currentUser.name}</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -86,11 +73,6 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
                     }`}
                     data-testid={`user-option-${user.id}`}
                   >
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-xs">
-                        {user.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
                     <div className="flex-1">
                       <p className="text-sm font-medium">{user.name}</p>
                       <p className="text-xs text-gray-600">{user.department}</p>
@@ -118,7 +100,7 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 
