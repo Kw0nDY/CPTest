@@ -7,26 +7,25 @@ This is a data integration and AI-powered workflow platform built with React, Ex
 The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
 
 **Final Navigation Structure (January 2025):**
-- **Setting**: Assignment management where views and automations can be assigned to specific users or departments
-- **Management**: System administration for user management, API keys, and system configuration
-- **View**: Data visualization management with dynamic view names from Setting page assignments
-  - All Views: Complete list of available views
-  - Dynamic view names: Shows specific views assigned to users (e.g., "Drilling Operations Monitor", "Production Performance Dashboard")
 
-**Three-Category Organization:**
-1. **Setting** - User and view assignment controls
-2. **Management** - System-wide administrative functions  
-3. **View** - Data visualization and monitoring displays
+**Settings Section:**
+- Data Integration (with sub-items: Data Integration, View Setting, Automation)
+- AI Fac (with sub-items: Upload Models, Model Configuration)  
+- BOI (with sub-items: Overview, Input Setting, AI Insights, Reports)
 
-**Dynamic View System:**
-- View names are dynamically populated from Setting page configurations
-- Each user sees only views assigned to them or their department
-- Setting page controls which views appear in the View section for each user
+**Management Section:**
+- Member (Member Management)
+- APIs (API Management)
 
-**Header Design:**
-- Restored to original compact design with "CP - Collaboration Portal" branding
-- "Hello [Username]" dropdown for user switching and role testing
-- Fixed header with clean, professional styling
+**Main Menu Section:**
+- All Views
+- Dynamic view names from assignments (e.g., "Drilling Operations Monitor", "Production Performance Dashboard", "Equipment Maintenance Events")
+
+**Enhanced Design Features:**
+- Beautiful blue gradient header with "CP" logo and "Collaboration Portal" branding
+- Elegant sidebar with gradient background and improved hover effects
+- Three-tier navigation structure with clear section separations
+- User dropdown with role switching functionality for testing different perspectives
 
 ## User Preferences
 

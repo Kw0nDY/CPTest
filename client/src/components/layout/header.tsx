@@ -46,17 +46,20 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 h-12">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 to-blue-700 border-b border-blue-800 h-14 shadow-lg">
       <div className="flex items-center justify-between px-6 h-full">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">CP - Collaboration Portal</h1>
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+            <span className="text-blue-600 font-bold text-sm">CP</span>
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-wide">Collaboration Portal</h1>
         </div>
         
         <div className="flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="flex items-center space-x-2" data-testid="user-menu-trigger">
-                <span className="text-sm">Hello {currentUser.name}</span>
+              <Button variant="ghost" size="sm" className="flex items-center space-x-2 text-white hover:bg-blue-500 hover:text-white" data-testid="user-menu-trigger">
+                <span className="text-sm font-medium">Hello {currentUser.name}</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

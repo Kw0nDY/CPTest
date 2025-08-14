@@ -10,7 +10,7 @@ import SettingPage from "@/pages/setting";
 import ManagementPage from "@/pages/management";
 import { availableUsers, type User } from "@/components/layout/header";
 
-type ViewType = "data-integration" | "setting" | "management" | "view-list" | "view-drilling" | "view-production" | "view-maintenance" | "automation" | "model-upload" | "model-configuration" | "model-testing" | "boi-overview" | "boi-insights" | "boi-reports";
+type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | "view-drilling" | "view-production" | "view-maintenance";
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<ViewType>("data-integration");
@@ -28,9 +28,20 @@ export default function Dashboard() {
     switch (activeView) {
       case "data-integration":
         return <DataIntegrationTab />;
-      case "setting":
+      case "view-setting":
         return <SettingPage currentUser={currentUser} />;
-      case "management":
+      case "automation":
+        return <AutomationListTab />;
+      case "model-upload":
+      case "model-configuration":
+        return <AIModelManagementTab activeTab={activeView} />;
+      case "boi-overview":
+      case "boi-input-setting":
+      case "boi-insights":
+      case "boi-reports":
+        return <BOIOverviewTab activeTab={activeView} />;
+      case "member":
+      case "apis":
         return <ManagementPage currentUser={currentUser} />;
       case "view-list":
         return <ViewListTab />;
@@ -38,16 +49,6 @@ export default function Dashboard() {
       case "view-production":
       case "view-maintenance":
         return <ViewListTab />;
-      case "automation":
-        return <AutomationListTab />;
-      case "model-upload":
-      case "model-configuration":
-      case "model-testing":
-        return <AIModelManagementTab activeTab={activeView} />;
-      case "boi-overview":
-      case "boi-insights":
-      case "boi-reports":
-        return <BOIOverviewTab activeTab={activeView} />;
       default:
         return <DataIntegrationTab />;
     }
@@ -57,7 +58,7 @@ export default function Dashboard() {
     <div className="flex flex-col h-screen bg-gray-50">
       <Header currentUser={currentUser} onUserChange={handleUserChange} />
       
-      <div className="flex flex-1 pt-12">
+      <div className="flex flex-1 pt-14">
         <Sidebar activeView={activeView} onViewChange={handleViewChange} />
         
         <main className="flex-1 overflow-hidden">
