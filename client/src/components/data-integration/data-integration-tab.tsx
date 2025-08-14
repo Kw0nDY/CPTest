@@ -140,6 +140,15 @@ const availableDataSources: AvailableDataSource[] = [
     description: 'Supply chain planning and execution',
     vendor: 'Various',
     features: ['Demand planning', 'Inventory optimization', 'Supplier management', 'Logistics']
+  },
+  {
+    id: 'aveva-pi',
+    name: 'AVEVA PI System',
+    type: 'PI Web API',
+    category: 'mes',
+    description: 'Industrial data historian for real-time process monitoring and asset performance tracking',
+    vendor: 'AVEVA',
+    features: ['Real-time data streaming', 'Time-series database', 'Asset Framework', 'Event monitoring', 'PI Vision dashboards']
   }
 ];
 
@@ -318,64 +327,70 @@ export default function DataIntegrationTab() {
       },
       dataSchema: [
         {
-          table: 'PI_POINTS',
+          table: 'ASSET_HIERARCHY',
           fields: [
-            { name: 'Name', type: 'STRING', description: 'PI Point tag name' },
-            { name: 'WebId', type: 'STRING', description: 'Unique web identifier' },
-            { name: 'Descriptor', type: 'STRING', description: 'Point description' },
-            { name: 'PointType', type: 'STRING', description: 'Data type (Float32, Int32, Digital)' },
-            { name: 'EngineeringUnits', type: 'STRING', description: 'Units of measurement' },
-            { name: 'PointClass', type: 'STRING', description: 'Point classification' }
+            { name: 'AssetName', type: 'STRING', description: 'Asset element name (e.g., PetroLux Corporation)' },
+            { name: 'AssetPath', type: 'STRING', description: 'Hierarchical path (e.g., Upstream/Conventional Oil/Fort McMurray Field)' },
+            { name: 'AssetType', type: 'STRING', description: 'Asset category (Upstream, Midstream, Downstream, Petrochemicals)' },
+            { name: 'Location', type: 'STRING', description: 'Physical location or field name' },
+            { name: 'OperationalStatus', type: 'STRING', description: 'Current operational state' },
+            { name: 'LastUpdate', type: 'DATETIME', description: 'Last data update timestamp' }
           ],
-          recordCount: 8500,
+          recordCount: 2800,
           lastUpdated: '2025-01-15 09:20:00'
         },
         {
-          table: 'PROCESS_DATA',
+          table: 'DRILLING_OPERATIONS',
           fields: [
-            { name: 'TagName', type: 'STRING', description: 'Process variable tag' },
-            { name: 'Timestamp', type: 'DATETIME', description: 'Data timestamp' },
-            { name: 'Value', type: 'FLOAT', description: 'Process value' },
-            { name: 'Quality', type: 'STRING', description: 'Data quality flag' },
-            { name: 'UnitsAbbreviation', type: 'STRING', description: 'Engineering units' }
+            { name: 'WellPadID', type: 'STRING', description: 'Well pad identifier (e.g., Well Pad 001, 002)' },
+            { name: 'BitWeight', type: 'FLOAT', description: 'Drilling bit weight in pounds' },
+            { name: 'BlockHeight', type: 'FLOAT', description: 'Block height measurement' },
+            { name: 'DiffPress', type: 'FLOAT', description: 'Differential pressure across system' },
+            { name: 'FlowInRate', type: 'FLOAT', description: 'Mud flow in rate (gallons/minute)' },
+            { name: 'HoleDepth', type: 'FLOAT', description: 'Current hole depth in feet' },
+            { name: 'HookLoad', type: 'FLOAT', description: 'Hook load measurement' },
+            { name: 'PumpPressure', type: 'FLOAT', description: 'Mud pump pressure (PSI)' },
+            { name: 'TopDriveRPM', type: 'FLOAT', description: 'Top drive rotation speed (RPM)' },
+            { name: 'TopDriveTorque', type: 'FLOAT', description: 'Top drive torque measurement' }
           ],
-          recordCount: 115000,
+          recordCount: 125000,
           lastUpdated: '2025-01-15 09:19:00'
         },
         {
-          table: 'ASSET_ELEMENTS',
+          table: 'STREAMING_VIEWS',
           fields: [
-            { name: 'ElementId', type: 'STRING', description: 'Asset element identifier' },
-            { name: 'Name', type: 'STRING', description: 'Asset element name' },
-            { name: 'Path', type: 'STRING', description: 'Asset framework path' },
-            { name: 'TemplateName', type: 'STRING', description: 'Asset template' },
-            { name: 'Description', type: 'STRING', description: 'Asset description' }
+            { name: 'ViewName', type: 'STRING', description: 'View identifier (e.g., Cristal_Demo_Exercise)' },
+            { name: 'RunStatus', type: 'STRING', description: 'Current status (Publishing, Stopped, Not Yet Published)' },
+            { name: 'ViewType', type: 'STRING', description: 'Type (Asset, Event, Streaming Out)' },
+            { name: 'RunMode', type: 'STRING', description: 'Execution mode (Once, Continuous, Scheduled)' },
+            { name: 'StartTime', type: 'STRING', description: 'Scheduled start time' },
+            { name: 'Interval', type: 'STRING', description: 'Update interval (minutes, hours, days)' }
           ],
-          recordCount: 2300,
+          recordCount: 45,
           lastUpdated: '2025-01-15 09:15:00'
         }
       ],
       sampleData: {
-        'PI_POINTS': [
-          { Name: 'REACTOR_TEMP_01', WebId: 'P0jUQU9MQVIrZo4', Descriptor: 'Reactor Temperature Sensor 1', PointType: 'Float32', EngineeringUnits: '°C', PointClass: 'classic' },
-          { Name: 'PUMP_SPEED_01', WebId: 'P0jUQU9MQVIrZo5', Descriptor: 'Primary Pump Speed', PointType: 'Float32', EngineeringUnits: 'RPM', PointClass: 'classic' },
-          { Name: 'PRESSURE_PT_01', WebId: 'P0jUQU9MQVIrZo6', Descriptor: 'Main Line Pressure', PointType: 'Float32', EngineeringUnits: 'PSI', PointClass: 'classic' },
-          { Name: 'FLOW_RATE_01', WebId: 'P0jUQU9MQVIrZo7', Descriptor: 'Feed Flow Rate', PointType: 'Float32', EngineeringUnits: 'GPM', PointClass: 'classic' },
-          { Name: 'VALVE_POS_01', WebId: 'P0jUQU9MQVIrZo8', Descriptor: 'Control Valve Position', PointType: 'Float32', EngineeringUnits: '%', PointClass: 'classic' }
+        'ASSET_HIERARCHY': [
+          { AssetName: 'PetroLux Corporation', AssetPath: 'Root', AssetType: 'Corporation', Location: 'Global', OperationalStatus: 'Active', LastUpdate: '2025-01-15T09:20:00Z' },
+          { AssetName: 'Upstream Operations', AssetPath: 'PetroLux/Upstream', AssetType: 'Business Unit', Location: 'North America', OperationalStatus: 'Active', LastUpdate: '2025-01-15T09:19:45Z' },
+          { AssetName: 'Conventional Oil', AssetPath: 'PetroLux/Upstream/Conventional Oil', AssetType: 'Asset Group', Location: 'Alberta, Canada', OperationalStatus: 'Active', LastUpdate: '2025-01-15T09:19:30Z' },
+          { AssetName: 'Fort McMurray Field', AssetPath: 'PetroLux/Upstream/Conventional Oil/Fort McMurray Field', AssetType: 'Field', Location: 'Fort McMurray, AB', OperationalStatus: 'Producing', LastUpdate: '2025-01-15T09:19:15Z' },
+          { AssetName: 'Well Pad 001', AssetPath: 'PetroLux/Upstream/Conventional Oil/Fort McMurray Field/Well Pad 001', AssetType: 'Well Pad', Location: 'Section 12', OperationalStatus: 'Drilling', LastUpdate: '2025-01-15T09:19:00Z' }
         ],
-        'PROCESS_DATA': [
-          { TagName: 'REACTOR_TEMP_01', Timestamp: '2025-01-15T09:19:30Z', Value: 85.4, Quality: 'Good', UnitsAbbreviation: '°C' },
-          { TagName: 'PUMP_SPEED_01', Timestamp: '2025-01-15T09:19:30Z', Value: 1750.2, Quality: 'Good', UnitsAbbreviation: 'RPM' },
-          { TagName: 'PRESSURE_PT_01', Timestamp: '2025-01-15T09:19:30Z', Value: 125.8, Quality: 'Good', UnitsAbbreviation: 'PSI' },
-          { TagName: 'FLOW_RATE_01', Timestamp: '2025-01-15T09:19:30Z', Value: 245.6, Quality: 'Good', UnitsAbbreviation: 'GPM' },
-          { TagName: 'VALVE_POS_01', Timestamp: '2025-01-15T09:19:30Z', Value: 67.3, Quality: 'Good', UnitsAbbreviation: '%' }
+        'DRILLING_OPERATIONS': [
+          { WellPadID: 'Well Pad 001', BitWeight: 25000.5, BlockHeight: 87.2, DiffPress: 1250.8, FlowInRate: 450.2, HoleDepth: 8942.1, HookLoad: 285000.0, PumpPressure: 3200.5, TopDriveRPM: 125.8, TopDriveTorque: 15250.2 },
+          { WellPadID: 'Well Pad 002', BitWeight: 23500.0, BlockHeight: 91.5, DiffPress: 1180.2, FlowInRate: 425.8, HoleDepth: 9156.7, HookLoad: 275000.0, PumpPressure: 3150.0, TopDriveRPM: 130.2, TopDriveTorque: 14800.5 },
+          { WellPadID: 'Well Pad 003', BitWeight: 26200.8, BlockHeight: 85.9, DiffPress: 1320.5, FlowInRate: 465.1, HoleDepth: 8755.3, HookLoad: 295000.0, PumpPressure: 3280.7, TopDriveRPM: 122.4, TopDriveTorque: 15850.9 },
+          { WellPadID: 'Well Pad 004', BitWeight: 24800.2, BlockHeight: 89.3, DiffPress: 1205.9, FlowInRate: 440.7, HoleDepth: 9012.8, HookLoad: 280000.0, PumpPressure: 3180.3, TopDriveRPM: 128.6, TopDriveTorque: 15100.4 },
+          { WellPadID: 'Well Pad 005', BitWeight: 25600.1, BlockHeight: 88.7, DiffPress: 1275.3, FlowInRate: 455.9, HoleDepth: 8888.6, HookLoad: 290000.0, PumpPressure: 3220.8, TopDriveRPM: 126.1, TopDriveTorque: 15420.7 }
         ],
-        'ASSET_ELEMENTS': [
-          { ElementId: 'E001', Name: 'Reactor Unit 1', Path: '\\PISERVER\\Plant\\ProcessArea\\Reactor01', TemplateName: 'ReactorTemplate', Description: 'Primary chemical reactor' },
-          { ElementId: 'E002', Name: 'Feed Pump 1', Path: '\\PISERVER\\Plant\\Utilities\\Pump01', TemplateName: 'PumpTemplate', Description: 'Main feed pump assembly' },
-          { ElementId: 'E003', Name: 'Heat Exchanger 1', Path: '\\PISERVER\\Plant\\ProcessArea\\HX01', TemplateName: 'HeatExchangerTemplate', Description: 'Process heat exchanger' },
-          { ElementId: 'E004', Name: 'Control Valve CV-101', Path: '\\PISERVER\\Plant\\Control\\CV101', TemplateName: 'ValveTemplate', Description: 'Primary flow control valve' },
-          { ElementId: 'E005', Name: 'Storage Tank T-201', Path: '\\PISERVER\\Plant\\Storage\\Tank201', TemplateName: 'TankTemplate', Description: 'Raw material storage tank' }
+        'STREAMING_VIEWS': [
+          { ViewName: 'Cristal_Demo_Exercise', RunStatus: 'Stopped By User', ViewType: 'Asset', RunMode: 'Continuous', StartTime: '~8h', Interval: 'Real-time' },
+          { ViewName: 'Compressor Rollup', RunStatus: 'Not Yet Published', ViewType: 'Asset', RunMode: 'Continuous', StartTime: '~8h', Interval: '5 minutes' },
+          { ViewName: 'Concentrator Modes', RunStatus: 'Publishing', ViewType: 'Event', RunMode: 'Continuous', StartTime: '6/26/18 1:07', Interval: 'On change' },
+          { ViewName: 'BSQUASSONI - LRS 2018', RunStatus: 'Not Yet Published', ViewType: 'Asset', RunMode: 'Once', StartTime: '~1mo', Interval: 'N/A' },
+          { ViewName: 'BWK Test for DCP', RunStatus: 'Not Yet Published', ViewType: 'Event', RunMode: 'Once', StartTime: '~8h', Interval: 'N/A' }
         ]
       }
     }
@@ -413,6 +428,24 @@ export default function DataIntegrationTab() {
 
   const handleConnect = (dataSource: AvailableDataSource) => {
     setSelectedDataSource(dataSource);
+    // Set PI-specific default configuration
+    if (dataSource.id === 'aveva-pi') {
+      setConnectionConfig({
+        host: 'pi-server.company.com',
+        port: '443',
+        database: 'DFPIAF',
+        username: 'pi_service',
+        password: ''
+      });
+    } else {
+      setConnectionConfig({
+        host: '',
+        port: '',
+        database: '',
+        username: '',
+        password: ''
+      });
+    }
     setShowConnectionDialog(true);
   };
 
