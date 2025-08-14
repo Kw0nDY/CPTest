@@ -3,6 +3,7 @@ import Header from "@/components/layout/header";
 import Sidebar from "@/components/layout/sidebar";
 import DataIntegrationTab from "@/components/data-integration/data-integration-tab";
 import ViewListTab from "@/components/view/view-list-tab";
+import ViewSettingTab from "@/components/view/view-setting-tab";
 import AutomationListTab from "@/components/automation/automation-list-tab";
 import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
 import BOIOverviewTab from "@/components/boi/boi-overview-tab";
@@ -29,7 +30,7 @@ export default function Dashboard() {
       case "data-integration":
         return <DataIntegrationTab />;
       case "view-setting":
-        return <SettingPage currentUser={currentUser} />;
+        return <ViewSettingTab />;
       case "automation":
         return <AutomationListTab />;
       case "model-upload":

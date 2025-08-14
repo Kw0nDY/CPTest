@@ -13,6 +13,13 @@ The platform has been fully localized to English while maintaining Korean commun
 - AI Fac (with sub-items: Upload Models, Model Configuration)  
 - BOI (with sub-items: Overview, Input Setting, AI Insights, Reports)
 
+**View Setting Features:**
+- Dynamic UI creation system for building custom dashboard views
+- Data source integration from connected systems (AVEVA PI, SAP ERP, Oracle, Salesforce)
+- Drag-and-drop component editor with charts, tables, metrics, and visualization elements
+- Assignment management system for users and departments
+- Full-screen editor interface for comprehensive view customization
+
 **Management Section:**
 - Member (Member Management)
 - APIs (API Management)

@@ -67,7 +67,7 @@ const sampleAssignedViews: AssignedView[] = [
 
 export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['data-integration'])
+    new Set(['data-integration', 'main-menu'])
   );
   const [assignedViews, setAssignedViews] = useState<AssignedView[]>(sampleAssignedViews);
 
