@@ -148,6 +148,10 @@ export default function ViewSettingTab() {
     setViews([...views, view]);
     setNewView({ name: '', description: '', type: 'dashboard', dataSources: [] });
     setIsCreateModalOpen(false);
+    
+    // 새로 생성한 뷰를 바로 에디터로 열기
+    setSelectedView(view);
+    setIsEditorOpen(true);
   };
 
   const handleEditView = (view: ViewConfig) => {
@@ -263,7 +267,14 @@ export default function ViewSettingTab() {
               </div>
               
               <div className="flex space-x-2 pt-4">
-                <Button onClick={handleCreateView} className="flex-1">Create</Button>
+                <Button 
+                  onClick={handleCreateView} 
+                  className="flex-1"
+                  disabled={!newView.name.trim()}
+                  data-testid="create-view-submit"
+                >
+                  Create & Edit
+                </Button>
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} className="flex-1">Cancel</Button>
               </div>
             </div>
