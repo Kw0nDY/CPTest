@@ -23,6 +23,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import ViewEditor from "./view-editor-embedded";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface UIComponent {
   id: string;
@@ -67,47 +70,7 @@ interface ViewConfig {
   updatedAt: string;
 }
 
-const sampleViews: ViewConfig[] = [
-  {
-    id: 'view-drilling',
-    name: 'Drilling Operations Monitor',
-    description: 'Real-time monitoring of drilling operations with automated alerts',
-    type: 'monitor',
-    status: 'active',
-    assignedTo: ['mike', 'david'],
-    assignedDepartments: ['IT Department'],
-    dataSources: ['aveva-pi', 'sap-erp'],
-    layout: { grids: [] },
-    createdAt: '2024-01-15',
-    updatedAt: '2024-01-15'
-  },
-  {
-    id: 'view-production',
-    name: 'Production Performance Dashboard',
-    description: 'Asset performance tracking with automated reporting',
-    type: 'dashboard',
-    status: 'active',
-    assignedTo: ['mike'],
-    assignedDepartments: ['Operations'],
-    dataSources: ['aveva-pi', 'oracle-db'],
-    layout: { grids: [] },
-    createdAt: '2024-01-14',
-    updatedAt: '2024-01-15'
-  },
-  {
-    id: 'view-maintenance',
-    name: 'Equipment Maintenance Events',
-    description: 'Event-driven maintenance scheduling and tracking',
-    type: 'analytics',
-    status: 'draft',
-    assignedTo: ['sarah'],
-    assignedDepartments: ['Operations'],
-    dataSources: ['sap-erp'],
-    layout: { grids: [] },
-    createdAt: '2024-01-13',
-    updatedAt: '2024-01-14'
-  }
-];
+// Views data now comes from API
 
 const availableUsers = [
   { id: 'admin', name: 'Admin', department: 'System' },
@@ -127,17 +90,10 @@ const availableDataSources = [
 ];
 
 export default function ViewSettingTab() {
-  const [views, setViews] = useState<ViewConfig[]>(sampleViews);
   const [selectedView, setSelectedView] = useState<ViewConfig | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [newView, setNewView] = useState({
-    name: '',
-    description: '',
-    type: 'dashboard' as const,
-    dataSources: [] as string[]
-  });
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -159,33 +115,22 @@ export default function ViewSettingTab() {
   };
 
   const handleCreateView = () => {
-    const id = `view-${Date.now()}`;
-    const view: ViewConfig = {
-      id,
-      name: newView.name,
-      description: newView.description,
-      type: newView.type,
-      status: 'draft',
-      assignedTo: [],
-      assignedDepartments: [],
-      dataSources: newView.dataSources,
-      layout: { grids: [] },
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-    
-    setViews([...views, view]);
-    setNewView({ name: '', description: '', type: 'dashboard', dataSources: [] });
-    setIsCreateModalOpen(false);
-    
-    // 새로 생성한 뷰를 바로 에디터로 열기
-    setSelectedView(view);
-    setIsEditorOpen(true);
+    createViewMutation.mutate(newView);
+  };
+
+  const handleSaveView = (view: ViewConfig) => {
+    updateViewMutation.mutate(view);
+    setShowEditor(false);
+    setEditingView(null);
+  };
+
+  const handleDeleteView = (viewId: string) => {
+    deleteViewMutation.mutate(viewId);
   };
 
   const handleEditView = (view: ViewConfig) => {
-    setSelectedView(view);
-    setIsEditorOpen(true);
+    setEditingView(view);
+    setShowEditor(true);
   };
 
   const handleAssignView = (view: ViewConfig) => {
@@ -194,27 +139,30 @@ export default function ViewSettingTab() {
   };
 
   const toggleViewStatus = (viewId: string) => {
-    setViews(views.map(view => 
-      view.id === viewId 
-        ? { ...view, status: view.status === 'active' ? 'paused' : 'active' as any }
-        : view
-    ));
+    const view = views.find(v => v.id === viewId);
+    if (view) {
+      const updatedView = {
+        ...view,
+        status: view.status === 'active' ? 'paused' : 'active'
+      } as ViewConfig;
+      updateViewMutation.mutate(updatedView);
+    }
   };
 
   const deleteView = (viewId: string) => {
-    setViews(views.filter(view => view.id !== viewId));
+    deleteViewMutation.mutate(viewId);
   };
 
   const duplicateView = (view: ViewConfig) => {
-    const newView: ViewConfig = {
-      ...view,
-      id: `view-${Date.now()}`,
+    const duplicatedView = {
+      ...newView,
       name: `${view.name} (Copy)`,
-      status: 'draft',
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
+      description: view.description,
+      type: view.type,
+      assignedTo: view.assignedTo,
+      assignedDepartments: view.assignedDepartments
     };
-    setViews([...views, newView]);
+    createViewMutation.mutate(duplicatedView);
   };
 
   return (
@@ -412,18 +360,14 @@ export default function ViewSettingTab() {
                         id={`user-${user.id}`}
                         checked={selectedView.assignedTo.includes(user.id)}
                         onCheckedChange={(checked) => {
-                          const updatedViews = views.map(view => 
-                            view.id === selectedView.id
-                              ? {
-                                  ...view,
-                                  assignedTo: checked
-                                    ? [...view.assignedTo, user.id]
-                                    : view.assignedTo.filter(id => id !== user.id)
-                                }
-                              : view
-                          );
-                          setViews(updatedViews);
-                          setSelectedView(updatedViews.find(v => v.id === selectedView.id) || selectedView);
+                          const updatedView = {
+                            ...selectedView,
+                            assignedTo: checked
+                              ? [...selectedView.assignedTo, user.id]
+                              : selectedView.assignedTo.filter(id => id !== user.id)
+                          };
+                          setSelectedView(updatedView);
+                          updateViewMutation.mutate(updatedView);
                         }}
                       />
                       <Label htmlFor={`user-${user.id}`} className="text-sm">
@@ -443,18 +387,14 @@ export default function ViewSettingTab() {
                         id={`dept-${dept}`}
                         checked={selectedView.assignedDepartments.includes(dept)}
                         onCheckedChange={(checked) => {
-                          const updatedViews = views.map(view => 
-                            view.id === selectedView.id
-                              ? {
-                                  ...view,
-                                  assignedDepartments: checked
-                                    ? [...view.assignedDepartments, dept]
-                                    : view.assignedDepartments.filter(d => d !== dept)
-                                }
-                              : view
-                          );
-                          setViews(updatedViews);
-                          setSelectedView(updatedViews.find(v => v.id === selectedView.id) || selectedView);
+                          const updatedView = {
+                            ...selectedView,
+                            assignedDepartments: checked
+                              ? [...selectedView.assignedDepartments, dept]
+                              : selectedView.assignedDepartments.filter(d => d !== dept)
+                          };
+                          setSelectedView(updatedView);
+                          updateViewMutation.mutate(updatedView);
                         }}
                       />
                       <Label htmlFor={`dept-${dept}`} className="text-sm">{dept}</Label>
@@ -472,14 +412,14 @@ export default function ViewSettingTab() {
       </Dialog>
 
       {/* Full-screen View Editor */}
-      {isEditorOpen && selectedView && (
+      {showEditor && editingView && (
         <ViewEditor
-          view={selectedView}
-          onClose={() => setIsEditorOpen(false)}
-          onSave={(updatedView: ViewConfig) => {
-            setViews(views.map(v => v.id === updatedView.id ? updatedView : v));
-            setIsEditorOpen(false);
+          view={editingView}
+          onClose={() => {
+            setShowEditor(false);
+            setEditingView(null);
           }}
+          onSave={handleSaveView}
         />
       )}
     </div>

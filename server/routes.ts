@@ -1,276 +1,273 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertDataSourceSchema,
-  insertDataMappingSchema,
-  insertWorkflowSchema,
-  insertAiModelSchema,
-  insertBoiConfigurationSchema
-} from "@shared/schema";
+import { insertViewSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Data Sources
-  app.get("/api/data-sources", async (req, res) => {
+  // Views API
+  app.get("/api/views", async (req, res) => {
     try {
-      const dataSources = await storage.getDataSources();
+      const views = await storage.getViews();
+      res.json(views);
+    } catch (error) {
+      console.error("Error fetching views:", error);
+      res.status(500).json({ error: "Failed to fetch views" });
+    }
+  });
+
+  app.get("/api/views/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const view = await storage.getView(id);
+      if (!view) {
+        return res.status(404).json({ error: "View not found" });
+      }
+      res.json(view);
+    } catch (error) {
+      console.error("Error fetching view:", error);
+      res.status(500).json({ error: "Failed to fetch view" });
+    }
+  });
+
+  app.post("/api/views", async (req, res) => {
+    try {
+      const validatedData = insertViewSchema.parse(req.body);
+      const view = await storage.createView(validatedData);
+      res.status(201).json(view);
+    } catch (error) {
+      console.error("Error creating view:", error);
+      res.status(400).json({ error: "Invalid view data" });
+    }
+  });
+
+  app.put("/api/views/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const view = await storage.updateView(id, req.body);
+      res.json(view);
+    } catch (error) {
+      console.error("Error updating view:", error);
+      res.status(500).json({ error: "Failed to update view" });
+    }
+  });
+
+  app.delete("/api/views/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteView(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting view:", error);
+      res.status(500).json({ error: "Failed to delete view" });
+    }
+  });
+
+  // Data Source Schema & Sample Data API
+  app.get("/api/data-sources/:id/schema", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Mock data source schemas and sample data
+      const dataSourceSchemas = {
+        'aveva-pi': {
+          tables: [
+            {
+              name: 'MEASUREMENTS',
+              recordCount: 15420,
+              description: 'Real-time equipment measurements',
+              fields: [
+                { name: 'MEASUREMENT_ID', type: 'VARCHAR(10)', description: 'Unique measurement identifier' },
+                { name: 'EQUIPMENT_ID', type: 'VARCHAR(20)', description: 'Equipment identifier' },
+                { name: 'TEMPERATURE', type: 'DECIMAL(5,2)', description: 'Temperature readings in Celsius' },
+                { name: 'PRESSURE', type: 'DECIMAL(7,2)', description: 'Pressure measurements in PSI' },
+                { name: 'FLOW_RATE', type: 'DECIMAL(6,2)', description: 'Flow rate in L/min' },
+                { name: 'TIMESTAMP', type: 'DATETIME', description: 'Measurement timestamp' },
+                { name: 'STATUS', type: 'VARCHAR(20)', description: 'Equipment status' }
+              ],
+              sampleData: [
+                {
+                  MEASUREMENT_ID: 'M001',
+                  EQUIPMENT_ID: 'EQ-DRILL-001',
+                  TEMPERATURE: 23.5,
+                  PRESSURE: 1013.25,
+                  FLOW_RATE: 45.2,
+                  TIMESTAMP: '2025-01-15 09:30:00',
+                  STATUS: 'Running'
+                },
+                {
+                  MEASUREMENT_ID: 'M002', 
+                  EQUIPMENT_ID: 'EQ-DRILL-002',
+                  TEMPERATURE: 24.1,
+                  PRESSURE: 1014.2,
+                  FLOW_RATE: 46.1,
+                  TIMESTAMP: '2025-01-15 09:31:00',
+                  STATUS: 'Running'
+                },
+                {
+                  MEASUREMENT_ID: 'M003',
+                  EQUIPMENT_ID: 'EQ-DRILL-003', 
+                  TEMPERATURE: 22.8,
+                  PRESSURE: 1012.8,
+                  FLOW_RATE: 44.8,
+                  TIMESTAMP: '2025-01-15 09:32:00',
+                  STATUS: 'Idle'
+                }
+              ]
+            }
+          ]
+        },
+        'sap-erp': {
+          tables: [
+            {
+              name: 'CUSTOMERS',
+              recordCount: 15420,
+              description: 'Customer information and accounts',
+              fields: [
+                { name: 'CUSTOMER_ID', type: 'VARCHAR(10)', description: 'Unique customer identifier' },
+                { name: 'CUSTOMER_NAME', type: 'VARCHAR(100)', description: 'Customer company name' },
+                { name: 'COUNTRY', type: 'VARCHAR(50)', description: 'Customer country' },
+                { name: 'CREDIT_LIMIT', type: 'DECIMAL(15,2)', description: 'Customer credit limit' },
+                { name: 'CREATED_DATE', type: 'DATE', description: 'Account creation date' }
+              ],
+              sampleData: [
+                {
+                  CUSTOMER_ID: 'CUST001',
+                  CUSTOMER_NAME: 'Acme Manufacturing Co.',
+                  COUNTRY: 'USA',
+                  CREDIT_LIMIT: 500000,
+                  CREATED_DATE: '2023-03-15'
+                },
+                {
+                  CUSTOMER_ID: 'CUST002',
+                  CUSTOMER_NAME: 'Global Tech Solutions',
+                  COUNTRY: 'Germany', 
+                  CREDIT_LIMIT: 750000,
+                  CREATED_DATE: '2023-01-08'
+                },
+                {
+                  CUSTOMER_ID: 'CUST003',
+                  CUSTOMER_NAME: 'Innovation Ltd.',
+                  COUNTRY: 'UK',
+                  CREDIT_LIMIT: 300000,
+                  CREATED_DATE: '2023-05-22'
+                }
+              ]
+            }
+          ]
+        },
+        'oracle-db': {
+          tables: [
+            {
+              name: 'USER_SESSIONS',
+              recordCount: 8745,
+              description: 'User login and session data',
+              fields: [
+                { name: 'SESSION_ID', type: 'VARCHAR(20)', description: 'Unique session identifier' },
+                { name: 'USER_ID', type: 'VARCHAR(10)', description: 'User identifier' },
+                { name: 'LOGIN_TIME', type: 'DATETIME', description: 'Login timestamp' },
+                { name: 'SESSION_DURATION', type: 'INTEGER', description: 'Session length in minutes' },
+                { name: 'PAGE_VIEWS', type: 'INTEGER', description: 'Number of page views' },
+                { name: 'USER_TYPE', type: 'VARCHAR(20)', description: 'User category' }
+              ],
+              sampleData: [
+                {
+                  SESSION_ID: 'S2025011509001',
+                  USER_ID: 'U001',
+                  LOGIN_TIME: '2025-01-15 09:00:00',
+                  SESSION_DURATION: 45,
+                  PAGE_VIEWS: 12,
+                  USER_TYPE: 'Admin'
+                },
+                {
+                  SESSION_ID: 'S2025011509002',
+                  USER_ID: 'U002', 
+                  LOGIN_TIME: '2025-01-15 09:05:00',
+                  SESSION_DURATION: 62,
+                  PAGE_VIEWS: 8,
+                  USER_TYPE: 'Manager'
+                },
+                {
+                  SESSION_ID: 'S2025011509003',
+                  USER_ID: 'U003',
+                  LOGIN_TIME: '2025-01-15 09:10:00', 
+                  SESSION_DURATION: 38,
+                  PAGE_VIEWS: 15,
+                  USER_TYPE: 'User'
+                }
+              ]
+            }
+          ]
+        },
+        'salesforce': {
+          tables: [
+            {
+              name: 'LEADS',
+              recordCount: 3267,
+              description: 'Sales leads and prospects',
+              fields: [
+                { name: 'LEAD_ID', type: 'VARCHAR(15)', description: 'Lead identifier' },
+                { name: 'COMPANY', type: 'VARCHAR(100)', description: 'Company name' },
+                { name: 'LEAD_SCORE', type: 'INTEGER', description: 'Lead qualification score' },
+                { name: 'CREATED_DATE', type: 'DATE', description: 'Lead creation date' },
+                { name: 'STAGE', type: 'VARCHAR(30)', description: 'Sales stage' },
+                { name: 'INDUSTRY', type: 'VARCHAR(50)', description: 'Industry sector' }
+              ],
+              sampleData: [
+                {
+                  LEAD_ID: 'L20250115001',
+                  COMPANY: 'Tech Corp',
+                  LEAD_SCORE: 85,
+                  CREATED_DATE: '2025-01-15',
+                  STAGE: 'Qualified',
+                  INDUSTRY: 'Technology'
+                },
+                {
+                  LEAD_ID: 'L20250115002',
+                  COMPANY: 'Innovation Ltd',
+                  LEAD_SCORE: 92,
+                  CREATED_DATE: '2025-01-14', 
+                  STAGE: 'Proposal',
+                  INDUSTRY: 'Healthcare'
+                },
+                {
+                  LEAD_ID: 'L20250115003',
+                  COMPANY: 'Future Inc',
+                  LEAD_SCORE: 76,
+                  CREATED_DATE: '2025-01-13',
+                  STAGE: 'Negotiation',
+                  INDUSTRY: 'Finance'
+                }
+              ]
+            }
+          ]
+        }
+      };
+
+      const schema = dataSourceSchemas[id as keyof typeof dataSourceSchemas];
+      if (!schema) {
+        return res.status(404).json({ error: "Data source not found" });
+      }
+
+      res.json(schema);
+    } catch (error) {
+      console.error("Error fetching data source schema:", error);
+      res.status(500).json({ error: "Failed to fetch data source schema" });
+    }
+  });
+
+  // Data sources list endpoint
+  app.get('/api/data-sources', (req, res) => {
+    try {
+      const dataSources = [
+        { id: 'aveva-pi', name: 'AVEVA PI System', type: 'Industrial Data', status: 'connected' },
+        { id: 'sap-erp', name: 'SAP ERP', type: 'Enterprise Resource Planning', status: 'connected' },
+        { id: 'oracle-db', name: 'Oracle Database', type: 'Database', status: 'connected' },
+        { id: 'salesforce', name: 'Salesforce CRM', type: 'Customer Relationship Management', status: 'connected' }
+      ];
       res.json(dataSources);
     } catch (error) {
-      console.error("Error fetching data sources:", error);
-      res.status(500).json({ error: "Failed to fetch data sources" });
-    }
-  });
-
-  app.post("/api/data-sources", async (req, res) => {
-    try {
-      const validatedData = insertDataSourceSchema.parse(req.body);
-      const dataSource = await storage.createDataSource(validatedData);
-      res.status(201).json(dataSource);
-    } catch (error) {
-      console.error("Error creating data source:", error);
-      res.status(400).json({ error: "Invalid data source data" });
-    }
-  });
-
-  app.put("/api/data-sources/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const dataSource = await storage.updateDataSource(id, req.body);
-      if (!dataSource) {
-        return res.status(404).json({ error: "Data source not found" });
-      }
-      res.json(dataSource);
-    } catch (error) {
-      console.error("Error updating data source:", error);
-      res.status(500).json({ error: "Failed to update data source" });
-    }
-  });
-
-  app.post("/api/data-sources/:id/test", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const dataSource = await storage.getDataSource(id);
-      if (!dataSource) {
-        return res.status(404).json({ error: "Data source not found" });
-      }
-      
-      // Simulate connection test
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const isConnected = Math.random() > 0.2; // 80% success rate
-      
-      if (isConnected) {
-        await storage.updateDataSource(id, { status: "connected", lastSync: new Date() });
-        res.json({ success: true, message: "Connection successful" });
-      } else {
-        await storage.updateDataSource(id, { status: "error" });
-        res.status(400).json({ success: false, message: "Connection failed" });
-      }
-    } catch (error) {
-      console.error("Error testing connection:", error);
-      res.status(500).json({ error: "Failed to test connection" });
-    }
-  });
-
-  // Data Mappings
-  app.get("/api/data-mappings", async (req, res) => {
-    try {
-      const { dataSourceId } = req.query;
-      const mappings = await storage.getDataMappings(dataSourceId as string);
-      res.json(mappings);
-    } catch (error) {
-      console.error("Error fetching data mappings:", error);
-      res.status(500).json({ error: "Failed to fetch data mappings" });
-    }
-  });
-
-  app.post("/api/data-mappings", async (req, res) => {
-    try {
-      const validatedData = insertDataMappingSchema.parse(req.body);
-      const mapping = await storage.createDataMapping(validatedData);
-      res.status(201).json(mapping);
-    } catch (error) {
-      console.error("Error creating data mapping:", error);
-      res.status(400).json({ error: "Invalid data mapping data" });
-    }
-  });
-
-  // Workflows
-  app.get("/api/workflows", async (req, res) => {
-    try {
-      const workflows = await storage.getWorkflows();
-      res.json(workflows);
-    } catch (error) {
-      console.error("Error fetching workflows:", error);
-      res.status(500).json({ error: "Failed to fetch workflows" });
-    }
-  });
-
-  app.post("/api/workflows", async (req, res) => {
-    try {
-      const validatedData = insertWorkflowSchema.parse(req.body);
-      const workflow = await storage.createWorkflow(validatedData);
-      res.status(201).json(workflow);
-    } catch (error) {
-      console.error("Error creating workflow:", error);
-      res.status(400).json({ error: "Invalid workflow data" });
-    }
-  });
-
-  app.put("/api/workflows/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const workflow = await storage.updateWorkflow(id, req.body);
-      if (!workflow) {
-        return res.status(404).json({ error: "Workflow not found" });
-      }
-      res.json(workflow);
-    } catch (error) {
-      console.error("Error updating workflow:", error);
-      res.status(500).json({ error: "Failed to update workflow" });
-    }
-  });
-
-  // AI Models
-  app.get("/api/ai-models", async (req, res) => {
-    try {
-      const models = await storage.getAiModels();
-      res.json(models);
-    } catch (error) {
-      console.error("Error fetching AI models:", error);
-      res.status(500).json({ error: "Failed to fetch AI models" });
-    }
-  });
-
-  app.post("/api/ai-models", async (req, res) => {
-    try {
-      const validatedData = insertAiModelSchema.parse(req.body);
-      const model = await storage.createAiModel(validatedData);
-      res.status(201).json(model);
-    } catch (error) {
-      console.error("Error creating AI model:", error);
-      res.status(400).json({ error: "Invalid AI model data" });
-    }
-  });
-
-  app.post("/api/ai-models/upload", async (req, res) => {
-    // Mock implementation for file upload
-    res.json({ success: true, message: "Model uploaded successfully" });
-  });
-
-  app.post("/api/ai-models/:id/test", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const model = await storage.getAiModel(id);
-      if (!model) {
-        return res.status(404).json({ error: "AI model not found" });
-      }
-      
-      const inputData = req.body;
-      
-      // Simulate model prediction
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock prediction results based on model type
-      let prediction;
-      if (model.type === "classification") {
-        prediction = {
-          customer_segment: "Premium",
-          confidence_score: 0.92
-        };
-      } else {
-        prediction = { result: "Model prediction completed" };
-      }
-      
-      res.json({ success: true, prediction });
-    } catch (error) {
-      console.error("Error testing AI model:", error);
-      res.status(500).json({ error: "Failed to test AI model" });
-    }
-  });
-
-  // BOI Configurations
-  app.get("/api/boi-configurations", async (req, res) => {
-    try {
-      const configurations = await storage.getBoiConfigurations();
-      res.json(configurations);
-    } catch (error) {
-      console.error("Error fetching BOI configurations:", error);
-      res.status(500).json({ error: "Failed to fetch BOI configurations" });
-    }
-  });
-
-  app.post("/api/boi-configurations", async (req, res) => {
-    try {
-      const validatedData = insertBoiConfigurationSchema.parse(req.body);
-      const configuration = await storage.createBoiConfiguration(validatedData);
-      res.status(201).json(configuration);
-    } catch (error) {
-      console.error("Error creating BOI configuration:", error);
-      res.status(400).json({ error: "Invalid BOI configuration data" });
-    }
-  });
-
-  // Automation routes
-  app.get("/api/automations", async (req, res) => {
-    res.json([]);
-  });
-
-  app.post("/api/automations/:id/start", async (req, res) => {
-    res.json({ success: true, message: "Automation started" });
-  });
-
-  app.post("/api/automations/:id/pause", async (req, res) => {
-    res.json({ success: true, message: "Automation paused" });
-  });
-
-  // BOI routes
-  app.get("/api/boi/overview", async (req, res) => {
-    res.json({
-      totalDataSources: 8,
-      activeConnections: 6,
-      aiModelsDeployed: 3,
-      automationsRunning: 12,
-      dataProcessedToday: 45230,
-      predictionsGenerated: 1247,
-      averageAccuracy: 94.2,
-      systemHealth: 'excellent'
-    });
-  });
-
-  app.get("/api/boi/data-flows", async (req, res) => {
-    res.json([]);
-  });
-
-  app.get("/api/boi/insights", async (req, res) => {
-    res.json([]);
-  });
-
-  app.post("/api/boi-configurations/:id/test", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const config = await storage.getBoiConfiguration(id);
-      if (!config) {
-        return res.status(404).json({ error: "BOI configuration not found" });
-      }
-      
-      const inputData = req.body;
-      
-      // Simulate BOI pipeline execution
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock combined result
-      const result = {
-        ...inputData,
-        customer_segment: "Premium",
-        confidence_score: 0.94,
-        prediction_timestamp: new Date().toISOString()
-      };
-      
-      res.json({ success: true, result });
-    } catch (error) {
-      console.error("Error testing BOI configuration:", error);
-      res.status(500).json({ error: "Failed to test BOI configuration" });
+      console.error('Error getting data sources:', error);
+      res.status(500).json({ error: 'Failed to get data sources' });
     }
   });
 
