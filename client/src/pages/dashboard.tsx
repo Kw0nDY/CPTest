@@ -10,6 +10,65 @@ import BOIOverviewTab from "@/components/boi/boi-overview-tab";
 import SettingPage from "@/pages/setting";
 import ManagementPage from "@/pages/management";
 import { availableUsers, type User } from "@/components/layout/header";
+import ViewComponentRenderer from "@/components/view/view-component-renderer";
+import { useQuery } from "@tanstack/react-query";
+import type { View } from "@shared/schema";
+
+// Dynamic View Renderer Component
+function DynamicViewRenderer({ viewId }: { viewId: string }) {
+  const { data: views = [] } = useQuery<View[]>({
+    queryKey: ['/api/views']
+  });
+
+  // Find the view by matching the viewId pattern
+  const view = views.find(v => {
+    const normalizedName = v.name.toLowerCase().replace(/\s+/g, '-');
+    return `view-${normalizedName}` === viewId;
+  });
+
+  if (!view) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-4">View Not Found</h1>
+        <p className="text-gray-600">The requested view could not be found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">{view.name}</h1>
+        <p className="text-gray-600">{view.description}</p>
+      </div>
+      
+      <div className="space-y-6">
+        {view.layout?.grids?.map((grid, gridIndex) => (
+          <div key={grid.id} className={`grid gap-6 grid-cols-${grid.columns}`}>
+            {grid.components.map((component, componentIndex) => (
+              <div
+                key={component.id}
+                className={`col-span-1`}
+                style={{ order: component.gridPosition }}
+              >
+                <ViewComponentRenderer component={component} />
+              </div>
+            ))}
+          </div>
+        ))}
+        
+        {(!view.layout?.grids || view.layout.grids.length === 0) && (
+          <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-300 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Components</h3>
+              <p className="text-gray-500">This view has no components configured yet.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | "view-drilling" | "view-production" | "view-maintenance";
 
@@ -50,7 +109,7 @@ export default function Dashboard() {
       case "view-drilling":
       case "view-production":
       case "view-maintenance":
-        return <ViewListTab />;
+        return <DynamicViewRenderer viewId={activeView} />;
       default:
         return <DataIntegrationTab />;
     }

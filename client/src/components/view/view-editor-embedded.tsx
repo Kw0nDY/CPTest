@@ -179,36 +179,39 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   };
 
   // Component movement functions
-  const moveComponent = (draggedId: string, targetGridId: string, targetPosition: number) => {
+  const moveComponent = useCallback((draggedId: string, targetGridId: string, targetPosition: number) => {
+    let draggedComponent: UIComponent | null = null;
+    
+    // First, find the dragged component from any grid
+    (editingView.layout?.grids || []).forEach(grid => {
+      const found = grid.components.find(comp => comp.id === draggedId);
+      if (found) draggedComponent = found;
+    });
+    
+    if (!draggedComponent) return;
+    
     const updatedGrids = (editingView.layout?.grids || []).map(grid => {
-      // Remove component from source grid
+      // Remove component from all grids first
       const componentsWithoutDragged = grid.components.filter(comp => comp.id !== draggedId);
       
       if (grid.id === targetGridId) {
-        // Find the dragged component from any grid
-        let draggedComponent: UIComponent | null = null;
-        (editingView.layout?.grids || []).forEach(g => {
-          const found = g.components.find(comp => comp.id === draggedId);
-          if (found) draggedComponent = found;
-        });
+        // Add component to target grid at target position
+        const updatedComponent = { ...draggedComponent, gridPosition: targetPosition };
+        const newComponents = [...componentsWithoutDragged];
         
-        if (draggedComponent) {
-          // Update component position and add to target grid
-          const updatedComponent = { ...draggedComponent, gridPosition: targetPosition };
-          const targetComponents = grid.id === targetGridId ? componentsWithoutDragged : grid.components;
-          targetComponents.splice(targetPosition, 0, updatedComponent);
-          return { ...grid, components: targetComponents };
-        }
+        newComponents.push(updatedComponent);
+        
+        return { ...grid, components: newComponents };
       }
       
       return { ...grid, components: componentsWithoutDragged };
     });
 
-    setEditingView({
-      ...editingView,
+    setEditingView(prev => ({
+      ...prev,
       layout: { grids: updatedGrids }
-    });
-  };
+    }));
+  }, [editingView.layout?.grids]);
 
   const moveComponentWithinGrid = (componentId: string, direction: 'up' | 'down') => {
     const updatedGrids = (editingView.layout?.grids || []).map(grid => {

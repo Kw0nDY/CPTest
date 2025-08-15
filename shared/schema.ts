@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, json, varchar, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -64,7 +64,121 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertViewSchema = createInsertSchema(views);
 
 // Types
+// Data Sources table for integration
+export const dataSources = pgTable('data_sources', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  category: text('category').notNull(),
+  vendor: text('vendor'),
+  status: text('status').notNull().default('disconnected'),
+  config: json('config').notNull(),
+  connectionDetails: json('connection_details'),
+  lastSync: timestamp('last_sync'),
+  recordCount: integer('record_count').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Data Tables (schema information for each data source)
+export const dataTables = pgTable('data_tables', {
+  id: text('id').primaryKey(),
+  dataSourceId: text('data_source_id').references(() => dataSources.id).notNull(),
+  tableName: text('table_name').notNull(),
+  fields: json('fields').$type<Array<{
+    name: string;
+    type: string;
+    description: string;
+  }>>().notNull(),
+  recordCount: integer('record_count').default(0),
+  lastUpdated: timestamp('last_updated').defaultNow()
+});
+
+// Sample data for SAP ERP
+export const sapCustomers = pgTable('sap_customers', {
+  id: text('id').primaryKey(),
+  customerId: text('customer_id').notNull(),
+  customerName: text('customer_name').notNull(),
+  country: text('country'),
+  creditLimit: integer('credit_limit'),
+  createdDate: text('created_date'),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+export const sapOrders = pgTable('sap_orders', {
+  id: text('id').primaryKey(),
+  orderId: text('order_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  orderDate: text('order_date'),
+  totalAmount: integer('total_amount'),
+  status: text('status'),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+// Sample data for Salesforce CRM
+export const salesforceAccounts = pgTable('salesforce_accounts', {
+  id: text('id').primaryKey(),
+  sfId: text('sf_id').notNull(),
+  name: text('name').notNull(),
+  industry: text('industry'),
+  annualRevenue: integer('annual_revenue'),
+  numberOfEmployees: integer('number_of_employees'),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+export const salesforceOpportunities = pgTable('salesforce_opportunities', {
+  id: text('id').primaryKey(),
+  sfId: text('sf_id').notNull(),
+  name: text('name').notNull(),
+  accountId: text('account_id'),
+  amount: integer('amount'),
+  stageName: text('stage_name'),
+  closeDate: text('close_date'),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+// Sample data for AVEVA PI System
+export const piAssetHierarchy = pgTable('pi_asset_hierarchy', {
+  id: text('id').primaryKey(),
+  assetName: text('asset_name').notNull(),
+  assetPath: text('asset_path').notNull(),
+  assetType: text('asset_type'),
+  location: text('location'),
+  operationalStatus: text('operational_status'),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+export const piDrillingOperations = pgTable('pi_drilling_operations', {
+  id: text('id').primaryKey(),
+  wellPadId: text('well_pad_id').notNull(),
+  bitWeight: integer('bit_weight'),
+  blockHeight: integer('block_height'),
+  diffPress: integer('diff_press'),
+  flowInRate: integer('flow_in_rate'),
+  holeDepth: integer('hole_depth'),
+  hookLoad: integer('hook_load'),
+  pumpPressure: integer('pump_pressure'),
+  topDriveRpm: integer('top_drive_rpm'),
+  topDriveTorque: integer('top_drive_torque'),
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
+// Insert schemas
+export const insertDataSourceSchema = createInsertSchema(dataSources);
+export const insertDataTableSchema = createInsertSchema(dataTables);
+export const insertSapCustomerSchema = createInsertSchema(sapCustomers);
+export const insertSapOrderSchema = createInsertSchema(sapOrders);
+export const insertSalesforceAccountSchema = createInsertSchema(salesforceAccounts);
+export const insertSalesforceOpportunitySchema = createInsertSchema(salesforceOpportunities);
+export const insertPiAssetHierarchySchema = createInsertSchema(piAssetHierarchy);
+export const insertPiDrillingOperationsSchema = createInsertSchema(piDrillingOperations);
+
+// Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type View = typeof views.$inferSelect;
 export type InsertView = z.infer<typeof insertViewSchema>;
+export type DataSource = typeof dataSources.$inferSelect;
+export type InsertDataSource = z.infer<typeof insertDataSourceSchema>;
+export type DataTable = typeof dataTables.$inferSelect;
+export type InsertDataTable = z.infer<typeof insertDataTableSchema>;

@@ -62,17 +62,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Data Sources API
+  app.get("/api/data-sources", async (req, res) => {
+    try {
+      const dataSources = await storage.getDataSources();
+      res.json(dataSources);
+    } catch (error) {
+      console.error("Error fetching data sources:", error);
+      res.status(500).json({ error: "Failed to fetch data sources" });
+    }
+  });
+
+  app.post("/api/data-sources", async (req, res) => {
+    try {
+      const dataSource = await storage.createDataSource(req.body);
+      res.status(201).json(dataSource);
+    } catch (error) {
+      console.error("Error creating data source:", error);
+      res.status(400).json({ error: "Failed to create data source" });
+    }
+  });
+
+  // Data Source Tables and Data API
+  app.get("/api/data-sources/:id/tables", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const tables = await storage.getDataSourceTables(id);
+      res.json(tables);
+    } catch (error) {
+      console.error("Error fetching data source tables:", error);
+      res.status(500).json({ error: "Failed to fetch tables" });
+    }
+  });
+
+  app.get("/api/data-sources/:id/tables/:tableName/data", async (req, res) => {
+    try {
+      const { id, tableName } = req.params;
+      const data = await storage.getTableData(id, tableName);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching table data:", error);
+      res.status(500).json({ error: "Failed to fetch table data" });
+    }
+  });
+
   // Data Source Schema & Sample Data API
   app.get("/api/data-sources/:id/schema", async (req, res) => {
     try {
       const { id } = req.params;
       
-      // Mock data source schemas and sample data
+      // Return schema based on actual database tables
       const dataSourceSchemas = {
         'aveva-pi': {
           tables: [
             {
-              name: 'MEASUREMENTS',
+              name: 'PI_ASSET_HIERARCHY',
               recordCount: 15420,
               description: 'Real-time equipment measurements',
               fields: [
