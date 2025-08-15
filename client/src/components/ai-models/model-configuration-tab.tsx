@@ -607,13 +607,219 @@ export default function ModelConfigurationTab() {
           </div>
         </div>
 
-        {/* Canvas Area */}
-        <div className="flex-1 relative overflow-hidden bg-gray-900">
+        {/* Editor Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Panel - AI Models */}
+          <div className="w-80 bg-gray-100 border-r border-gray-300 flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Models</h3>
+              <p className="text-sm text-gray-600">Drag models to canvas</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Uploaded AI Models */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-blue-600" />
+                  Uploaded Models
+                </h4>
+                <div className="space-y-2">
+                  {availableAIModels.map((model) => (
+                    <div
+                      key={model.id}
+                      className="p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-md transition-shadow"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          type: 'ai-model',
+                          modelId: model.id,
+                          name: model.name
+                        }));
+                      }}
+                      onClick={() => {
+                        setAddNodePosition({ x: 100, y: 100 });
+                        createNode('ai-model', { modelId: model.id, name: model.name });
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {model.inputs.slice(0, 2).map((input) => (
+                              <span
+                                key={input.id}
+                                className="inline-block px-1.5 py-0.5 text-xs rounded"
+                                style={{ 
+                                  backgroundColor: `${getTypeColor(input.type)}20`,
+                                  color: getTypeColor(input.type)
+                                }}
+                              >
+                                {input.name}
+                              </span>
+                            ))}
+                            {model.inputs.length > 2 && (
+                              <span className="text-xs text-gray-400">+{model.inputs.length - 2}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Data Sources */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <Database className="w-4 h-4 text-green-600" />
+                  Data Sources
+                </h4>
+                <div className="space-y-3">
+                  {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
+                    const sources = dataIntegrationSources.filter(s => s.category === category);
+                    if (sources.length === 0) return null;
+                    
+                    return (
+                      <div key={category}>
+                        <div className="text-xs font-medium text-gray-600 mb-1">{category}</div>
+                        <div className="space-y-1">
+                          {sources.map(source => (
+                            <div
+                              key={source.id}
+                              className="p-2 bg-white border border-gray-200 rounded cursor-grab hover:shadow-sm transition-shadow"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('application/json', JSON.stringify({
+                                  type: 'data-input',
+                                  sourceId: source.id,
+                                  name: source.name
+                                }));
+                              }}
+                              onClick={() => {
+                                setAddNodePosition({ x: 100, y: 200 });
+                                createNode('data-input', { 
+                                  name: source.name, 
+                                  type: source.type,
+                                  sourceId: source.id
+                                });
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-gray-900 truncate">{source.name}</div>
+                                  <div className="text-xs text-gray-500">{source.fields?.length || 0} fields</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Automation Triggers */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-purple-600" />
+                  Automation
+                </h4>
+                <div className="space-y-3">
+                  {['Schedule', 'Event', 'API'].map(category => {
+                    const triggers = automationTriggers.filter(t => t.category === category);
+                    if (triggers.length === 0) return null;
+                    
+                    return (
+                      <div key={category}>
+                        <div className="text-xs font-medium text-gray-600 mb-1">{category}</div>
+                        <div className="space-y-1">
+                          {triggers.map(trigger => (
+                            <div
+                              key={trigger.id}
+                              className="p-2 bg-white border border-gray-200 rounded cursor-grab hover:shadow-sm transition-shadow"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('application/json', JSON.stringify({
+                                  type: 'automation-input',
+                                  triggerId: trigger.id,
+                                  name: trigger.name
+                                }));
+                              }}
+                              onClick={() => {
+                                setAddNodePosition({ x: 100, y: 300 });
+                                createNode('automation-input', { 
+                                  name: trigger.name, 
+                                  type: trigger.type,
+                                  triggerId: trigger.id
+                                });
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-gray-900 truncate">{trigger.name}</div>
+                                  <div className="text-xs text-gray-500">{trigger.outputs?.length || 0} outputs</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas Area */}
+          <div className="flex-1 relative overflow-hidden bg-gray-900">
           <div
             ref={canvasRef}
             className="w-full h-full relative cursor-crosshair"
             onContextMenu={handleCanvasRightClick}
             onClick={() => setShowAddNodeMenu(false)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (!rect) return;
+
+              const dropPosition = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+              };
+
+              try {
+                const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                setAddNodePosition(dropPosition);
+                
+                if (data.type === 'ai-model') {
+                  createNode('ai-model', { modelId: data.modelId, name: data.name });
+                } else if (data.type === 'data-input') {
+                  createNode('data-input', { 
+                    name: data.name, 
+                    sourceId: data.sourceId 
+                  });
+                } else if (data.type === 'automation-input') {
+                  createNode('automation-input', { 
+                    name: data.name, 
+                    triggerId: data.triggerId 
+                  });
+                }
+              } catch (error) {
+                console.error('Error parsing drop data:', error);
+              }
+            }}
           >
             {/* Grid Background */}
             <div 
@@ -827,6 +1033,7 @@ export default function ModelConfigurationTab() {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
