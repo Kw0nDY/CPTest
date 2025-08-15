@@ -42,15 +42,19 @@ function DynamicViewRenderer({ viewId }: { viewId: string }) {
       <div className="space-y-6">
         {view.layout?.grids?.map((grid, gridIndex) => (
           <div key={grid.id} className={`grid gap-6 grid-cols-${grid.columns}`}>
-            {grid.components.map((component, componentIndex) => (
-              <div
-                key={component.id}
-                className={`col-span-1`}
-                style={{ order: component.gridPosition }}
-              >
-                <ViewComponentRenderer component={component} />
-              </div>
-            ))}
+            {Array.from({ length: grid.columns }, (_, colIndex) => {
+              const columnComponents = grid.components
+                .filter(comp => comp.gridPosition === colIndex)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+              
+              return (
+                <div key={colIndex} className="col-span-1 space-y-4">
+                  {columnComponents.map((component) => (
+                    <ViewComponentRenderer key={component.id} component={component} />
+                  ))}
+                </div>
+              );
+            })}
           </div>
         ))}
         

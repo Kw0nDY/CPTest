@@ -103,10 +103,15 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
 
     const gridPosition = selectedGridColumn !== null ? selectedGridColumn : 0;
 
+    const existingComponents = selectedGrid.components.filter(c => c.gridPosition === gridPosition);
+    const maxOrder = Math.max(0, ...existingComponents.map(c => c.order || 0));
+    
     const newComponent: UIComponent = {
       id: `component-${Date.now()}`,
       type,
       gridPosition,
+      order: maxOrder + 1,
+      visible: true,
       config: {
         title: `New ${type}`,
         dataSource: '',
@@ -227,19 +232,38 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
 
   const moveComponentWithinGrid = (componentId: string, direction: 'up' | 'down') => {
     const updatedGrids = (editingView.layout?.grids || []).map(grid => {
-      const componentIndex = grid.components.findIndex(comp => comp.id === componentId);
+      // Find components in the same column as the target component
+      const component = grid.components.find(comp => comp.id === componentId);
+      if (!component) return grid;
+      
+      const sameColumnComponents = grid.components
+        .filter(comp => comp.gridPosition === component.gridPosition)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+      const componentIndex = sameColumnComponents.findIndex(comp => comp.id === componentId);
       if (componentIndex === -1) return grid;
 
-      const newComponents = [...grid.components];
       const targetIndex = direction === 'up' ? componentIndex - 1 : componentIndex + 1;
       
-      if (targetIndex >= 0 && targetIndex < newComponents.length) {
-        // Swap positions
-        [newComponents[componentIndex], newComponents[targetIndex]] = 
-        [newComponents[targetIndex], newComponents[componentIndex]];
+      if (targetIndex >= 0 && targetIndex < sameColumnComponents.length) {
+        // Update order values
+        const newOrder = sameColumnComponents[targetIndex].order || targetIndex;
+        const currentOrder = component.order || componentIndex;
+        
+        const updatedComponents = grid.components.map(comp => {
+          if (comp.id === componentId) {
+            return { ...comp, order: newOrder };
+          }
+          if (comp.id === sameColumnComponents[targetIndex].id) {
+            return { ...comp, order: currentOrder };
+          }
+          return comp;
+        });
+        
+        return { ...grid, components: updatedComponents };
       }
       
-      return { ...grid, components: newComponents };
+      return grid;
     });
 
     setEditingView({
@@ -325,7 +349,9 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                     setSelectedGridColumn(columnIndex);
                   }}
                 >
-                  {columnComponents.map((component, compIndex) => (
+                  {columnComponents
+                    .sort((a, b) => (a.order || 0) - (b.order || 0))
+                    .map((component, compIndex) => (
                     <DraggableComponent 
                       key={component.id}
                       component={component}

@@ -31,7 +31,8 @@ export interface UIComponent {
   id: string;
   type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline';
   gridPosition: number;
-  visible: boolean;
+  order?: number;
+  visible?: boolean;
   config: {
     title?: string;
     dataSource?: string;

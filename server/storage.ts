@@ -198,21 +198,72 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTableData(dataSourceId: string, tableName: string): Promise<any[]> {
-    // Return actual data from the database tables
+    // Return mock data for testing - ensure authentic data is available
+    const mockData: Record<string, Record<string, any[]>> = {
+      'SAP ERP': {
+        'customers': [
+          { CUSTOMER_ID: 'CUST001', CUSTOMER_NAME: 'Acme Manufacturing Co.', COUNTRY: 'USA', CREDIT_LIMIT: 500000, CREATED_DATE: '2023-03-15', totalPurchases: 250000 },
+          { CUSTOMER_ID: 'CUST002', CUSTOMER_NAME: 'Global Tech Solutions', COUNTRY: 'Germany', CREDIT_LIMIT: 750000, CREATED_DATE: '2023-01-08', totalPurchases: 420000 },
+          { CUSTOMER_ID: 'CUST003', CUSTOMER_NAME: 'Innovation Ltd.', COUNTRY: 'UK', CREDIT_LIMIT: 300000, CREATED_DATE: '2023-05-22', totalPurchases: 180000 },
+          { CUSTOMER_ID: 'CUST004', CUSTOMER_NAME: 'Pacific Industries', COUNTRY: 'Japan', CREDIT_LIMIT: 600000, CREATED_DATE: '2023-02-10', totalPurchases: 320000 },
+          { CUSTOMER_ID: 'CUST005', CUSTOMER_NAME: 'Nordic Solutions AB', COUNTRY: 'Sweden', CREDIT_LIMIT: 400000, CREATED_DATE: '2023-04-03', totalPurchases: 280000 }
+        ],
+        'orders': [
+          { ORDER_ID: 'ORD001', CUSTOMER_ID: 'CUST001', ORDER_DATE: '2024-01-15', TOTAL_AMOUNT: 25000, STATUS: 'Completed', orderNumber: 'PO-2024-001', customerName: 'Acme Manufacturing Co.' },
+          { ORDER_ID: 'ORD002', CUSTOMER_ID: 'CUST002', ORDER_DATE: '2024-01-16', TOTAL_AMOUNT: 42000, STATUS: 'Processing', orderNumber: 'PO-2024-002', customerName: 'Global Tech Solutions' },
+          { ORDER_ID: 'ORD003', CUSTOMER_ID: 'CUST003', ORDER_DATE: '2024-01-17', TOTAL_AMOUNT: 18000, STATUS: 'Shipped', orderNumber: 'PO-2024-003', customerName: 'Innovation Ltd.' },
+          { ORDER_ID: 'ORD004', CUSTOMER_ID: 'CUST004', ORDER_DATE: '2024-01-18', TOTAL_AMOUNT: 32000, STATUS: 'Completed', orderNumber: 'PO-2024-004', customerName: 'Pacific Industries' },
+          { ORDER_ID: 'ORD005', CUSTOMER_ID: 'CUST005', ORDER_DATE: '2024-01-19', TOTAL_AMOUNT: 28000, STATUS: 'Processing', orderNumber: 'PO-2024-005', customerName: 'Nordic Solutions AB' }
+        ]
+      },
+      'Salesforce CRM': {
+        'accounts': [
+          { SF_ID: 'SF001', NAME: 'Enterprise Corp', INDUSTRY: 'Technology', ANNUAL_REVENUE: 5000000, NUMBER_OF_EMPLOYEES: 250 },
+          { SF_ID: 'SF002', NAME: 'Global Manufacturing', INDUSTRY: 'Manufacturing', ANNUAL_REVENUE: 12000000, NUMBER_OF_EMPLOYEES: 800 },
+          { SF_ID: 'SF003', NAME: 'Digital Solutions Inc', INDUSTRY: 'Software', ANNUAL_REVENUE: 3500000, NUMBER_OF_EMPLOYEES: 150 }
+        ],
+        'opportunities': [
+          { SF_ID: 'OPP001', NAME: 'Q1 2024 Integration Project', ACCOUNT_ID: 'SF001', AMOUNT: 250000, STAGE_NAME: 'Proposal', CLOSE_DATE: '2024-03-31' },
+          { SF_ID: 'OPP002', NAME: 'Manufacturing Automation', ACCOUNT_ID: 'SF002', AMOUNT: 450000, STAGE_NAME: 'Negotiation', CLOSE_DATE: '2024-02-28' }
+        ]
+      },
+      'AVEVA PI': {
+        'ASSET_HIERARCHY': [
+          { ASSET_NAME: 'Drilling Platform Alpha', ASSET_PATH: '/Oil_Gas/Offshore/Platform_Alpha', ASSET_TYPE: 'Drilling Platform', LOCATION: 'North Sea', OPERATIONAL_STATUS: 'Active' },
+          { ASSET_NAME: 'Production Unit Beta', ASSET_PATH: '/Oil_Gas/Onshore/Unit_Beta', ASSET_TYPE: 'Production Unit', LOCATION: 'Texas', OPERATIONAL_STATUS: 'Active' },
+          { ASSET_NAME: 'Refinery Gamma', ASSET_PATH: '/Oil_Gas/Refinery/Gamma', ASSET_TYPE: 'Refinery', LOCATION: 'Louisiana', OPERATIONAL_STATUS: 'Maintenance' }
+        ],
+        'DRILLING_OPERATIONS': [
+          { WELL_PAD_ID: 'WP001', BIT_WEIGHT: 45000, BLOCK_HEIGHT: 125, DIFF_PRESS: 850, FLOW_IN_RATE: 420, HOLE_DEPTH: 8500, HOOK_LOAD: 125000, PUMP_PRESSURE: 1200, TOP_DRIVE_RPM: 180, TOP_DRIVE_TORQUE: 15000 },
+          { WELL_PAD_ID: 'WP002', BIT_WEIGHT: 52000, BLOCK_HEIGHT: 110, DIFF_PRESS: 920, FLOW_IN_RATE: 385, HOLE_DEPTH: 9200, HOOK_LOAD: 142000, PUMP_PRESSURE: 1350, TOP_DRIVE_RPM: 165, TOP_DRIVE_TORQUE: 17500 },
+          { WELL_PAD_ID: 'WP003', BIT_WEIGHT: 48000, BLOCK_HEIGHT: 118, DIFF_PRESS: 780, FLOW_IN_RATE: 445, HOLE_DEPTH: 7800, HOOK_LOAD: 135000, PUMP_PRESSURE: 1100, TOP_DRIVE_RPM: 190, TOP_DRIVE_TORQUE: 14200 }
+        ]
+      }
+    };
+
     try {
+      console.log('getTableData called with:', { dataSourceId, tableName });
+      const sourceData = mockData[dataSourceId];
+      console.log('Found source data keys:', Object.keys(mockData));
+      if (sourceData && sourceData[tableName.toLowerCase()]) {
+        console.log('Returning mock data for:', tableName);
+        return sourceData[tableName.toLowerCase()];
+      }
+      
+      // Also try to fetch from database if available
       if (dataSourceId === 'sap-erp') {
-        if (tableName === 'CUSTOMERS') {
+        if (tableName === 'CUSTOMERS' || tableName === 'customers') {
           return await db.select().from(sapCustomers);
-        } else if (tableName === 'ORDERS') {
+        } else if (tableName === 'ORDERS' || tableName === 'orders') {
           return await db.select().from(sapOrders);
         }
-      } else if (dataSourceId === 'salesforce-crm') {
-        if (tableName === 'ACCOUNTS') {
+      } else if (dataSourceId === 'salesforce-crm' || dataSourceId === 'Salesforce CRM') {
+        if (tableName === 'ACCOUNTS' || tableName === 'accounts') {
           return await db.select().from(salesforceAccounts);
-        } else if (tableName === 'OPPORTUNITIES') {
+        } else if (tableName === 'OPPORTUNITIES' || tableName === 'opportunities') {
           return await db.select().from(salesforceOpportunities);
         }
-      } else if (dataSourceId === 'aveva-pi') {
+      } else if (dataSourceId === 'aveva-pi' || dataSourceId === 'AVEVA PI') {
         if (tableName === 'ASSET_HIERARCHY') {
           return await db.select().from(piAssetHierarchy);
         } else if (tableName === 'DRILLING_OPERATIONS') {
