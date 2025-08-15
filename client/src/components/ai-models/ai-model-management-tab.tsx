@@ -26,7 +26,10 @@ import {
   FolderOpen,
   Trash2,
   MoreVertical,
-  Download
+  Download,
+  Search,
+  Filter,
+  X
 } from 'lucide-react';
 
 interface AIModel {
@@ -76,6 +79,17 @@ interface UploadedModel {
   size: string;
 }
 
+interface PrebuiltModel {
+  id: string;
+  name: string;
+  description: string;
+  category: 'Quality Control' | 'Predictive Maintenance' | 'Demand Forecasting' | 'Supply Chain' | 'Energy Optimization' | 'Safety Management';
+  status: 'approved' | 'pending' | 'rejected';
+  accuracy: number;
+  version: string;
+  tags: string[];
+}
+
 const sampleFolders: ModelFolder[] = [
   { id: 'quality-control', name: 'Quality Control', description: 'Models for product quality prediction', createdAt: '2024-01-10', modelCount: 3 },
   { id: 'maintenance', name: 'Predictive Maintenance', description: 'Equipment maintenance forecasting models', createdAt: '2024-01-08', modelCount: 2 },
@@ -91,6 +105,19 @@ const sampleUploadedModels: UploadedModel[] = [
   { id: '6', name: 'Monthly Demand Forecaster', type: 'Regression', fileName: 'monthly_demand_forecaster.pkl', folderId: 'demand-forecasting', status: 'ready', accuracy: 89.1, uploadedAt: '2024-01-10T11:00:00Z', size: '22.1 MB' },
 ];
 
+const prebuiltModels: PrebuiltModel[] = [
+  { id: 'pb1', name: 'Quality Control Model', description: 'Predict product quality based on production parameters', category: 'Quality Control', status: 'approved', accuracy: 94.2, version: '2.1.0', tags: ['quality', 'production', 'classification'] },
+  { id: 'pb2', name: 'Maintenance Predictor', description: 'Forecast equipment maintenance requirements', category: 'Predictive Maintenance', status: 'approved', accuracy: 87.5, version: '1.8.1', tags: ['maintenance', 'equipment', 'forecasting'] },
+  { id: 'pb3', name: 'Demand Forecasting', description: 'Predict future product demand and inventory needs', category: 'Demand Forecasting', status: 'pending', accuracy: 89.1, version: '3.0.2', tags: ['demand', 'inventory', 'forecasting'] },
+  { id: 'pb4', name: 'Risk Assessment', description: 'Evaluate supplier and supply chain risks', category: 'Supply Chain', status: 'rejected', accuracy: 91.8, version: '1.5.0', tags: ['risk', 'supply-chain', 'assessment'] },
+  { id: 'pb5', name: 'Energy Consumption Optimizer', description: 'Optimize energy usage across manufacturing processes', category: 'Energy Optimization', status: 'approved', accuracy: 88.3, version: '2.0.1', tags: ['energy', 'optimization', 'efficiency'] },
+  { id: 'pb6', name: 'Safety Incident Predictor', description: 'Predict potential safety incidents based on environmental factors', category: 'Safety Management', status: 'approved', accuracy: 92.7, version: '1.4.2', tags: ['safety', 'incident', 'prediction'] },
+  { id: 'pb7', name: 'Production Line Optimizer', description: 'Optimize production line efficiency and throughput', category: 'Quality Control', status: 'pending', accuracy: 86.9, version: '1.2.3', tags: ['production', 'optimization', 'efficiency'] },
+  { id: 'pb8', name: 'Inventory Level Predictor', description: 'Predict optimal inventory levels for different products', category: 'Demand Forecasting', status: 'approved', accuracy: 90.4, version: '2.3.1', tags: ['inventory', 'prediction', 'optimization'] },
+  { id: 'pb9', name: 'Equipment Failure Detector', description: 'Early detection of equipment failures and anomalies', category: 'Predictive Maintenance', status: 'approved', accuracy: 93.1, version: '1.9.0', tags: ['equipment', 'failure', 'detection'] },
+  { id: 'pb10', name: 'Supplier Performance Evaluator', description: 'Evaluate and rank supplier performance metrics', category: 'Supply Chain', status: 'pending', accuracy: 87.2, version: '1.1.4', tags: ['supplier', 'performance', 'evaluation'] },
+];
+
 interface AIModelManagementTabProps {
   activeTab?: string;
 }
@@ -103,6 +130,12 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid');
   const [detailFolderId, setDetailFolderId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [showApplyDialog, setShowApplyDialog] = useState(false);
+  const [selectedPrebuiltModel, setSelectedPrebuiltModel] = useState<PrebuiltModel | null>(null);
+  const [selectedUploadedModel, setSelectedUploadedModel] = useState<string>('');
   
   // Map sidebar menu items to internal tab structure
   const getInternalTab = (sidebarTab?: string) => {
@@ -231,6 +264,38 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     setViewMode('grid');
     setDetailFolderId(null);
   };
+
+  const handleApplyModel = (model: PrebuiltModel) => {
+    if (model.status !== 'approved') return;
+    setSelectedPrebuiltModel(model);
+    setShowApplyDialog(true);
+  };
+
+  const confirmApplyModel = () => {
+    if (!selectedPrebuiltModel || !selectedUploadedModel) return;
+    
+    toast({
+      title: "Model Applied Successfully",
+      description: `${selectedPrebuiltModel.name} has been applied using ${sampleUploadedModels.find(m => m.id === selectedUploadedModel)?.name}`,
+    });
+    
+    setShowApplyDialog(false);
+    setSelectedPrebuiltModel(null);
+    setSelectedUploadedModel('');
+  };
+
+  const filteredPrebuiltModels = prebuiltModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         model.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         model.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategory === 'all' || model.category === selectedCategory;
+    const matchesStatus = selectedStatus === 'all' || model.status === selectedStatus;
+    
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  const categories = ['all', ...Array.from(new Set(prebuiltModels.map(m => m.category)))];
+  const statuses = ['all', 'approved', 'pending', 'rejected'];
 
   return (
     <div className="p-6 space-y-6">
@@ -483,7 +548,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
 
         <TabsContent value="prebuilt" className="space-y-6">
           <div className="space-y-6">
-            {/* Pre-built AI Models */}
+            {/* Search and Filter Controls */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -493,115 +558,157 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                 <p className="text-sm text-gray-600">Ready-to-use AI models provided by CP Platform (Super Admin approval required)</p>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Approved Model */}
-                  <div className="p-4 border border-green-200 bg-green-50/30 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                        <h4 className="font-medium text-green-900">Quality Control Model</h4>
-                      </div>
-                      <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
-                    </div>
-                    <p className="text-sm text-green-700 mb-3">Predict product quality based on production parameters</p>
-                    <div className="text-xs text-green-600 mb-4">
-                      <span className="font-medium">Accuracy:</span> 94.2% • <span className="font-medium">Version:</span> 2.1.0
-                    </div>
-                    <Button 
-                      size="sm" 
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      onClick={() => {
-                        toast({
-                          title: "Model Applied Successfully",
-                          description: "Quality Control Model has been added to your workspace",
-                        });
-                      }}
-                    >
-                      Apply Model
-                    </Button>
+                <div className="flex flex-col md:flex-row gap-4 mb-6">
+                  {/* Search */}
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search models by name, description, or tags..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                    {searchTerm && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                        onClick={() => setSearchTerm('')}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
-
-                  {/* Approved Model */}
-                  <div className="p-4 border border-green-200 bg-green-50/30 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                        <h4 className="font-medium text-green-900">Maintenance Predictor</h4>
-                      </div>
-                      <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
-                    </div>
-                    <p className="text-sm text-green-700 mb-3">Forecast equipment maintenance requirements</p>
-                    <div className="text-xs text-green-600 mb-4">
-                      <span className="font-medium">Accuracy:</span> 87.5% • <span className="font-medium">Version:</span> 1.8.1
-                    </div>
-                    <Button 
-                      size="sm" 
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      onClick={() => {
-                        toast({
-                          title: "Model Applied Successfully",
-                          description: "Maintenance Predictor has been added to your workspace",
-                        });
-                      }}
+                  
+                  {/* Category Filter */}
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-400" />
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      Apply Model
-                    </Button>
+                      {categories.map(category => (
+                        <option key={category} value={category}>
+                          {category === 'all' ? 'All Categories' : category}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-
-                  {/* Pending Approval */}
-                  <div className="p-4 border border-yellow-200 bg-yellow-50/30 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-yellow-600" />
-                        <h4 className="font-medium text-yellow-900">Demand Forecasting</h4>
-                      </div>
-                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">Pending</Badge>
-                    </div>
-                    <p className="text-sm text-yellow-700 mb-3">Predict future product demand and inventory needs</p>
-                    <div className="text-xs text-yellow-600 mb-4">
-                      <span className="font-medium">Accuracy:</span> 89.1% • <span className="font-medium">Version:</span> 3.0.2
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="w-full border-yellow-300 text-yellow-700"
-                      disabled
-                    >
-                      Awaiting Approval
-                    </Button>
-                  </div>
-
-                  {/* Not Approved */}
-                  <div className="p-4 border border-red-200 bg-red-50/30 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-red-600" />
-                        <h4 className="font-medium text-red-900">Risk Assessment</h4>
-                      </div>
-                      <Badge className="bg-red-100 text-red-800 text-xs">Not Approved</Badge>
-                    </div>
-                    <p className="text-sm text-red-700 mb-3">Evaluate supplier and supply chain risks</p>
-                    <div className="text-xs text-red-600 mb-4">
-                      <span className="font-medium">Accuracy:</span> 91.8% • <span className="font-medium">Version:</span> 1.5.0
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="w-full border-red-300 text-red-700"
-                      disabled
-                    >
-                      Contact Super Admin
-                    </Button>
-                  </div>
+                  
+                  {/* Status Filter */}
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {statuses.map(status => (
+                      <option key={status} value={status}>
+                        {status === 'all' ? 'All Status' : status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <Database className="w-4 h-4 text-blue-600 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium text-blue-900 mb-1">Super Admin Approval System</p>
-                      <p className="text-blue-700">Pre-built models require Super Admin approval before use. Contact your system administrator to request access to pending models.</p>
+
+                {/* Results count */}
+                <div className="mb-4 text-sm text-gray-600">
+                  Showing {filteredPrebuiltModels.length} of {prebuiltModels.length} models
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Models Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPrebuiltModels.map((model) => (
+                <Card key={model.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {model.status === 'approved' && <CheckCircle className="w-4 h-4 text-green-600" />}
+                        {model.status === 'pending' && <Clock className="w-4 h-4 text-yellow-600" />}
+                        {model.status === 'rejected' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                        <h4 className="font-medium text-gray-900">{model.name}</h4>
+                      </div>
+                      <Badge className={
+                        model.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        model.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }>
+                        {model.status === 'approved' ? 'Approved' : 
+                         model.status === 'pending' ? 'Pending' : 'Not Approved'}
+                      </Badge>
                     </div>
+                    <Badge variant="outline" className="w-fit text-xs">{model.category}</Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-600">{model.description}</p>
+                    
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1">
+                      {model.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+
+                    {/* Metrics */}
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium">Accuracy:</span> {model.accuracy}% • 
+                      <span className="font-medium"> Version:</span> {model.version}
+                    </div>
+
+                    {/* Action Button */}
+                    <Button 
+                      size="sm" 
+                      className={`w-full ${
+                        model.status === 'approved' 
+                          ? 'bg-green-600 hover:bg-green-700' 
+                          : 'bg-gray-400 cursor-not-allowed'
+                      }`}
+                      disabled={model.status !== 'approved'}
+                      onClick={() => handleApplyModel(model)}
+                    >
+                      {model.status === 'approved' ? 'Apply Model' :
+                       model.status === 'pending' ? 'Awaiting Approval' :
+                       'Contact Super Admin'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Empty state */}
+            {filteredPrebuiltModels.length === 0 && (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Models Found</h3>
+                  <p className="text-gray-600 mb-4">
+                    No models match your current search and filter criteria.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedCategory('all');
+                      setSelectedStatus('all');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Super Admin Notice */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-start gap-2">
+                  <Database className="w-4 h-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-900 mb-1">Super Admin Approval System</p>
+                    <p className="text-blue-700">Pre-built models require Super Admin approval before use. Contact your system administrator to request access to pending models.</p>
                   </div>
                 </div>
               </CardContent>
@@ -729,6 +836,58 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
               <Button 
                 variant="outline" 
                 onClick={() => setShowFolderDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply Model Dialog */}
+      <Dialog open={showApplyDialog} onOpenChange={setShowApplyDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apply Pre-built Model</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-1">{selectedPrebuiltModel?.name}</h4>
+              <p className="text-sm text-blue-700">{selectedPrebuiltModel?.description}</p>
+            </div>
+            
+            <div>
+              <Label htmlFor="uploaded-model">Select from your uploaded models:</Label>
+              <select
+                id="uploaded-model"
+                value={selectedUploadedModel}
+                onChange={(e) => setSelectedUploadedModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Choose an uploaded model...</option>
+                {sampleUploadedModels.filter(m => m.status === 'ready').map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} ({model.type})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                The pre-built model configuration will be applied to your selected uploaded model.
+              </p>
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button 
+                onClick={confirmApplyModel}
+                disabled={!selectedUploadedModel}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                Apply Model
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowApplyDialog(false)}
                 className="flex-1"
               >
                 Cancel
