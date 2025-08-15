@@ -130,10 +130,15 @@ export default function ViewSettingTab() {
         updatedAt: new Date().toISOString().split('T')[0]
       };
       
-      return await apiRequest('/api/views', {
+      const response = await fetch('/api/views', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(view)
       });
+      if (!response.ok) throw new Error('Failed to create view');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/views'] });
@@ -162,10 +167,15 @@ export default function ViewSettingTab() {
   // Update view mutation
   const updateViewMutation = useMutation({
     mutationFn: async (view: ViewConfig) => {
-      return await apiRequest(`/api/views/${view.id}`, {
+      const response = await fetch(`/api/views/${view.id}`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(view)
       });
+      if (!response.ok) throw new Error('Failed to update view');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/views'] });
@@ -186,9 +196,11 @@ export default function ViewSettingTab() {
   // Delete view mutation
   const deleteViewMutation = useMutation({
     mutationFn: async (viewId: string) => {
-      return await apiRequest(`/api/views/${viewId}`, {
+      const response = await fetch(`/api/views/${viewId}`, {
         method: 'DELETE'
       });
+      if (!response.ok) throw new Error('Failed to delete view');
+      return;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/views'] });
