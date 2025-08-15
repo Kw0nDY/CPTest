@@ -19,7 +19,9 @@ import {
   BarChart3,
   Activity,
   Gauge,
-  Eye
+  Eye,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import ViewEditor from "./view-editor-embedded";
 import type { View, UIComponent, GridRow } from "@shared/schema";
@@ -153,6 +155,47 @@ export default function ViewSettingTab() {
     }
   });
 
+  // Move view order mutation
+  const moveViewMutation = useMutation({
+    mutationFn: async ({ viewId, direction }: { viewId: string; direction: 'up' | 'down' }) => {
+      const currentIndex = views.findIndex(v => v.id === viewId);
+      if (currentIndex === -1) return;
+      
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= views.length) return;
+      
+      // Update view order by swapping updatedAt timestamps
+      const currentView = views[currentIndex];
+      const targetView = views[targetIndex];
+      
+      const newCurrentView = {
+        ...currentView,
+        updatedAt: targetView.updatedAt
+      };
+      const newTargetView = {
+        ...targetView,
+        updatedAt: currentView.updatedAt
+      };
+      
+      // Update both views
+      await Promise.all([
+        fetch(`/api/views/${currentView.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newCurrentView)
+        }),
+        fetch(`/api/views/${targetView.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTargetView)
+        })
+      ]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+    }
+  });
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'dashboard': return <BarChart3 className="h-4 w-4" />;
@@ -191,6 +234,10 @@ export default function ViewSettingTab() {
     if (confirm('Are you sure you want to delete this view?')) {
       deleteViewMutation.mutate(viewId);
     }
+  };
+
+  const handleMoveView = (viewId: string, direction: 'up' | 'down') => {
+    moveViewMutation.mutate({ viewId, direction });
   };
 
   const toggleViewStatus = (viewId: string) => {
@@ -362,47 +409,69 @@ export default function ViewSettingTab() {
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2 mt-4 pt-3 border-t">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEditView(view)}
-                  className="flex-1"
-                  data-testid={`edit-view-${view.id}`}
-                >
-                  <Edit3 className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleViewStatus(view.id)}
-                  className="flex-1"
-                  data-testid={`toggle-view-${view.id}`}
-                >
-                  {view.status === 'active' ? (
-                    <><Pause className="h-4 w-4 mr-1" />Pause</>
-                  ) : (
-                    <><Play className="h-4 w-4 mr-1" />Start</>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => duplicateView(view)}
-                  data-testid={`copy-view-${view.id}`}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteView(view.id)}
-                  className="text-red-600 hover:text-red-700"
-                  data-testid={`delete-view-${view.id}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                <div className="flex space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMoveView(view.id, 'up')}
+                    disabled={views.findIndex(v => v.id === view.id) === 0}
+                    className="h-8 w-8 p-0 hover:bg-blue-100"
+                    title="Move Up"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMoveView(view.id, 'down')}
+                    disabled={views.findIndex(v => v.id === view.id) === views.length - 1}
+                    className="h-8 w-8 p-0 hover:bg-blue-100"
+                    title="Move Down"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditView(view)}
+                    data-testid={`edit-view-${view.id}`}
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleViewStatus(view.id)}
+                    data-testid={`toggle-view-${view.id}`}
+                  >
+                    {view.status === 'active' ? (
+                      <Pause className="h-4 w-4" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => duplicateView(view)}
+                    data-testid={`copy-view-${view.id}`}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteView(view.id)}
+                    className="text-red-600 hover:text-red-700"
+                    data-testid={`delete-view-${view.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

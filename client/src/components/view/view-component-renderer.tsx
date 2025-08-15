@@ -29,12 +29,14 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
 
   if (isLoading) {
     return (
-      <Card className="h-full">
-        <CardHeader>
-          <CardTitle>{component.config.title || `${component.type} Component`}</CardTitle>
+      <Card className="h-full min-h-[300px]">
+        <CardHeader className="pb-3">
+          <CardTitle className="min-h-[28px] flex items-center">
+            {component.config.title || `${component.type} Component`}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
+        <CardContent className="pt-0">
+          <div className="flex items-center justify-center min-h-[200px]">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         </CardContent>
@@ -44,13 +46,15 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
 
   if (!component.config.dataSource || !tableData.length) {
     return (
-      <Card className="h-full">
-        <CardHeader>
-          <CardTitle>{component.config.title || `${component.type} Component`}</CardTitle>
+      <Card className="h-full min-h-[300px]">
+        <CardHeader className="pb-3">
+          <CardTitle className="min-h-[28px] flex items-center">
+            {component.config.title || `${component.type} Component`}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32 text-gray-500">
-            <p>No data source connected</p>
+        <CardContent className="pt-0">
+          <div className="flex items-center justify-center min-h-[200px] text-gray-500">
+            <p className="text-center">No data source connected</p>
           </div>
         </CardContent>
       </Card>
@@ -143,26 +147,30 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
     const dataToShow = tableData.slice(0, 10);
     
     return (
-      <div className="overflow-auto max-h-96">
+      <div className="overflow-auto max-h-96 min-h-[300px]">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="h-12">
               {fieldsToShow.map((field) => (
-                <TableHead key={field} className="font-semibold">
-                  {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                <TableHead key={field} className="font-semibold py-3 align-top">
+                  <div className="min-h-[24px] flex items-start">
+                    {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </div>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {dataToShow.map((row, index) => (
-              <TableRow key={index}>
+              <TableRow key={index} className="h-12">
                 {fieldsToShow.map((field) => (
-                  <TableCell key={field}>
-                    {typeof row[field] === 'number' 
-                      ? row[field].toLocaleString()
-                      : String(row[field] || '-')
-                    }
+                  <TableCell key={field} className="py-3 align-top">
+                    <div className="min-h-[24px] line-clamp-2 flex items-start">
+                      {typeof row[field] === 'number' 
+                        ? row[field].toLocaleString()
+                        : String(row[field] || '-')
+                      }
+                    </div>
                   </TableCell>
                 ))}
               </TableRow>
@@ -176,7 +184,11 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
   const renderMetric = () => {
     const metricField = component.config.selectedFields?.[0];
     if (!metricField) {
-      return <p className="text-gray-500">Select a field to display metric</p>;
+      return (
+        <div className="min-h-[200px] flex items-center justify-center">
+          <p className="text-gray-500 text-center py-8">Select a field to display metric</p>
+        </div>
+      );
     }
 
     const values = tableData.map(row => Number(row[metricField]) || 0).filter(v => !isNaN(v));
@@ -186,22 +198,32 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
     const min = Math.min(...values);
 
     return (
-      <div className="grid grid-cols-2 gap-4">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-blue-600">{total.toLocaleString()}</div>
-          <div className="text-sm text-gray-500">Total</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-green-600">{average.toLocaleString()}</div>
-          <div className="text-sm text-gray-500">Average</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-orange-600">{max.toLocaleString()}</div>
-          <div className="text-sm text-gray-500">Maximum</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-red-600">{min.toLocaleString()}</div>
-          <div className="text-sm text-gray-500">Minimum</div>
+      <div className="min-h-[200px] flex items-center">
+        <div className="grid grid-cols-2 gap-4 w-full">
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-blue-600 min-h-[32px] flex items-center justify-center">
+              {total.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500 min-h-[20px] flex items-center justify-center">Total</div>
+          </div>
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-green-600 min-h-[32px] flex items-center justify-center">
+              {Math.round(average).toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500 min-h-[20px] flex items-center justify-center">Average</div>
+          </div>
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-orange-600 min-h-[32px] flex items-center justify-center">
+              {max.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500 min-h-[20px] flex items-center justify-center">Maximum</div>
+          </div>
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-red-600 min-h-[32px] flex items-center justify-center">
+              {min.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500 min-h-[20px] flex items-center justify-center">Minimum</div>
+          </div>
         </div>
       </div>
     );
@@ -210,37 +232,57 @@ export default function ViewComponentRenderer({ component }: ViewComponentRender
   const renderContent = () => {
     switch (component.type) {
       case 'chart':
-        return renderChart();
+        return (
+          <div className="min-h-[300px] flex items-center">
+            {renderChart()}
+          </div>
+        );
       case 'table':
         return renderTable();
       case 'metric':
         return renderMetric();
       case 'text':
         return (
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Data Summary</h3>
-            <p>Connected to: <Badge variant="outline">{component.config.dataSource}</Badge></p>
-            <p>Table: <Badge variant="outline">{component.config.selectedTable}</Badge></p>
-            <p>Total Records: <Badge variant="outline">{tableData.length}</Badge></p>
+          <div className="min-h-[200px] flex flex-col justify-center space-y-3">
+            <h3 className="text-lg font-semibold min-h-[28px] flex items-center">Data Summary</h3>
+            <div className="space-y-2">
+              <p className="min-h-[24px] flex items-center">
+                Connected to: <Badge variant="outline" className="ml-2">{component.config.dataSource}</Badge>
+              </p>
+              <p className="min-h-[24px] flex items-center">
+                Table: <Badge variant="outline" className="ml-2">{component.config.selectedTable}</Badge>
+              </p>
+              <p className="min-h-[24px] flex items-center">
+                Total Records: <Badge variant="outline" className="ml-2">{tableData.length}</Badge>
+              </p>
+            </div>
           </div>
         );
       default:
-        return <p className="text-gray-500">Component type not supported</p>;
+        return (
+          <div className="min-h-[200px] flex items-center justify-center">
+            <p className="text-gray-500 text-center">Component type not supported</p>
+          </div>
+        );
     }
   };
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          {component.config.title || `${component.type} Component`}
-          <Badge variant="outline" className="text-xs">
+    <Card className="h-full min-h-[300px] flex flex-col">
+      <CardHeader className="pb-3 flex-shrink-0">
+        <CardTitle className="flex items-center justify-between min-h-[28px]">
+          <span className="text-base truncate">
+            {component.config.title || `${component.type} Component`}
+          </span>
+          <Badge variant="outline" className="text-xs ml-2 flex-shrink-0">
             {component.config.dataSource?.toUpperCase()}
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {renderContent()}
+      <CardContent className="pt-0 flex-1 flex flex-col">
+        <div className="flex-1">
+          {renderContent()}
+        </div>
       </CardContent>
     </Card>
   );
