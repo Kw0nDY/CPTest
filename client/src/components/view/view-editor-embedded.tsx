@@ -610,7 +610,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                 <Select
                   value={selectedComponent.config.dataSource}
                   onValueChange={(value) => updateComponent(selectedComponent.id, {
-                    config: { ...selectedComponent.config, dataSource: value }
+                    config: { ...selectedComponent.config, dataSource: value, selectedFields: [] }
                   })}
                 >
                   <SelectTrigger className="mt-1">
@@ -628,6 +628,70 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Data Fields Selection */}
+              {selectedComponent.config.dataSource && (
+                <div>
+                  <Label>Available Data Fields</Label>
+                  <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border rounded-md p-3 bg-gray-50">
+                    {(() => {
+                      const selectedSource = availableDataSources.find(ds => ds.id === selectedComponent.config.dataSource);
+                      return selectedSource?.fields.map((field) => (
+                        <div key={field.name} className="flex items-center justify-between p-2 bg-white rounded border">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`field-${field.name}`}
+                              checked={selectedComponent.config.selectedFields?.includes(field.name) || false}
+                              onCheckedChange={(checked) => {
+                                const currentFields = selectedComponent.config.selectedFields || [];
+                                const updatedFields = checked 
+                                  ? [...currentFields, field.name]
+                                  : currentFields.filter(f => f !== field.name);
+                                updateComponent(selectedComponent.id, {
+                                  config: { ...selectedComponent.config, selectedFields: updatedFields }
+                                });
+                              }}
+                            />
+                            <div>
+                              <Label htmlFor={`field-${field.name}`} className="text-sm font-medium">
+                                {field.name}
+                              </Label>
+                              <p className="text-xs text-gray-500">{field.description}</p>
+                              <Badge variant="outline" className="text-xs">
+                                {field.type}
+                              </Badge>
+                            </div>
+                          </div>
+                          {field.sampleValues && (
+                            <div className="text-xs text-gray-400 flex space-x-1">
+                              {field.sampleValues.slice(0, 3).map((val, idx) => (
+                                <span key={idx} className="bg-gray-100 px-1 rounded">
+                                  {String(val)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )) || [];
+                    })()}
+                  </div>
+                  
+                  {selectedComponent.config.selectedFields && selectedComponent.config.selectedFields.length > 0 && (
+                    <div className="mt-2">
+                      <Label className="text-xs text-green-600">
+                        Selected: {selectedComponent.config.selectedFields.length} field(s)
+                      </Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedComponent.config.selectedFields.map((fieldName) => (
+                          <Badge key={fieldName} variant="secondary" className="text-xs">
+                            {fieldName}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {selectedComponent.type === 'chart' && (
                 <div>
