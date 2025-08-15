@@ -185,99 +185,141 @@ const availableAIModels = [
   }
 ];
 
-// Real data sources from the system
+// Real data sources from actual database schema
 const dataIntegrationSources = [
-  // SAP ERP Data Sources
+  // SAP ERP Data Sources (from schema.ts)
   { 
     id: 'sap-customers', 
-    name: 'SAP Customer Data', 
-    type: 'object',
+    name: 'SAP Customer Master', 
+    type: 'table',
     category: 'ERP',
+    tableName: 'sap_customers',
+    description: 'Customer master data from SAP ERP system',
     fields: [
-      { name: 'customerId', type: 'string', description: 'Customer ID' },
-      { name: 'customerName', type: 'string', description: 'Customer Name' },
+      { name: 'customer_id', type: 'string', description: 'Customer ID' },
+      { name: 'customer_name', type: 'string', description: 'Customer Name' },
       { name: 'country', type: 'string', description: 'Country' },
-      { name: 'creditLimit', type: 'number', description: 'Credit Limit' }
+      { name: 'credit_limit', type: 'number', description: 'Credit Limit' },
+      { name: 'created_date', type: 'string', description: 'Created Date' }
     ]
   },
   { 
     id: 'sap-orders', 
-    name: 'SAP Orders Data', 
-    type: 'object',
+    name: 'SAP Sales Orders', 
+    type: 'table',
     category: 'ERP',
+    tableName: 'sap_orders',
+    description: 'Sales orders from SAP ERP system',
     fields: [
-      { name: 'orderId', type: 'string', description: 'Order ID' },
-      { name: 'customerId', type: 'string', description: 'Customer ID' },
-      { name: 'orderDate', type: 'string', description: 'Order Date' },
-      { name: 'totalAmount', type: 'number', description: 'Total Amount' },
+      { name: 'order_id', type: 'string', description: 'Order ID' },
+      { name: 'customer_id', type: 'string', description: 'Customer ID' },
+      { name: 'order_date', type: 'string', description: 'Order Date' },
+      { name: 'total_amount', type: 'number', description: 'Total Amount' },
       { name: 'status', type: 'string', description: 'Order Status' }
     ]
   },
-  // Salesforce CRM Data Sources
+  // Salesforce CRM Data Sources (from schema.ts)
   { 
     id: 'salesforce-accounts', 
-    name: 'Salesforce Account Data', 
-    type: 'object',
+    name: 'Salesforce Accounts', 
+    type: 'table',
     category: 'CRM',
+    tableName: 'salesforce_accounts',
+    description: 'Account data from Salesforce CRM',
     fields: [
-      { name: 'sfId', type: 'string', description: 'Salesforce ID' },
+      { name: 'sf_id', type: 'string', description: 'Salesforce ID' },
       { name: 'name', type: 'string', description: 'Account Name' },
       { name: 'industry', type: 'string', description: 'Industry' },
-      { name: 'annualRevenue', type: 'number', description: 'Annual Revenue' }
+      { name: 'annual_revenue', type: 'number', description: 'Annual Revenue' },
+      { name: 'number_of_employees', type: 'number', description: 'Number of Employees' }
     ]
   },
-  // AVEVA PI Data Sources
   { 
-    id: 'aveva-process', 
-    name: 'AVEVA Process Data', 
-    type: 'array',
+    id: 'salesforce-opportunities', 
+    name: 'Salesforce Opportunities', 
+    type: 'table',
+    category: 'CRM',
+    tableName: 'salesforce_opportunities',
+    description: 'Sales opportunities from Salesforce',
+    fields: [
+      { name: 'sf_id', type: 'string', description: 'Opportunity Salesforce ID' },
+      { name: 'name', type: 'string', description: 'Opportunity Name' },
+      { name: 'account_id', type: 'string', description: 'Account ID' },
+      { name: 'amount', type: 'number', description: 'Opportunity Amount' },
+      { name: 'stage_name', type: 'string', description: 'Sales Stage' },
+      { name: 'close_date', type: 'string', description: 'Expected Close Date' }
+    ]
+  },
+  // AVEVA PI Industrial Data Sources (from schema.ts)
+  { 
+    id: 'pi-asset-hierarchy', 
+    name: 'AVEVA PI Asset Hierarchy', 
+    type: 'table',
     category: 'Industrial',
+    tableName: 'pi_asset_hierarchy',
+    description: 'Asset hierarchy from AVEVA PI System',
     fields: [
-      { name: 'tagName', type: 'string', description: 'Tag Name' },
-      { name: 'value', type: 'number', description: 'Measured Value' },
-      { name: 'timestamp', type: 'string', description: 'Timestamp' },
-      { name: 'quality', type: 'string', description: 'Data Quality' }
+      { name: 'asset_name', type: 'string', description: 'Asset Name' },
+      { name: 'asset_path', type: 'string', description: 'Asset Path' },
+      { name: 'asset_type', type: 'string', description: 'Asset Type' },
+      { name: 'location', type: 'string', description: 'Location' },
+      { name: 'operational_status', type: 'string', description: 'Operational Status' }
     ]
   },
-  // Oracle Database Sources
   { 
-    id: 'oracle-inventory', 
-    name: 'Oracle Inventory Data', 
-    type: 'object',
-    category: 'Database',
+    id: 'pi-drilling-operations', 
+    name: 'AVEVA PI Drilling Operations', 
+    type: 'table',
+    category: 'Industrial',
+    tableName: 'pi_drilling_operations',
+    description: 'Real-time drilling operations data',
     fields: [
-      { name: 'itemId', type: 'string', description: 'Item ID' },
-      { name: 'itemName', type: 'string', description: 'Item Name' },
-      { name: 'quantity', type: 'number', description: 'Quantity' },
-      { name: 'location', type: 'string', description: 'Location' }
+      { name: 'well_pad_id', type: 'string', description: 'Well Pad ID' },
+      { name: 'bit_weight', type: 'number', description: 'Bit Weight' },
+      { name: 'block_height', type: 'number', description: 'Block Height' },
+      { name: 'diff_press', type: 'number', description: 'Differential Pressure' },
+      { name: 'flow_in_rate', type: 'number', description: 'Flow In Rate' },
+      { name: 'hole_depth', type: 'number', description: 'Hole Depth' },
+      { name: 'hook_load', type: 'number', description: 'Hook Load' },
+      { name: 'pump_pressure', type: 'number', description: 'Pump Pressure' },
+      { name: 'top_drive_rpm', type: 'number', description: 'Top Drive RPM' },
+      { name: 'top_drive_torque', type: 'number', description: 'Top Drive Torque' },
+      { name: 'timestamp', type: 'string', description: 'Timestamp' }
     ]
   },
-  // Manufacturing Metrics
+  // Manufacturing Data Sources
   { 
-    id: 'production-metrics', 
-    name: 'Production Line Metrics', 
-    type: 'object',
+    id: 'production-data', 
+    name: 'Production Line Data', 
+    type: 'table',
     category: 'Manufacturing',
+    tableName: 'production_data',
+    description: 'Real-time production line metrics',
     fields: [
-      { name: 'lineId', type: 'string', description: 'Production Line ID' },
-      { name: 'throughput', type: 'number', description: 'Throughput Rate' },
-      { name: 'efficiency', type: 'number', description: 'Efficiency %' },
-      { name: 'defectRate', type: 'number', description: 'Defect Rate %' },
+      { name: 'line_id', type: 'string', description: 'Production Line ID' },
+      { name: 'product_id', type: 'string', description: 'Product ID' },
+      { name: 'quantity_produced', type: 'number', description: 'Quantity Produced' },
+      { name: 'efficiency_rate', type: 'number', description: 'Efficiency Rate' },
       { name: 'temperature', type: 'number', description: 'Temperature' },
-      { name: 'pressure', type: 'number', description: 'Pressure' }
+      { name: 'pressure', type: 'number', description: 'Pressure' },
+      { name: 'vibration', type: 'array', description: 'Vibration Data' }
     ]
   },
   // Quality Control Data
   { 
-    id: 'quality-control', 
-    name: 'Quality Control Metrics', 
-    type: 'object',
+    id: 'quality-inspections', 
+    name: 'Quality Inspections', 
+    type: 'table',
     category: 'Quality',
+    tableName: 'quality_inspections',
+    description: 'Quality control inspection results',
     fields: [
-      { name: 'batchId', type: 'string', description: 'Batch ID' },
-      { name: 'testResults', type: 'array', description: 'Test Results' },
-      { name: 'passRate', type: 'number', description: 'Pass Rate %' },
-      { name: 'inspector', type: 'string', description: 'Inspector ID' }
+      { name: 'inspection_id', type: 'string', description: 'Inspection ID' },
+      { name: 'product_batch', type: 'string', description: 'Product Batch' },
+      { name: 'defect_count', type: 'number', description: 'Defect Count' },
+      { name: 'pass_rate', type: 'number', description: 'Pass Rate' },
+      { name: 'inspector_id', type: 'string', description: 'Inspector ID' },
+      { name: 'inspection_result', type: 'boolean', description: 'Inspection Result' }
     ]
   }
 ];
@@ -596,7 +638,8 @@ export default function ModelConfigurationTab() {
       fromNodeId,
       fromOutputId,
       toNodeId,
-      toInputId
+      toInputId,
+      type: 'data' as const
     };
     
     setConnections(prev => [...prev, newConnection]);
@@ -623,8 +666,22 @@ export default function ModelConfigurationTab() {
   };
 
   // Get available output nodes that are currently on canvas
-  const getAvailableOutputNodes = (inputType: string) => {
-    const outputs = [];
+  const getAvailableOutputNodes = (inputType: string): Array<{
+    type: string;
+    nodeId: string;
+    nodeName: string;
+    outputId: string;
+    outputName: string;
+    description: string;
+  }> => {
+    const outputs: Array<{
+      type: string;
+      nodeId: string;
+      nodeName: string;
+      outputId: string;
+      outputName: string;
+      description: string;
+    }> = [];
     
     // AI Model outputs from nodes on canvas
     nodes.filter(node => node.type === 'ai-model').forEach(node => {
@@ -647,39 +704,43 @@ export default function ModelConfigurationTab() {
     
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
-      const source = dataIntegrationSources.find(s => s.id === node.sourceId);
-      if (source) {
-        source.fields?.forEach(field => {
-          if (field.type === inputType) {
-            outputs.push({
-              type: 'data-integration',
-              nodeId: node.id,
-              nodeName: node.name,
-              outputId: field.name,
-              outputName: field.description,
-              description: `${field.description} from ${node.name}`
-            });
-          }
-        });
+      if ('sourceId' in node) {
+        const source = dataIntegrationSources.find(s => s.id === node.sourceId);
+        if (source) {
+          source.fields?.forEach(field => {
+            if (field.type === inputType) {
+              outputs.push({
+                type: 'data-integration',
+                nodeId: node.id,
+                nodeName: node.name,
+                outputId: field.name,
+                outputName: field.description,
+                description: `${field.description} from ${source.tableName || source.name}`
+              });
+            }
+          });
+        }
       }
     });
     
     // Automation outputs from nodes on canvas
     nodes.filter(node => node.type === 'automation-input').forEach(node => {
-      const trigger = automationTriggers.find(t => t.id === node.triggerId);
-      if (trigger) {
-        trigger.outputs?.forEach(output => {
-          if (output.type === inputType) {
-            outputs.push({
-              type: 'automation',
-              nodeId: node.id,
-              nodeName: node.name,
-              outputId: output.name,
-              outputName: output.description,
-              description: `${output.description} from ${node.name}`
-            });
-          }
-        });
+      if ('triggerId' in node) {
+        const trigger = automationTriggers.find(t => t.id === node.triggerId);
+        if (trigger) {
+          trigger.outputs?.forEach(output => {
+            if (output.type === inputType) {
+              outputs.push({
+                type: 'automation',
+                nodeId: node.id,
+                nodeName: node.name,
+                outputId: output.name,
+                outputName: output.description,
+                description: `${output.description} from ${node.name}`
+              });
+            }
+          });
+        }
       }
     });
     
@@ -1074,7 +1135,13 @@ export default function ModelConfigurationTab() {
                                       <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
                                       <div className="flex-1 min-w-0">
                                         <div className="text-sm text-gray-900 truncate">{source.name}</div>
-                                        <div className="text-xs text-gray-500">{source.fields?.length || 0} fields</div>
+                                        <div className="text-xs text-gray-500">
+                                          {source.tableName && <span className="font-mono bg-gray-100 px-1 rounded mr-1">{source.tableName}</span>}
+                                          {source.fields?.length || 0} fields
+                                        </div>
+                                        {source.description && (
+                                          <div className="text-xs text-gray-400 truncate mt-1">{source.description}</div>
+                                        )}
                                       </div>
                                     </div>
                                     <Button
