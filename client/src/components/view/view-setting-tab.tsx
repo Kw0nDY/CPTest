@@ -562,14 +562,16 @@ export default function ViewSettingTab() {
       {/* Embedded View Editor */}
       {showEditor && editingView && (
         <div className="fixed inset-0 z-40 bg-white">
-          <ViewEditor
-            view={editingView}
-            onClose={() => {
-              setShowEditor(false);
-              setEditingView(null);
-            }}
-            onSave={handleSaveView}
-          />
+          <div className="h-full">
+            <ViewEditor
+              view={editingView}
+              onClose={() => {
+                setShowEditor(false);
+                setEditingView(null);
+              }}
+              onSave={handleSaveView}
+            />
+          </div>
         </div>
       )}
     </div>

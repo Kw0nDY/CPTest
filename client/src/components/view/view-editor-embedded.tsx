@@ -340,29 +340,53 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
   const renderDesignTab = () => (
     <div className="flex h-full">
       {/* Left Sidebar - Elements Panel */}
-      <div className={`bg-white border-r transition-all duration-300 ${isComponentsPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col`}>
-        <div className="p-3 border-b flex items-center justify-between">
+      <div className={`bg-gray-50 border-r transition-all duration-300 ${isComponentsPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm`}>
+        <div className="p-3 border-b flex items-center justify-between bg-gray-50">
           {!isComponentsPanelCollapsed && <h3 className="font-semibold text-base">Elements</h3>}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsComponentsPanelCollapsed(!isComponentsPanelCollapsed)}
+            className="h-8 w-8 p-0"
+            data-testid="toggle-left-panel"
           >
             {isComponentsPanelCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </Button>
         </div>
 
-        {!isComponentsPanelCollapsed && (
+        {isComponentsPanelCollapsed ? (
+          <div className="flex-1 flex flex-col items-center py-4 space-y-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-8 h-8 p-0"
+              title="Grid Layout"
+              data-testid="collapsed-grid-button"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-8 h-8 p-0"
+              title="Components"
+              data-testid="collapsed-components-button"
+            >
+              <Zap className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
           <>
             {/* Grid Layout Section */}
-            <div className="p-4 border-b">
+            <div className="p-4 border-b bg-white">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium">Grid Layout</h4>
+                <h4 className="font-medium text-gray-700">Grid Layout</h4>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setIsAddingGrid(!isAddingGrid)}
                   className="h-8 px-2"
+                  data-testid="add-grid-button"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -387,24 +411,30 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
             </div>
 
             {/* Components Section */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-white">
               <div className="p-4">
-                <h4 className="font-medium mb-3">Components</h4>
+                <h4 className="font-medium mb-3 text-gray-700">Components</h4>
                 <div className="space-y-2">
                   {componentTypes.map((compType) => (
                     <div
                       key={compType.type}
-                      className="flex items-center p-3 rounded border cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="flex items-center p-3 rounded border cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData('component-type', compType.type);
                       }}
+                      data-testid={`component-${compType.type}`}
                     >
-                      <compType.icon className="h-5 w-5 mr-3" />
+                      <compType.icon className="h-5 w-5 mr-3 text-gray-600" />
                       <span className="text-sm font-medium">{compType.label}</span>
                     </div>
                   ))}
                 </div>
+                {!selectedGrid && (
+                  <p className="text-xs text-gray-500 mt-3 text-center bg-gray-50 p-2 rounded">
+                    드래그하여 그리드에 컴포넌트를 추가하세요
+                  </p>
+                )}
               </div>
             </div>
           </>
