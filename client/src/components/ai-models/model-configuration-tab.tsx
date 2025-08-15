@@ -35,6 +35,7 @@ import {
   Target,
   Monitor
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 interface ModelNode {
   id: string;
@@ -420,6 +421,7 @@ export default function ModelConfigurationTab() {
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [selectedModelForDetails, setSelectedModelForDetails] = useState<any>(null);
+  const [selectedNodeForDetails, setSelectedNodeForDetails] = useState<ModelNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['quality-models']));
@@ -464,29 +466,21 @@ export default function ModelConfigurationTab() {
     return matchesSearch && matchesCategory;
   });
 
-  // Sample views data for connection
-  const availableViews = [
-    {
-      id: 'drilling-dashboard',
-      name: 'Drilling Operations Monitor',
-      description: 'Real-time drilling operations monitoring dashboard',
-      outputs: [
-        { id: 'drilling_metrics', name: 'Drilling Metrics', type: 'object' },
-        { id: 'well_status', name: 'Well Status', type: 'string' },
-        { id: 'production_data', name: 'Production Data', type: 'array' }
-      ]
-    },
-    {
-      id: 'production-dashboard',
-      name: 'Production Performance Dashboard',
-      description: 'Manufacturing production performance tracking',
-      outputs: [
-        { id: 'efficiency_metrics', name: 'Efficiency Metrics', type: 'object' },
-        { id: 'quality_scores', name: 'Quality Scores', type: 'number' },
-        { id: 'throughput_data', name: 'Throughput Data', type: 'array' }
-      ]
-    }
-  ];
+  // Fetch real views data
+  const { data: availableViews = [] } = useQuery({
+    queryKey: ['/api/views'],
+    staleTime: 60000
+  });
+
+  // Calculate dynamic node width based on text content
+  const calculateNodeWidth = (text: string, hasButtons: boolean = false): number => {
+    const baseWidth = 180;
+    const charWidth = 8;
+    const buttonSpace = hasButtons ? 60 : 0;
+    const textWidth = text.length * charWidth;
+    const minWidth = Math.max(baseWidth, textWidth + buttonSpace + 40);
+    return Math.min(minWidth, 350); // Max width cap
+  };
 
   // Generate unique name for duplicate nodes
   const generateUniqueName = (baseName: string, existingNodes: ModelNode[]): string => {
@@ -584,7 +578,7 @@ export default function ModelConfigurationTab() {
           })) || [],
           modelId: data?.modelId,
           status: 'ready',
-          width: 200,
+          width: calculateNodeWidth(uniqueName, true),
           height: Math.max(120, (modelData?.inputs.length || 0) * 25 + (modelData?.outputs.length || 0) * 25 + 60)
         };
         break;
@@ -610,7 +604,7 @@ export default function ModelConfigurationTab() {
           }],
           sourceId: data?.sourceId,
           status: 'ready',
-          width: Math.max(180, (dataSource?.fields?.length || 1) * 25 + 80),
+          width: calculateNodeWidth(dataUniqueName, true),
           height: Math.max(100, (dataSource?.fields?.length || 1) * 25 + 60)
         };
         break;
@@ -636,7 +630,7 @@ export default function ModelConfigurationTab() {
           }],
           triggerId: data?.triggerId,
           status: 'ready',
-          width: Math.max(180, (triggerData?.outputs?.length || 1) * 25 + 80),
+          width: calculateNodeWidth(automationUniqueName, true),
           height: Math.max(100, (triggerData?.outputs?.length || 1) * 25 + 60)
         };
         break;
@@ -662,7 +656,7 @@ export default function ModelConfigurationTab() {
           }],
           viewId: data?.viewId,
           status: 'ready',
-          width: Math.max(180, (viewData?.outputs?.length || 1) * 25 + 80),
+          width: calculateNodeWidth(viewUniqueName, true),
           height: Math.max(100, (viewData?.outputs?.length || 1) * 25 + 60)
         };
         break;
@@ -683,7 +677,7 @@ export default function ModelConfigurationTab() {
           }],
           outputs: [],
           status: 'ready',
-          width: 200,
+          width: calculateNodeWidth(goalUniqueName, true),
           height: 100
         };
         break;
@@ -1537,38 +1531,51 @@ export default function ModelConfigurationTab() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {node.type === 'ai-model' && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-white/20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const model = availableAIModels.find(m => m.id === node.modelId);
-                              if (model) {
-                                setSelectedModelForDetails(model);
-                                setIsRightPanelOpen(true);
-                              }
-                            }}
-                          >
-                            <Info className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm(`Delete "${node.name}" from canvas?`)) {
-                                deleteNode(node.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </>
-                      )}
+                      {/* Info button for all node types */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (node.type === 'ai-model') {
+                            const model = availableAIModels.find(m => m.id === node.modelId);
+                            if (model) {
+                              setSelectedModelForDetails(model);
+                              setIsRightPanelOpen(true);
+                            }
+                          } else if (node.type === 'data-input') {
+                            setSelectedNodeForDetails(node);
+                            setIsRightPanelOpen(true);
+                          } else if (node.type === 'view-data') {
+                            setSelectedNodeForDetails(node);
+                            setIsRightPanelOpen(true);
+                          } else if (node.type === 'final-goal') {
+                            setSelectedNodeForDetails(node);
+                            setIsRightPanelOpen(true);
+                          } else if (node.type === 'automation-input') {
+                            setSelectedNodeForDetails(node);
+                            setIsRightPanelOpen(true);
+                          }
+                        }}
+                      >
+                        <Info className="w-3 h-3" />
+                      </Button>
+                      
+                      {/* Delete button for all node types */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete "${node.uniqueName}" from canvas?`)) {
+                            deleteNode(node.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                       <Circle className={`w-3 h-3 ${
                         node.status === 'ready' ? 'text-green-400' :
                         node.status === 'running' ? 'text-yellow-400' :
@@ -1756,25 +1763,37 @@ export default function ModelConfigurationTab() {
           </div>
           </div>
 
-          {/* Right Panel - Model Details */}
-          {isRightPanelOpen && selectedModelForDetails && (
+          {/* Right Panel - Node Details */}
+          {isRightPanelOpen && (selectedModelForDetails || selectedNodeForDetails) && (
             <div className="w-96 bg-white border-l border-gray-300 flex flex-col">
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Model Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedModelForDetails ? 'AI Model Details' : 
+                   selectedNodeForDetails?.type === 'data-input' ? 'Data Source Details' :
+                   selectedNodeForDetails?.type === 'view-data' ? 'View Details' :
+                   selectedNodeForDetails?.type === 'final-goal' ? 'Final Goal Details' :
+                   selectedNodeForDetails?.type === 'automation-input' ? 'Automation Details' :
+                   'Node Details'}
+                </h3>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     onClick={() => {
-                      if (window.confirm(`Delete model "${selectedModelForDetails.name}"?`)) {
+                      const name = selectedModelForDetails?.name || selectedNodeForDetails?.uniqueName;
+                      if (window.confirm(`Delete "${name}"?`)) {
+                        if (selectedNodeForDetails) {
+                          deleteNode(selectedNodeForDetails.id);
+                        }
                         toast({
-                          title: "Model Deleted",
-                          description: `${selectedModelForDetails.name} has been deleted.`,
+                          title: "Node Deleted",
+                          description: `${name} has been deleted.`,
                           variant: "destructive"
                         });
                         setIsRightPanelOpen(false);
                         setSelectedModelForDetails(null);
+                        setSelectedNodeForDetails(null);
                       }
                     }}
                   >
@@ -1791,15 +1810,32 @@ export default function ModelConfigurationTab() {
               </div>
               
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {/* Model Info */}
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedModelForDetails.name}</h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div>Model ID: {selectedModelForDetails.id}</div>
-                    <div>Inputs: {selectedModelForDetails.inputs.length}</div>
-                    <div>Outputs: {selectedModelForDetails.outputs.length}</div>
-                  </div>
-                </div>
+                {selectedModelForDetails ? (
+                  <>
+                    {/* Model Info */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedModelForDetails.name}</h4>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>Model ID: {selectedModelForDetails.id}</div>
+                        <div>Inputs: {selectedModelForDetails.inputs.length}</div>
+                        <div>Outputs: {selectedModelForDetails.outputs.length}</div>
+                      </div>
+                    </div>
+                  </>
+                ) : selectedNodeForDetails ? (
+                  <>
+                    {/* Node Info */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedNodeForDetails.uniqueName}</h4>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>Type: {selectedNodeForDetails.type}</div>
+                        <div>Status: {selectedNodeForDetails.status}</div>
+                        <div>Inputs: {selectedNodeForDetails.inputs.length}</div>
+                        <div>Outputs: {selectedNodeForDetails.outputs.length}</div>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
 
                 {/* Outputs Section */}
                 <div>
@@ -1808,7 +1844,7 @@ export default function ModelConfigurationTab() {
                     Outputs
                   </h5>
                   <div className="space-y-3">
-                    {selectedModelForDetails.outputs.map((output: any) => (
+                    {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any) => (
                       <div key={output.id} className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-gray-900">{output.name}</span>
@@ -1834,7 +1870,7 @@ export default function ModelConfigurationTab() {
                     Inputs
                   </h5>
                   <div className="space-y-3">
-                    {selectedModelForDetails.inputs.map((input: any) => (
+                    {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any) => (
                       <div key={input.id} className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-gray-900">{input.name}</span>
@@ -1890,7 +1926,8 @@ export default function ModelConfigurationTab() {
                                     key={index} 
                                     className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                                     onClick={() => {
-                                      const targetNode = nodes.find(n => n.id === selectedModelForDetails.id);
+                                      const targetNodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
+                                      const targetNode = nodes.find(n => n.id === targetNodeId);
                                       if (targetNode) {
                                         connectNodes(
                                           output.nodeId, 
