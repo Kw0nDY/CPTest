@@ -101,6 +101,8 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid');
+  const [detailFolderId, setDetailFolderId] = useState<string | null>(null);
   
   // Map sidebar menu items to internal tab structure
   const getInternalTab = (sidebarTab?: string) => {
@@ -220,6 +222,16 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     return sampleUploadedModels.filter(model => model.folderId === folderId);
   };
 
+  const handleViewAllModels = (folderId: string) => {
+    setDetailFolderId(folderId);
+    setViewMode('detail');
+  };
+
+  const handleBackToGrid = () => {
+    setViewMode('grid');
+    setDetailFolderId(null);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -241,8 +253,10 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
 
         <TabsContent value="uploaded" className="space-y-6">
           <div className="space-y-6">
-            {/* Upload Zone */}
-            <Card>
+            {viewMode === 'grid' && (
+              <>
+                {/* Upload Zone */}
+                <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -338,41 +352,52 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                       variant="outline"
                       size="sm"
                       className="w-full"
-                      onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
+                      onClick={() => handleViewAllModels(folder.id)}
                     >
-                      {selectedFolder === folder.id ? 'Collapse' : 'View All Models'}
+                      View All Models
                     </Button>
                   </CardContent>
                 </Card>
               ))}
             </div>
+              </>
+            )}
 
-            {/* Expanded folder view */}
-            {selectedFolder && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="w-5 h-5 text-blue-600" />
-                    {sampleFolders.find(f => f.id === selectedFolder)?.name} Models
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {getFilteredModels(selectedFolder).map((model) => (
-                      <div key={model.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-gray-400" />
-                          <div>
-                            <h4 className="font-medium">{model.name}</h4>
-                            <p className="text-sm text-gray-600">
-                              {model.fileName} • {model.size} • {new Date(model.uploadedAt).toLocaleDateString()}
-                            </p>
+            {/* Detail view for specific folder */}
+            {viewMode === 'detail' && detailFolderId && (
+              <div className="space-y-6">
+                {/* Header with back button */}
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleBackToGrid}
+                    className="flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Folders
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {sampleFolders.find(f => f.id === detailFolderId)?.name} Models
+                    </h2>
+                    <p className="text-gray-600">
+                      {sampleFolders.find(f => f.id === detailFolderId)?.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Models grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {getFilteredModels(detailFolderId).map((model) => (
+                    <Card key={model.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                            <CardTitle className="text-lg">{model.name}</CardTitle>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {model.accuracy && (
-                            <span className="text-sm text-gray-600">{model.accuracy}%</span>
-                          )}
                           <Badge className={
                             model.status === 'ready' ? 'bg-green-100 text-green-800' :
                             model.status === 'training' ? 'bg-blue-100 text-blue-800' :
@@ -381,23 +406,77 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                           }>
                             {model.status}
                           </Badge>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Download className="h-4 w-4" />
+                        </div>
+                        <p className="text-sm text-gray-600">{model.type}</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Model Info */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">File:</span>
+                            <span className="font-medium truncate">{model.fileName}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Size:</span>
+                            <span className="font-medium">{model.size}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Uploaded:</span>
+                            <span className="font-medium">{new Date(model.uploadedAt).toLocaleDateString()}</span>
+                          </div>
+                          {model.accuracy && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Accuracy:</span>
+                              <span className="font-medium text-green-600">{model.accuracy}%</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            disabled={model.status !== 'ready'}
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            Test
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <Download className="w-4 h-4" />
                           </Button>
                           <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            variant="outline" 
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
                             onClick={() => handleDeleteModel(model.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Empty state */}
+                {getFilteredModels(detailFolderId).length === 0 && (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <Folder className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Models in This Folder</h3>
+                      <p className="text-gray-600 mb-4">
+                        This folder is empty. Upload your first AI model to get started.
+                      </p>
+                      <Button onClick={() => setShowUploadDialog(true)}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Model
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
         </TabsContent>
