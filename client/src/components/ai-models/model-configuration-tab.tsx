@@ -31,13 +31,16 @@ import {
   X,
   Info,
   ArrowRight,
-  Link2
+  Link2,
+  Target,
+  Monitor
 } from 'lucide-react';
 
 interface ModelNode {
   id: string;
-  type: 'ai-model' | 'data-input' | 'automation-input';
+  type: 'ai-model' | 'data-input' | 'automation-input' | 'view-data' | 'final-goal';
   name: string;
+  uniqueName: string; // For duplicate handling (e.g., "Salesforce Account_1")
   position: { x: number; y: number };
   inputs: Array<{
     id: string;
@@ -52,6 +55,9 @@ interface ModelNode {
     type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
   }>;
   modelId?: string; // Reference to uploaded model
+  sourceId?: string; // Reference to data source
+  triggerId?: string; // Reference to automation trigger
+  viewId?: string; // Reference to view
   status: 'ready' | 'error' | 'running';
   width: number;
   height: number;
@@ -417,8 +423,10 @@ export default function ModelConfigurationTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['quality-models']));
-  const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'automation'>('models');
+  const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'views'>('models');
   const [connectionSearchQuery, setConnectionSearchQuery] = useState('');
+  const [testResults, setTestResults] = useState<{isValid: boolean; errors: string[]} | null>(null);
+  const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<{nodeId: string; inputId: string} | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -455,6 +463,44 @@ export default function ModelConfigurationTab() {
     const matchesCategory = selectedCategory === 'all' || trigger.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  // Sample views data for connection
+  const availableViews = [
+    {
+      id: 'drilling-dashboard',
+      name: 'Drilling Operations Monitor',
+      description: 'Real-time drilling operations monitoring dashboard',
+      outputs: [
+        { id: 'drilling_metrics', name: 'Drilling Metrics', type: 'object' },
+        { id: 'well_status', name: 'Well Status', type: 'string' },
+        { id: 'production_data', name: 'Production Data', type: 'array' }
+      ]
+    },
+    {
+      id: 'production-dashboard',
+      name: 'Production Performance Dashboard',
+      description: 'Manufacturing production performance tracking',
+      outputs: [
+        { id: 'efficiency_metrics', name: 'Efficiency Metrics', type: 'object' },
+        { id: 'quality_scores', name: 'Quality Scores', type: 'number' },
+        { id: 'throughput_data', name: 'Throughput Data', type: 'array' }
+      ]
+    }
+  ];
+
+  // Generate unique name for duplicate nodes
+  const generateUniqueName = (baseName: string, existingNodes: ModelNode[]): string => {
+    const existingNames = existingNodes.map(n => n.uniqueName);
+    let counter = 1;
+    let uniqueName = baseName;
+    
+    while (existingNames.includes(uniqueName)) {
+      counter++;
+      uniqueName = `${baseName}_${counter}`;
+    }
+    
+    return uniqueName;
+  };
 
   // Get possible connections for an input
   const getPossibleConnections = (inputType: string) => {
@@ -511,17 +557,19 @@ export default function ModelConfigurationTab() {
   };
 
   // Create new node
-  const createNode = (type: 'ai-model' | 'data-input' | 'automation-input', data?: any) => {
+  const createNode = (type: 'ai-model' | 'data-input' | 'automation-input' | 'view-data' | 'final-goal', data?: any) => {
     const id = `node-${Date.now()}`;
     let newNode: ModelNode;
 
     switch (type) {
       case 'ai-model':
         const modelData = availableAIModels.find(m => m.id === data?.modelId);
+        const uniqueName = generateUniqueName(data?.name || 'AI Model', nodes);
         newNode = {
           id,
           type,
           name: data?.name || 'AI Model',
+          uniqueName,
           position: addNodePosition,
           inputs: modelData?.inputs.map(input => ({
             id: `${id}-input-${input.id}`,
@@ -543,10 +591,12 @@ export default function ModelConfigurationTab() {
       
       case 'data-input':
         const dataSource = dataIntegrationSources.find(ds => ds.id === data?.sourceId);
+        const dataUniqueName = generateUniqueName(data?.name || 'Data Input', nodes);
         newNode = {
           id,
           type,
           name: data?.name || 'Data Input',
+          uniqueName: dataUniqueName,
           position: addNodePosition,
           inputs: [],
           outputs: dataSource?.fields?.map((field, index) => ({
@@ -558,7 +608,7 @@ export default function ModelConfigurationTab() {
             name: 'Data Output',
             type: data?.type || 'object'
           }],
-          modelId: data?.sourceId,
+          sourceId: data?.sourceId,
           status: 'ready',
           width: Math.max(180, (dataSource?.fields?.length || 1) * 25 + 80),
           height: Math.max(100, (dataSource?.fields?.length || 1) * 25 + 60)
@@ -567,10 +617,12 @@ export default function ModelConfigurationTab() {
 
       case 'automation-input':
         const triggerData = automationTriggers.find(t => t.id === data?.triggerId);
+        const automationUniqueName = generateUniqueName(data?.name || 'Automation Trigger', nodes);
         newNode = {
           id,
           type,
           name: data?.name || 'Automation Trigger',
+          uniqueName: automationUniqueName,
           position: addNodePosition,
           inputs: [],
           outputs: triggerData?.outputs?.map((output, index) => ({
@@ -582,10 +634,57 @@ export default function ModelConfigurationTab() {
             name: 'Trigger Output',
             type: data?.type || 'object'
           }],
-          modelId: data?.triggerId,
+          triggerId: data?.triggerId,
           status: 'ready',
           width: Math.max(180, (triggerData?.outputs?.length || 1) * 25 + 80),
           height: Math.max(100, (triggerData?.outputs?.length || 1) * 25 + 60)
+        };
+        break;
+
+      case 'view-data':
+        const viewData = availableViews.find(v => v.id === data?.viewId);
+        const viewUniqueName = generateUniqueName(data?.name || 'View Data', nodes);
+        newNode = {
+          id,
+          type,
+          name: data?.name || 'View Data',
+          uniqueName: viewUniqueName,
+          position: addNodePosition,
+          inputs: [],
+          outputs: viewData?.outputs?.map((output, index) => ({
+            id: `${id}-output-${output.id}`,
+            name: output.name,
+            type: output.type
+          })) || [{
+            id: `${id}-output-view`,
+            name: 'View Output',
+            type: 'object'
+          }],
+          viewId: data?.viewId,
+          status: 'ready',
+          width: Math.max(180, (viewData?.outputs?.length || 1) * 25 + 80),
+          height: Math.max(100, (viewData?.outputs?.length || 1) * 25 + 60)
+        };
+        break;
+
+      case 'final-goal':
+        const goalUniqueName = generateUniqueName('Final Goal', nodes);
+        newNode = {
+          id,
+          type,
+          name: 'Final Goal',
+          uniqueName: goalUniqueName,
+          position: addNodePosition,
+          inputs: [{
+            id: `${id}-input-goal`,
+            name: 'Goal Input',
+            type: 'object',
+            connected: false
+          }],
+          outputs: [],
+          status: 'ready',
+          width: 200,
+          height: 100
         };
         break;
     }
@@ -612,6 +711,18 @@ export default function ModelConfigurationTab() {
 
   // Delete node
   const deleteNode = (nodeId: string) => {
+    const nodeToDelete = nodes.find(n => n.id === nodeId);
+    
+    // Don't allow deleting final goal if it's the only one
+    if (nodeToDelete?.type === 'final-goal' && nodes.filter(n => n.type === 'final-goal').length === 1) {
+      toast({
+        title: "Cannot Delete",
+        description: "At least one final goal is required for the configuration.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setNodes(prev => prev.filter(node => node.id !== nodeId));
     setConnections(prev => prev.filter(conn => 
       conn.fromNodeId !== nodeId && conn.toNodeId !== nodeId
@@ -781,6 +892,19 @@ export default function ModelConfigurationTab() {
     }
   }, [draggedNode, handleMouseMove, handleMouseUp]);
 
+  // Auto-create final goal if needed
+  useEffect(() => {
+    if (nodes.length > 0 && !nodes.some(n => n.type === 'final-goal')) {
+      const finalGoalPosition = {
+        x: Math.max(...nodes.map(n => n.position.x + n.width)) + 200,
+        y: nodes.reduce((sum, n) => sum + n.position.y, 0) / nodes.length
+      };
+      
+      setAddNodePosition(finalGoalPosition);
+      createNode('final-goal', {});
+    }
+  }, [nodes.length]);
+
   // Handle canvas right click
   const handleCanvasRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -841,9 +965,71 @@ export default function ModelConfigurationTab() {
     setConnecting(null);
   };
 
+  // Validate configuration before test/save
+  const validateConfiguration = (): {isValid: boolean; errors: string[]} => {
+    const errors: string[] = [];
+    
+    // Check if there are any AI models
+    const aiModels = nodes.filter(n => n.type === 'ai-model');
+    if (aiModels.length === 0) {
+      errors.push('At least one AI model is required');
+    }
+    
+    // Check if AI models have input connections
+    aiModels.forEach(model => {
+      const hasConnectedInputs = model.inputs.some(input => input.connected);
+      if (!hasConnectedInputs && model.inputs.length > 0) {
+        errors.push(`AI model "${model.uniqueName}" needs input connections to run`);
+      }
+    });
+    
+    // Check final goal connections
+    const finalGoals = nodes.filter(n => n.type === 'final-goal');
+    finalGoals.forEach(goal => {
+      const hasConnections = connections.some(conn => conn.toNodeId === goal.id);
+      if (!hasConnections) {
+        errors.push(`Final goal "${goal.uniqueName}" must have input connections`);
+      }
+    });
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
+  // Test configuration
+  const testConfiguration = () => {
+    const validation = validateConfiguration();
+    setTestResults(validation);
+    
+    if (validation.isValid) {
+      toast({
+        title: "Test Configuration",
+        description: "Configuration is valid and ready to run!",
+      });
+    } else {
+      toast({
+        title: "Configuration Issues",
+        description: `${validation.errors.length} issues found. Please review and fix.`,
+        variant: "destructive"
+      });
+    }
+  };
+
   // Save configuration
   const saveConfiguration = () => {
     if (!currentConfig) return;
+
+    const validation = validateConfiguration();
+    if (!validation.isValid) {
+      toast({
+        title: "Cannot Save",
+        description: "Please fix configuration issues before saving.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     const updatedConfig = {
       ...currentConfig,
@@ -903,7 +1089,7 @@ export default function ModelConfigurationTab() {
                 <Save className="w-4 h-4 mr-2" />
                 Save
               </Button>
-              <Button>
+              <Button onClick={testConfiguration}>
                 <Play className="w-4 h-4 mr-2" />
                 Test Configuration
               </Button>
@@ -972,14 +1158,14 @@ export default function ModelConfigurationTab() {
                     </button>
                     <button
                       className={`flex-1 text-xs py-2 px-3 rounded-md transition-colors ${
-                        activeLeftTab === 'automation' 
+                        activeLeftTab === 'views' 
                           ? 'bg-white text-purple-600 shadow-sm' 
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
-                      onClick={() => setActiveLeftTab('automation')}
+                      onClick={() => setActiveLeftTab('views')}
                     >
-                      <Zap className="w-3 h-3 inline mr-1" />
-                      Auto
+                      <Monitor className="w-3 h-3 inline mr-1" />
+                      Views
                     </button>
                   </div>
                 </div>
@@ -1168,69 +1354,56 @@ export default function ModelConfigurationTab() {
                   </div>
                 )}
 
-                {/* Automation Tab */}
-                {activeLeftTab === 'automation' && (
+                {/* Views Tab */}
+                {activeLeftTab === 'views' && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-purple-600" />
-                      Automation ({filteredAutomationTriggers.length})
+                      <Monitor className="w-4 h-4 text-purple-600" />
+                      Views ({availableViews.length})
                     </h4>
                     <div className="space-y-3">
-                      {['Schedule', 'Event', 'API'].map(category => {
-                        const triggers = filteredAutomationTriggers.filter(t => t.category === category);
-                        if (triggers.length === 0) return null;
-                        
-                        return (
-                          <div key={category}>
-                            <div className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-2">
-                              <span>{category}</span>
-                              <Badge variant="outline" className="text-xs">{triggers.length}</Badge>
+                      {availableViews.map(view => (
+                        <div
+                          key={view.id}
+                          className="p-3 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/json', JSON.stringify({
+                              type: 'view-data',
+                              viewId: view.id,
+                              name: view.name
+                            }));
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-gray-900 truncate">{view.name}</div>
+                                <div className="text-xs text-gray-500">{view.outputs?.length || 0} outputs</div>
+                                {view.description && (
+                                  <div className="text-xs text-gray-400 truncate mt-1">{view.description}</div>
+                                )}
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              {triggers.map(trigger => (
-                                <div
-                                  key={trigger.id}
-                                  className="p-2 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
-                                  draggable
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData('application/json', JSON.stringify({
-                                      type: 'automation-input',
-                                      triggerId: trigger.id,
-                                      name: trigger.name
-                                    }));
-                                  }}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-sm text-gray-900 truncate">{trigger.name}</div>
-                                        <div className="text-xs text-gray-500">{trigger.outputs?.length || 0} outputs</div>
-                                      </div>
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAddNodePosition({ x: 100, y: 300 });
-                                        createNode('automation-input', { 
-                                          name: trigger.name, 
-                                          type: trigger.type,
-                                          triggerId: trigger.id
-                                        });
-                                      }}
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAddNodePosition({ x: 100, y: 300 });
+                                createNode('view-data', { 
+                                  name: view.name, 
+                                  viewId: view.id
+                                });
+                              }}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1276,6 +1449,11 @@ export default function ModelConfigurationTab() {
                   createNode('automation-input', { 
                     name: data.name, 
                     triggerId: data.triggerId 
+                  });
+                } else if (data.type === 'view-data') {
+                  createNode('view-data', { 
+                    name: data.name, 
+                    viewId: data.viewId 
                   });
                 }
               } catch (error) {
@@ -1329,7 +1507,11 @@ export default function ModelConfigurationTab() {
             {nodes.map(node => (
               <div
                 key={node.id}
-                className="absolute bg-gray-800 border border-gray-600 rounded-lg shadow-lg cursor-move"
+                className={`absolute border rounded-lg shadow-lg cursor-move ${
+                  node.type === 'final-goal' 
+                    ? 'bg-purple-900 border-purple-500 ring-2 ring-purple-400' 
+                    : 'bg-gray-800 border-gray-600'
+                }`}
                 style={{
                   left: node.position.x,
                   top: node.position.y,
@@ -1343,10 +1525,17 @@ export default function ModelConfigurationTab() {
                 <div className={`px-3 py-2 rounded-t-lg text-white text-sm font-medium ${
                   node.type === 'ai-model' ? 'bg-blue-600' :
                   node.type === 'data-input' ? 'bg-green-600' :
+                  node.type === 'view-data' ? 'bg-indigo-600' :
+                  node.type === 'final-goal' ? 'bg-purple-700' :
                   'bg-purple-600'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <span className="truncate">{node.name}</span>
+                    <div className="flex flex-col">
+                      <span className="truncate">{node.uniqueName}</span>
+                      {node.uniqueName !== node.name && (
+                        <span className="text-xs opacity-70 truncate">{node.name}</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       {node.type === 'ai-model' && (
                         <>
@@ -1394,7 +1583,17 @@ export default function ModelConfigurationTab() {
                   {/* Node Info */}
                   {node.type !== 'ai-model' && (
                     <div className="text-xs text-gray-500 mb-2 border-b border-gray-600 pb-1">
-                      {node.type === 'data-input' ? 'Data Source' : 'Automation Trigger'}
+                      {node.type === 'data-input' ? 'Data Source' : 
+                       node.type === 'view-data' ? 'View Data' :
+                       node.type === 'final-goal' ? 'Configuration Output' :
+                       'Automation Trigger'}
+                    </div>
+                  )}
+                  
+                  {/* Final Goal Icon */}
+                  {node.type === 'final-goal' && (
+                    <div className="flex items-center justify-center mb-2">
+                      <Target className="w-8 h-8 text-purple-400" />
                     </div>
                   )}
                   
@@ -1497,6 +1696,31 @@ export default function ModelConfigurationTab() {
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Views */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">Views</div>
+                    {availableViews.map(view => (
+                      <button
+                        key={view.id}
+                        className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        onClick={() => createNode('view-data', { viewId: view.id, name: view.name })}
+                      >
+                        {view.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Final Goal */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">Output</div>
+                    <button
+                      className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                      onClick={() => createNode('final-goal', {})}
+                    >
+                      Final Goal
+                    </button>
                   </div>
 
                   {/* Automation by Category */}
