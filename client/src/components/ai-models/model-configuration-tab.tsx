@@ -683,21 +683,20 @@ export default function ModelConfigurationTab() {
       description: string;
     }> = [];
     
-    // AI Model outputs from nodes on canvas
+    // AI Model outputs from nodes on canvas (including self-referencing)
     nodes.filter(node => node.type === 'ai-model').forEach(node => {
       const model = availableAIModels.find(m => m.id === node.modelId);
       if (model) {
+        // All AI model outputs can be connected regardless of type
         model.outputs.forEach(output => {
-          if (output.type === inputType) {
-            outputs.push({
-              type: 'ai-model',
-              nodeId: node.id,
-              nodeName: node.name,
-              outputId: output.id,
-              outputName: output.name,
-              description: `Output from ${node.name}`
-            });
-          }
+          outputs.push({
+            type: 'ai-model',
+            nodeId: node.id,
+            nodeName: node.name,
+            outputId: output.id,
+            outputName: output.name,
+            description: `${output.name} from ${node.name}`
+          });
         });
       }
     });
@@ -707,17 +706,16 @@ export default function ModelConfigurationTab() {
       if ('sourceId' in node) {
         const source = dataIntegrationSources.find(s => s.id === node.sourceId);
         if (source) {
+          // All fields from data sources can be connected regardless of type
           source.fields?.forEach(field => {
-            if (field.type === inputType) {
-              outputs.push({
-                type: 'data-integration',
-                nodeId: node.id,
-                nodeName: node.name,
-                outputId: field.name,
-                outputName: field.description,
-                description: `${field.description} from ${source.tableName || source.name}`
-              });
-            }
+            outputs.push({
+              type: 'data-integration',
+              nodeId: node.id,
+              nodeName: node.name,
+              outputId: field.name,
+              outputName: field.description,
+              description: `${field.description} from ${source.tableName || source.name}`
+            });
           });
         }
       }
@@ -728,17 +726,16 @@ export default function ModelConfigurationTab() {
       if ('triggerId' in node) {
         const trigger = automationTriggers.find(t => t.id === node.triggerId);
         if (trigger) {
+          // All automation outputs can be connected regardless of type
           trigger.outputs?.forEach(output => {
-            if (output.type === inputType) {
-              outputs.push({
-                type: 'automation',
-                nodeId: node.id,
-                nodeName: node.name,
-                outputId: output.name,
-                outputName: output.description,
-                description: `${output.description} from ${node.name}`
-              });
-            }
+            outputs.push({
+              type: 'automation',
+              nodeId: node.id,
+              nodeName: node.name,
+              outputId: output.name,
+              outputName: output.description,
+              description: `${output.description} from ${node.name}`
+            });
           });
         }
       }
@@ -908,7 +905,7 @@ export default function ModelConfigurationTab() {
               </Button>
               <Button>
                 <Play className="w-4 h-4 mr-2" />
-                Run Workflow
+                Test Configuration
               </Button>
             </div>
           </div>
