@@ -374,49 +374,60 @@ export default function ViewSettingTab() {
       </div>
 
       {/* Views Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {views.map((view) => (
-          <Card key={view.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {getTypeIcon(view.type)}
-                  <CardTitle className="text-lg">{view.name}</CardTitle>
+          <Card key={view.id} className="hover:shadow-lg transition-shadow h-full flex flex-col">
+            <CardHeader className="pb-4">
+              {/* Header with Icon, Title, and Status - Fixed Height */}
+              <div className="flex items-start justify-between min-h-[32px] mb-3">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                  <div className="flex-shrink-0">
+                    {getTypeIcon(view.type)}
+                  </div>
+                  <CardTitle className="text-lg truncate flex-1">{view.name}</CardTitle>
                 </div>
-                <Badge className={getStatusColor(view.status)}>
+                <Badge className={`${getStatusColor(view.status)} flex-shrink-0 ml-2`}>
                   {view.status}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600 mt-1">{view.description}</p>
+              
+              {/* Description - Fixed Height */}
+              <div className="min-h-[48px] max-h-[48px] overflow-hidden">
+                <p className="text-sm text-gray-600 line-clamp-2">{view.description}</p>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Type:</span>
-                  <span className="capitalize font-medium">{view.type}</span>
+            
+            <CardContent className="flex-1 flex flex-col">
+              {/* Stats Grid - Fixed Height */}
+              <div className="space-y-4 mb-6 min-h-[120px]">
+                <div className="flex items-center justify-between text-sm min-h-[20px]">
+                  <span className="text-gray-600 font-medium">Type:</span>
+                  <span className="capitalize font-semibold text-gray-900">{view.type}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Data Sources:</span>
-                  <span className="font-medium">{view.dataSources?.length || 0}</span>
+                <div className="flex items-center justify-between text-sm min-h-[20px]">
+                  <span className="text-gray-600 font-medium">Data Sources:</span>
+                  <span className="font-semibold text-gray-900">{view.dataSources?.length || 0}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Assigned:</span>
-                  <span className="font-medium">{(view.assignedTo?.length || 0) + (view.assignedDepartments?.length || 0)}</span>
+                <div className="flex items-center justify-between text-sm min-h-[20px]">
+                  <span className="text-gray-600 font-medium">Assigned:</span>
+                  <span className="font-semibold text-gray-900">{(view.assignedTo?.length || 0) + (view.assignedDepartments?.length || 0)}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Updated:</span>
-                  <span className="font-medium">{view.updatedAt}</span>
+                <div className="flex items-center justify-between text-sm min-h-[20px]">
+                  <span className="text-gray-600 font-medium">Updated:</span>
+                  <span className="font-semibold text-gray-900 text-xs">{view.updatedAt}</span>
                 </div>
               </div>
               
-              <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                <div className="flex space-x-1">
+              {/* Action Buttons - Always at Bottom */}
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200">
+                {/* Move Buttons */}
+                <div className="flex space-x-2">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleMoveView(view.id, 'up')}
                     disabled={views.findIndex(v => v.id === view.id) === 0}
-                    className="h-8 w-8 p-0 hover:bg-blue-100"
+                    className="h-9 w-9 p-0 hover:bg-blue-100 hover:text-blue-600"
                     title="Move Up"
                   >
                     <ChevronUp className="h-4 w-4" />
@@ -426,19 +437,22 @@ export default function ViewSettingTab() {
                     size="sm"
                     onClick={() => handleMoveView(view.id, 'down')}
                     disabled={views.findIndex(v => v.id === view.id) === views.length - 1}
-                    className="h-8 w-8 p-0 hover:bg-blue-100"
+                    className="h-9 w-9 p-0 hover:bg-blue-100 hover:text-blue-600"
                     title="Move Down"
                   >
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </div>
                 
-                <div className="flex space-x-1">
+                {/* Action Buttons */}
+                <div className="flex space-x-2">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleEditView(view)}
+                    className="h-9 w-9 p-0 hover:bg-gray-100"
                     data-testid={`edit-view-${view.id}`}
+                    title="Edit View"
                   >
                     <Edit3 className="h-4 w-4" />
                   </Button>
@@ -446,7 +460,9 @@ export default function ViewSettingTab() {
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleViewStatus(view.id)}
+                    className="h-9 w-9 p-0 hover:bg-gray-100"
                     data-testid={`toggle-view-${view.id}`}
+                    title={view.status === 'active' ? 'Pause View' : 'Activate View'}
                   >
                     {view.status === 'active' ? (
                       <Pause className="h-4 w-4" />
@@ -458,7 +474,9 @@ export default function ViewSettingTab() {
                     variant="ghost"
                     size="sm"
                     onClick={() => duplicateView(view)}
+                    className="h-9 w-9 p-0 hover:bg-gray-100"
                     data-testid={`copy-view-${view.id}`}
+                    title="Copy View"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -466,8 +484,9 @@ export default function ViewSettingTab() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteView(view.id)}
-                    className="text-red-600 hover:text-red-700"
+                    className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                     data-testid={`delete-view-${view.id}`}
+                    title="Delete View"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

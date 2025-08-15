@@ -399,64 +399,72 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
     return (
       <div
         ref={drag}
-        className={`p-3 border rounded-lg bg-white hover:shadow-md transition-all duration-200 ${isDragging ? 'opacity-50 scale-95 shadow-lg border-blue-300' : 'cursor-move'}`}
+        className={`p-4 border rounded-lg bg-white hover:shadow-md transition-all duration-200 min-h-[80px] flex flex-col ${isDragging ? 'opacity-50 scale-95 shadow-lg border-blue-300' : 'cursor-move'}`}
         onClick={() => setSelectedComponent(component)}
         style={{ touchAction: 'none' }}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            {component.type === 'chart' && <BarChart3 className="h-4 w-4 text-blue-600" />}
-            {component.type === 'table' && <Table className="h-4 w-4 text-green-600" />}
-            {component.type === 'metric' && <Gauge className="h-4 w-4 text-purple-600" />}
-            {component.type === 'text' && <Text className="h-4 w-4 text-gray-600" />}
-            {component.type === 'image' && <ImageIcon className="h-4 w-4 text-orange-600" />}
-            {component.type === 'timeline' && <Clock className="h-4 w-4 text-red-600" />}
-            <span className="text-sm font-medium capitalize">{component.type}</span>
+        <div className="flex items-center justify-between mb-3 min-h-[32px]">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="flex-shrink-0">
+              {component.type === 'chart' && <BarChart3 className="h-5 w-5 text-blue-600" />}
+              {component.type === 'table' && <Table className="h-5 w-5 text-green-600" />}
+              {component.type === 'metric' && <Gauge className="h-5 w-5 text-purple-600" />}
+              {component.type === 'text' && <Text className="h-5 w-5 text-gray-600" />}
+              {component.type === 'image' && <ImageIcon className="h-5 w-5 text-orange-600" />}
+              {component.type === 'timeline' && <Clock className="h-5 w-5 text-red-600" />}
+            </div>
+            <span className="text-sm font-semibold capitalize truncate">{component.type}</span>
           </div>
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
               onClick={(e) => {
                 e.stopPropagation();
                 moveComponentWithinGrid(component.id, 'up');
               }}
+              title="Move Up"
             >
-              <ChevronUp className="h-3 w-3" />
+              <ChevronUp className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
               onClick={(e) => {
                 e.stopPropagation();
                 moveComponentWithinGrid(component.id, 'down');
               }}
+              title="Move Down"
             >
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 text-red-600"
+              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
               onClick={(e) => {
                 e.stopPropagation();
                 deleteComponent(component.id);
               }}
+              title="Delete Component"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        <div className="text-xs text-gray-500">
-          {component.config.dataSource ? (
-            <span className="text-green-600">
-              Connected to {availableDataSources.find(ds => ds.id === component.config.dataSource)?.name}
-            </span>
-          ) : (
-            <span className="text-orange-600">No data source</span>
-          )}
+        {/* Component Info - Fixed Height */}
+        <div className="mt-auto min-h-[20px] flex items-center">
+          <div className="text-xs text-gray-500 truncate">
+            {component.config.dataSource ? (
+              <span className="text-green-600 font-medium">
+                Connected to {availableDataSources.find(ds => ds.id === component.config.dataSource)?.name}
+              </span>
+            ) : (
+              <span className="text-orange-600 font-medium">No data source</span>
+            )}
+          </div>
         </div>
       </div>
     );
