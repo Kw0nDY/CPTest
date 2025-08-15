@@ -354,135 +354,174 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
             </CardContent>
           </Card>
 
-          {/* Upload Examples */}
+          {/* Recently Uploaded Models */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Model Upload Examples
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Recently Uploaded Models
               </CardTitle>
-              <p className="text-sm text-gray-600">Common model types and their use cases</p>
+              <p className="text-sm text-gray-600">Your successfully uploaded AI models</p>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-medium">Classification Models</h4>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-green-200 bg-green-50/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div>
+                      <h4 className="font-medium text-green-900">assembly_line_quality_classifier.pkl</h4>
+                      <p className="text-sm text-green-700">Classification Model • 94.2% accuracy • Uploaded 2 hours ago</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Customer segmentation, quality control, defect detection</p>
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Formats:</span> .pkl, .joblib, .h5
-                  </div>
+                  <Badge className="bg-green-100 text-green-800">Ready</Badge>
                 </div>
 
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50/30 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <BarChart3 className="w-4 h-4 text-green-600" />
-                    <h4 className="font-medium">Regression Models</h4>
+                <div className="flex items-center justify-between p-4 border border-blue-200 bg-blue-50/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <h4 className="font-medium text-blue-900">demand_forecasting_lstm.h5</h4>
+                      <p className="text-sm text-blue-700">Deep Learning Model • Training in progress • Uploaded 1 day ago</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Demand forecasting, price prediction, resource optimization</p>
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Formats:</span> .pkl, .onnx, .pb
-                  </div>
+                  <Badge className="bg-blue-100 text-blue-800">Training</Badge>
                 </div>
 
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50/30 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-purple-600" />
-                    <h4 className="font-medium">Deep Learning</h4>
+                <div className="flex items-center justify-between p-4 border border-yellow-200 bg-yellow-50/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    <div>
+                      <h4 className="font-medium text-yellow-900">maintenance_predictor_rf.joblib</h4>
+                      <p className="text-sm text-yellow-700">Regression Model • Needs configuration • Uploaded 3 days ago</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Image recognition, NLP, time series forecasting</p>
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Formats:</span> .h5, .pt, .pth, .onnx
-                  </div>
+                  <Badge className="bg-yellow-100 text-yellow-800">Draft</Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Quick Upload Examples */}
+          {/* Pre-built AI Models */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Plus className="w-5 h-5" />
-                Quick Start Templates
+                <Zap className="w-5 h-5" />
+                Pre-built AI Models
               </CardTitle>
-              <p className="text-sm text-gray-600">Pre-configured templates for common manufacturing use cases</p>
+              <p className="text-sm text-gray-600">Ready-to-use AI models provided by CP Platform (Super Admin approval required)</p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 justify-start"
-                  onClick={() => {
-                    setUploadConfig({
-                      name: 'Production Quality Classifier',
-                      type: 'classification',
-                      file: null
-                    });
-                    setShowUploadDialog(true);
-                  }}
-                >
-                  <div className="text-left">
-                    <div className="font-medium">Quality Control Model</div>
-                    <div className="text-sm text-gray-600">Predict product quality based on production parameters</div>
+                {/* Approved Model */}
+                <div className="p-4 border border-green-200 bg-green-50/30 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <h4 className="font-medium text-green-900">Quality Control Model</h4>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
                   </div>
-                </Button>
+                  <p className="text-sm text-green-700 mb-3">Predict product quality based on production parameters</p>
+                  <div className="text-xs text-green-600 mb-4">
+                    <span className="font-medium">Accuracy:</span> 94.2% • <span className="font-medium">Version:</span> 2.1.0
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      // Simulate adding approved model
+                      toast({
+                        title: "Model Applied Successfully",
+                        description: "Quality Control Model has been added to your workspace",
+                      });
+                    }}
+                  >
+                    Apply Model
+                  </Button>
+                </div>
 
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 justify-start"
-                  onClick={() => {
-                    setUploadConfig({
-                      name: 'Predictive Maintenance Model',
-                      type: 'regression',
-                      file: null
-                    });
-                    setShowUploadDialog(true);
-                  }}
-                >
-                  <div className="text-left">
-                    <div className="font-medium">Maintenance Predictor</div>
-                    <div className="text-sm text-gray-600">Forecast equipment maintenance requirements</div>
+                {/* Approved Model */}
+                <div className="p-4 border border-green-200 bg-green-50/30 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <h4 className="font-medium text-green-900">Maintenance Predictor</h4>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
                   </div>
-                </Button>
+                  <p className="text-sm text-green-700 mb-3">Forecast equipment maintenance requirements</p>
+                  <div className="text-xs text-green-600 mb-4">
+                    <span className="font-medium">Accuracy:</span> 87.5% • <span className="font-medium">Version:</span> 1.8.1
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      toast({
+                        title: "Model Applied Successfully",
+                        description: "Maintenance Predictor has been added to your workspace",
+                      });
+                    }}
+                  >
+                    Apply Model
+                  </Button>
+                </div>
 
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 justify-start"
-                  onClick={() => {
-                    setUploadConfig({
-                      name: 'Demand Forecasting Model',
-                      type: 'regression',
-                      file: null
-                    });
-                    setShowUploadDialog(true);
-                  }}
-                >
-                  <div className="text-left">
-                    <div className="font-medium">Demand Forecasting</div>
-                    <div className="text-sm text-gray-600">Predict future product demand and inventory needs</div>
+                {/* Pending Approval */}
+                <div className="p-4 border border-yellow-200 bg-yellow-50/30 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-yellow-600" />
+                      <h4 className="font-medium text-yellow-900">Demand Forecasting</h4>
+                    </div>
+                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">Pending</Badge>
                   </div>
-                </Button>
+                  <p className="text-sm text-yellow-700 mb-3">Predict future product demand and inventory needs</p>
+                  <div className="text-xs text-yellow-600 mb-4">
+                    <span className="font-medium">Accuracy:</span> 89.1% • <span className="font-medium">Version:</span> 3.0.2
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="w-full border-yellow-300 text-yellow-700"
+                    disabled
+                  >
+                    Awaiting Approval
+                  </Button>
+                </div>
 
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 justify-start"
-                  onClick={() => {
-                    setUploadConfig({
-                      name: 'Supply Chain Risk Assessment',
-                      type: 'classification',
-                      file: null
-                    });
-                    setShowUploadDialog(true);
-                  }}
-                >
-                  <div className="text-left">
-                    <div className="font-medium">Risk Assessment</div>
-                    <div className="text-sm text-gray-600">Evaluate supplier and supply chain risks</div>
+                {/* Not Approved */}
+                <div className="p-4 border border-red-200 bg-red-50/30 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <h4 className="font-medium text-red-900">Risk Assessment</h4>
+                    </div>
+                    <Badge className="bg-red-100 text-red-800 text-xs">Not Approved</Badge>
                   </div>
-                </Button>
+                  <p className="text-sm text-red-700 mb-3">Evaluate supplier and supply chain risks</p>
+                  <div className="text-xs text-red-600 mb-4">
+                    <span className="font-medium">Accuracy:</span> 91.8% • <span className="font-medium">Version:</span> 1.5.0
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="w-full border-red-300 text-red-700"
+                    disabled
+                  >
+                    Contact Super Admin
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Database className="w-4 h-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-900 mb-1">Super Admin Approval System</p>
+                    <p className="text-blue-700">Pre-built models require Super Admin approval before use. Contact your system administrator to request access to pending models.</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
