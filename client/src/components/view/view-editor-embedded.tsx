@@ -86,14 +86,14 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       ...editingView,
       layout: {
         ...editingView.layout,
-        grids: [...editingView.layout.grids, newGrid]
+        grids: [...(editingView.layout?.grids || []), newGrid]
       }
     });
     setIsAddingGrid(false);
   };
 
   const addComponent = (gridId: string, type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'timeline') => {
-    const grid = editingView.layout.grids.find(g => g.id === gridId);
+    const grid = editingView.layout?.grids.find(g => g.id === gridId);
     if (!grid) return;
 
     const newComponent: UIComponent = {
@@ -114,7 +114,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       }
     };
 
-    const updatedGrids = editingView.layout.grids.map(g => 
+    const updatedGrids = (editingView.layout?.grids || []).map(g => 
       g.id === gridId 
         ? { ...g, components: [...g.components, newComponent] }
         : g
@@ -130,7 +130,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   };
 
   const updateComponent = (componentId: string, updates: Partial<UIComponent>) => {
-    const updatedGrids = editingView.layout.grids.map(grid => ({
+    const updatedGrids = (editingView.layout?.grids || []).map(grid => ({
       ...grid,
       components: grid.components.map(comp => 
         comp.id === componentId ? { ...comp, ...updates } : comp
@@ -148,7 +148,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   };
 
   const deleteComponent = (componentId: string) => {
-    const updatedGrids = editingView.layout.grids.map(grid => ({
+    const updatedGrids = (editingView.layout?.grids || []).map(grid => ({
       ...grid,
       components: grid.components.filter(comp => comp.id !== componentId)
     }));
@@ -334,7 +334,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
           </div>
 
           <div className="space-y-6">
-            {editingView.layout.grids.map((grid) => (
+            {(editingView.layout?.grids || []).map((grid) => (
               <div 
                 key={grid.id} 
                 className={`border-2 border-dashed border-gray-200 rounded-lg p-4 ${selectedGrid?.id === grid.id ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}
@@ -563,7 +563,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                     <Label htmlFor="chart-type">Chart Type</Label>
                     <Select
                       value={selectedComponent.config.chartType || 'bar'}
-                      onValueChange={(value) => updateComponent(selectedComponent.id, {
+                      onValueChange={(value: 'bar' | 'line' | 'pie' | 'area' | 'doughnut' | 'scatter') => updateComponent(selectedComponent.id, {
                         config: { ...selectedComponent.config, chartType: value }
                       })}
                     >
@@ -618,7 +618,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
         </div>
         
         <div className="space-y-6">
-          {editingView.layout.grids.map((grid) => (
+          {(editingView.layout?.grids || []).map((grid) => (
             <div key={grid.id} className={`grid ${getGridColumns(grid.columns)} gap-4`}>
               {Array.from({ length: grid.columns }).map((_, colIndex) => {
                 const columnsComponents = grid.components.filter(comp => comp.gridPosition === colIndex && comp.visible);

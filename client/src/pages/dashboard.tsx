@@ -16,6 +16,7 @@ type ViewType = "data-integration" | "view-setting" | "automation" | "model-uplo
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<ViewType>("data-integration");
   const [currentUser, setCurrentUser] = useState<User>(availableUsers[0]); // Default to Admin
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const handleViewChange = (view: string) => {
     setActiveView(view as ViewType);
@@ -60,7 +61,12 @@ export default function Dashboard() {
       <Header currentUser={currentUser} onUserChange={handleUserChange} />
       
       <div className="flex flex-1 pt-14">
-        <Sidebar activeView={activeView} onViewChange={handleViewChange} />
+        <Sidebar 
+          activeView={activeView} 
+          onViewChange={handleViewChange}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        />
         
         <main className="flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto">

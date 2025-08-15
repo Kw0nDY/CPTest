@@ -22,52 +22,10 @@ import {
   Eye
 } from "lucide-react";
 import ViewEditor from "./view-editor-embedded";
-
-interface UIComponent {
-  id: string;
-  type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline';
-  gridPosition: number;
-  visible: boolean;
-  config: {
-    title?: string;
-    dataSource?: string;
-    chartType?: 'bar' | 'line' | 'pie' | 'area' | 'doughnut' | 'scatter';
-    metrics?: string[];
-    dimensions?: string[];
-    filters?: any[];
-    styling?: any;
-    refreshRate?: number;
-    showLegend?: boolean;
-    showGrid?: boolean;
-    animation?: boolean;
-  };
-}
-
-interface GridRow {
-  id: string;
-  columns: number;
-  components: UIComponent[];
-}
-
-interface ViewConfig {
-  id: string;
-  name: string;
-  description: string;
-  type: 'dashboard' | 'monitor' | 'analytics' | 'report';
-  status: 'active' | 'paused' | 'draft';
-  assignedTo: string[];
-  assignedDepartments: string[];
-  dataSources: string[];
-  layout: {
-    grids: GridRow[];
-    components?: UIComponent[];
-  };
-  createdAt: string;
-  updatedAt: string;
-}
+import type { View, UIComponent, GridRow } from "@shared/schema";
 
 export default function ViewSettingTab() {
-  const [editingView, setEditingView] = useState<ViewConfig | null>(null);
+  const [editingView, setEditingView] = useState<View | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newView, setNewView] = useState({
@@ -82,7 +40,7 @@ export default function ViewSettingTab() {
   const queryClient = useQueryClient();
 
   // Fetch views from API
-  const { data: views = [], isLoading, error } = useQuery<ViewConfig[]>({
+  const { data: views = [], isLoading, error } = useQuery<View[]>({
     queryKey: ['/api/views'],
     queryFn: async () => {
       const response = await fetch('/api/views');
@@ -143,7 +101,7 @@ export default function ViewSettingTab() {
 
   // Update view mutation
   const updateViewMutation = useMutation({
-    mutationFn: async (view: ViewConfig) => {
+    mutationFn: async (view: View) => {
       const response = await fetch(`/api/views/${view.id}`, {
         method: 'PUT',
         headers: {
@@ -218,12 +176,12 @@ export default function ViewSettingTab() {
     createViewMutation.mutate(newView);
   };
 
-  const handleEditView = (view: ViewConfig) => {
+  const handleEditView = (view: View) => {
     setEditingView(view);
     setShowEditor(true);
   };
 
-  const handleSaveView = (updatedView: ViewConfig) => {
+  const handleSaveView = (updatedView: View) => {
     updateViewMutation.mutate(updatedView);
     setShowEditor(false);
     setEditingView(null);
@@ -241,12 +199,12 @@ export default function ViewSettingTab() {
       const updatedView = {
         ...view,
         status: view.status === 'active' ? 'paused' : 'active'
-      } as ViewConfig;
+      } as View;
       updateViewMutation.mutate(updatedView);
     }
   };
 
-  const duplicateView = (view: ViewConfig) => {
+  const duplicateView = (view: View) => {
     const duplicatedView = {
       name: `${view.name} (Copy)`,
       description: view.description,
@@ -392,11 +350,11 @@ export default function ViewSettingTab() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Data Sources:</span>
-                  <span className="font-medium">{view.dataSources.length}</span>
+                  <span className="font-medium">{view.dataSources?.length || 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Assigned:</span>
-                  <span className="font-medium">{view.assignedTo.length + view.assignedDepartments.length}</span>
+                  <span className="font-medium">{(view.assignedTo?.length || 0) + (view.assignedDepartments?.length || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Updated:</span>

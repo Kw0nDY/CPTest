@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { 
   ChevronRight, 
   ChevronDown, 
+  ChevronLeft,
   Database, 
   Bot, 
   BarChart, 
@@ -32,6 +33,8 @@ interface AssignedView {
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 // Sample assigned views data - this would come from Setting page assignments
@@ -65,7 +68,7 @@ const sampleAssignedViews: AssignedView[] = [
   }
 ];
 
-export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export default function Sidebar({ activeView, onViewChange, isCollapsed = false, onToggleCollapse }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['data-integration', 'main-menu'])
   );
@@ -193,11 +196,45 @@ export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
   );
 
   return (
-    <aside className="w-72 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 h-full overflow-y-auto shadow-sm">
+    <aside className={`${isCollapsed ? 'w-16' : 'w-72'} bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 h-full overflow-y-auto shadow-sm transition-all duration-300 relative`}>
+      {/* Collapse Toggle Button */}
+      {onToggleCollapse && (
+        <button
+          onClick={onToggleCollapse}
+          className="absolute top-4 -right-3 z-10 bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:shadow-md transition-shadow"
+          data-testid="sidebar-collapse-toggle"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+          ) : (
+            <ChevronLeft className="w-4 h-4 text-gray-600" />
+          )}
+        </button>
+      )}
+      
       <nav className="p-5">
-        {renderSection(settingsItems, "Settings")}
-        {renderSection(managementItems, "Management")}
-        {renderSection(mainMenuItems, "Main Menu")}
+        {!isCollapsed ? (
+          <>
+            {renderSection(settingsItems, "Settings")}
+            {renderSection(managementItems, "Management")}
+            {renderSection(mainMenuItems, "Main Menu")}
+          </>
+        ) : (
+          <div className="space-y-4">
+            {/* Collapsed view - just icons */}
+            {[...settingsItems, ...managementItems, ...mainMenuItems].map((section) => (
+              <div key={section.id} className="flex flex-col items-center">
+                <button
+                  onClick={() => toggleSection(section.id)}
+                  className="flex items-center justify-center w-10 h-10 text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                  title={section.label}
+                >
+                  <section.icon className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </nav>
     </aside>
   );
