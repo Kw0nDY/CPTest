@@ -546,63 +546,67 @@ export default function DataIntegrationTab() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
                   {dataSources.map((ds: DataSource) => (
                     <Card 
                       key={ds.id} 
-                      className="border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors" 
+                      className="border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors h-full flex flex-col" 
                       onClick={() => handleViewDetails(ds)}
                     >
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
+                      <CardContent className="p-6 flex flex-col h-full">
+                        {/* Header Section - Fixed Height */}
+                        <div className="flex items-start justify-between mb-4 min-h-[60px]">
+                          <div className="flex items-center gap-3 flex-1">
                             {getStatusIcon(ds.status)}
-                            <div>
-                              <h4 className="font-semibold text-gray-900 text-lg">{ds.name}</h4>
-                              <p className="text-sm text-gray-500">{ds.connectionDetails.server}</p>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-gray-900 text-lg truncate">{ds.name}</h4>
+                              <p className="text-sm text-gray-500 truncate">{ds.connectionDetails.server}</p>
                             </div>
                           </div>
-                          <Badge className={getStatusBadge(ds.status)}>
+                          <Badge className={getStatusBadge(ds.status)} style={{ flexShrink: 0 }}>
                             {ds.status}
                           </Badge>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
+                        {/* Stats Section - Fixed Height */}
+                        <div className="grid grid-cols-2 gap-4 text-sm mb-4 min-h-[80px]">
+                          <div className="min-h-[20px]">
                             <span className="text-gray-600">Type:</span>
-                            <p className="font-medium">{ds.type}</p>
+                            <p className="font-medium truncate">{ds.type}</p>
                           </div>
-                          <div>
+                          <div className="min-h-[20px]">
                             <span className="text-gray-600">Records:</span>
                             <p className="font-medium">{ds.recordCount?.toLocaleString()}</p>
                           </div>
-                          <div>
+                          <div className="min-h-[20px]">
                             <span className="text-gray-600">Tables:</span>
                             <p className="font-medium">{ds.dataSchema.length}</p>
                           </div>
-                          <div>
+                          <div className="min-h-[20px]">
                             <span className="text-gray-600">Last Sync:</span>
-                            <p className="font-medium">{new Date(ds.lastSync!).toLocaleDateString()}</p>
+                            <p className="font-medium text-xs">{new Date(ds.lastSync!).toLocaleDateString()}</p>
                           </div>
                         </div>
 
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                        {/* Tables Section - Fixed Height with Scrolling */}
+                        <div className="p-3 bg-gray-50 rounded-lg mb-4 min-h-[80px] max-h-[80px] overflow-hidden">
                           <p className="text-sm text-gray-600 mb-2">Available Tables:</p>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[40px]">
                             {ds.dataSchema.slice(0, 3).map((schema, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs">
+                              <Badge key={index} variant="secondary" className="text-xs whitespace-nowrap">
                                 {schema.table}
                               </Badge>
                             ))}
                             {ds.dataSchema.length > 3 && (
-                              <Badge variant="secondary" className="text-xs">
+                              <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                 +{ds.dataSchema.length - 3} more
                               </Badge>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex gap-2 mt-4">
+                        {/* Buttons Section - Always at Bottom */}
+                        <div className="flex gap-2 mt-auto">
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -663,39 +667,45 @@ export default function DataIntegrationTab() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
                 {filteredDataSources.map((ds) => (
-                  <Card key={ds.id} className="border border-gray-200 hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-1">{ds.name}</h4>
+                  <Card key={ds.id} className="border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col">
+                    <CardContent className="p-4 flex flex-col h-full">
+                      {/* Header Section - Fixed Height */}
+                      <div className="flex items-start justify-between mb-3 min-h-[60px]">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-gray-900 mb-1 truncate">{ds.name}</h4>
                           <Badge variant="outline" className="text-xs">
                             {categoryLabels[ds.category]}
                           </Badge>
                         </div>
-                        <Badge variant="secondary">{ds.type}</Badge>
+                        <Badge variant="secondary" className="ml-2 flex-shrink-0">{ds.type}</Badge>
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-3">{ds.description}</p>
+                      {/* Description Section - Fixed Height */}
+                      <div className="mb-3 min-h-[60px] max-h-[60px] overflow-hidden">
+                        <p className="text-sm text-gray-600 line-clamp-3">{ds.description}</p>
+                      </div>
                       
-                      <div className="mb-3">
+                      {/* Features Section - Fixed Height with Scrolling */}
+                      <div className="mb-3 min-h-[60px] max-h-[60px] overflow-hidden">
                         <p className="text-xs text-gray-500 mb-1">Features:</p>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1 overflow-y-auto max-h-[40px]">
                           {ds.features.slice(0, 2).map((feature) => (
-                            <Badge key={feature} variant="outline" className="text-xs">
+                            <Badge key={feature} variant="outline" className="text-xs whitespace-nowrap">
                               {feature}
                             </Badge>
                           ))}
                           {ds.features.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">
                               +{ds.features.length - 2}
                             </Badge>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
+                      {/* Buttons Section - Always at Bottom */}
+                      <div className="flex gap-2 mt-auto">
                         <Button 
                           onClick={() => handleConnect(ds)}
                           className="flex-1"
@@ -704,7 +714,7 @@ export default function DataIntegrationTab() {
                           <Plus className="w-4 h-4 mr-1" />
                           Connect
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="flex-shrink-0">
                           <ExternalLink className="w-4 h-4" />
                         </Button>
                       </div>
