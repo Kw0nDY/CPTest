@@ -125,6 +125,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       layout: { grids: updatedGrids }
     });
     setSelectedComponent(newComponent);
+    setIsPropertiesPanelCollapsed(false); // Auto-expand properties panel when component is added
     setIsAddingComponent(false);
   };
 
@@ -377,6 +378,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedComponent(component);
+                                setIsPropertiesPanelCollapsed(false); // Auto-expand properties panel when component is selected
                               }}
                             >
                               <div className="flex items-center justify-between mb-2">
