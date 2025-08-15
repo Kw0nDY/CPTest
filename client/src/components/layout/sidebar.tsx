@@ -10,8 +10,10 @@ import {
   Key, 
   Settings2,
   Zap,
-  Eye
+  Eye,
+  RefreshCw
 } from "lucide-react";
+import { useQuery } from '@tanstack/react-query';
 
 interface MenuItem {
   id: string;
@@ -72,7 +74,19 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['data-integration', 'main-menu'])
   );
+  
+  // Fetch views from API
+  const { data: views = [], refetch: refetchViews } = useQuery({
+    queryKey: ['/api/views'],
+    staleTime: 0, // Always fresh data for menu updates
+  });
+
   const [assignedViews, setAssignedViews] = useState<AssignedView[]>(sampleAssignedViews);
+
+  // Refresh function for views
+  const handleRefreshViews = () => {
+    refetchViews();
+  };
 
   const settingsItems: MenuItem[] = [
     {
@@ -126,18 +140,25 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
     }
   ];
 
+  // Create dynamic main menu items based on views
+  const getMainMenuItems = () => {
+    const baseItems = [{ id: "view-list", label: "All Views" }];
+    
+    // Add views from API
+    const viewItems = (views || []).map((view: any) => ({
+      id: view.id,
+      label: view.name
+    }));
+    
+    return [...baseItems, ...viewItems];
+  };
+
   const mainMenuItems: MenuItem[] = [
     {
       id: "main-menu",
       label: "Main Menu",
       icon: Eye,
-      items: [
-        { id: "view-list", label: "All Views" },
-        ...assignedViews.map(view => ({
-          id: view.id,
-          label: view.name
-        }))
-      ]
+      items: getMainMenuItems()
     }
   ];
 
@@ -153,7 +174,18 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
 
   const renderSection = (sections: MenuItem[], title: string) => (
     <div className="mb-6">
-      <h2 className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wider">{title}</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wider">{title}</h2>
+        {title === "Main Menu" && (
+          <button
+            onClick={handleRefreshViews}
+            className="p-1 hover:bg-gray-200 rounded transition-colors"
+            title="Refresh views"
+          >
+            <RefreshCw className="h-3 w-3 text-gray-500" />
+          </button>
+        )}
+      </div>
       <ul className="space-y-2">
         {sections.map((section) => (
           <li key={section.id}>

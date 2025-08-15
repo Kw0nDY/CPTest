@@ -333,13 +333,15 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
       }),
-    }), [component.id, gridId]);
+      canDrag: true,
+    }), [component.id, gridId, component.gridPosition]);
 
     return (
       <div
         ref={drag}
-        className={`p-3 border rounded-lg bg-white hover:shadow-md transition-shadow cursor-move ${isDragging ? 'opacity-50' : ''}`}
+        className={`p-3 border rounded-lg bg-white hover:shadow-md transition-all duration-200 ${isDragging ? 'opacity-50 scale-95 shadow-lg border-blue-300' : 'cursor-move'}`}
         onClick={() => setSelectedComponent(component)}
+        style={{ touchAction: 'none' }}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
@@ -406,20 +408,29 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
     gridId: string; 
     position: number;
   }) => {
-    const [{ isOver }, drop] = useDrop(() => ({
+    const [{ isOver, canDrop }, drop] = useDrop(() => ({
       accept: ItemTypes.COMPONENT,
       drop: (item: DraggedComponent) => {
-        moveComponent(item.id, gridId, position);
+        if (item.gridId !== gridId || item.position !== position) {
+          moveComponent(item.id, gridId, position);
+        }
       },
       collect: (monitor) => ({
         isOver: monitor.isOver(),
+        canDrop: monitor.canDrop(),
       }),
     }), [gridId, position]);
 
     return (
       <div
         ref={drop}
-        className={`transition-colors ${isOver ? 'bg-blue-50 border-blue-200' : ''}`}
+        className={`transition-all duration-200 rounded ${
+          isOver && canDrop 
+            ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
+            : canDrop 
+            ? 'border-2 border-transparent' 
+            : ''
+        }`}
       >
         {children}
       </div>
@@ -789,22 +800,28 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
 
         {/* Navigation Tabs */}
         <div className="border-b bg-white flex">
-          <Button
-            variant={activeTab === 'design' ? 'default' : 'ghost'}
-            onClick={() => setActiveTab('design')}
-            className="flex items-center space-x-2 rounded-none"
-          >
-            <Layout className="h-4 w-4" />
-            <span>Design</span>
-          </Button>
-          <Button
-            variant={activeTab === 'preview' ? 'default' : 'ghost'}
-            onClick={() => setActiveTab('preview')}
-            className="flex items-center space-x-2 rounded-none"
-          >
-            <Eye className="h-4 w-4" />
-            <span>Preview</span>
-          </Button>
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('design')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'design' 
+                  ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Design
+            </button>
+            <button
+              onClick={() => setActiveTab('preview')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'preview' 
+                  ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Preview
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-hidden">

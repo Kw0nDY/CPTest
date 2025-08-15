@@ -162,6 +162,7 @@ const categoryLabels = {
 };
 
 export default function DataIntegrationTab() {
+  const [activeTab, setActiveTab] = useState<'connected' | 'available'>('connected');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
@@ -498,13 +499,34 @@ export default function DataIntegrationTab() {
         </div>
       </div>
 
-      <Tabs defaultValue="connected" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="connected">Connected Data Sources</TabsTrigger>
-          <TabsTrigger value="available">Available Data Sources</TabsTrigger>
-        </TabsList>
+      <div className="border-b bg-white">
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab('connected')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'connected' 
+                ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Connected Data Sources
+          </button>
+          <button
+            onClick={() => setActiveTab('available')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'available' 
+                ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Available Data Sources
+          </button>
+        </div>
+      </div>
 
-        <TabsContent value="connected" className="space-y-6">
+      <div className="space-y-6">{activeTab === 'connected' ? (
+
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -610,9 +632,7 @@ export default function DataIntegrationTab() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="available" className="space-y-6">
+      ) : (
           <Card>
             <CardHeader>
               <CardTitle>Available Data Sources</CardTitle>
@@ -694,8 +714,8 @@ export default function DataIntegrationTab() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+      )}
+      </div>
 
       {/* Connection Configuration Dialog */}
       <Dialog open={showConnectionDialog} onOpenChange={setShowConnectionDialog}>
