@@ -118,11 +118,19 @@ const sampleConfigurations: Configuration[] = [
   }
 ];
 
-// Sample AI models with input/output schemas
+// AI model folders and models
+const modelFolders = [
+  { id: 'quality-models', name: 'Quality Control Models', description: 'Models for quality inspection and defect detection' },
+  { id: 'maintenance-models', name: 'Maintenance Models', description: 'Predictive maintenance and failure detection models' },
+  { id: 'production-models', name: 'Production Optimization', description: 'Models for production efficiency and optimization' }
+];
+
+// Sample AI models with input/output schemas organized by folders
 const availableAIModels = [
   {
     id: '1',
     name: 'Assembly Line Quality Classifier',
+    folderId: 'quality-models',
     inputs: [
       { id: 'temperature', name: 'Temperature', type: 'number' as const },
       { id: 'pressure', name: 'Pressure', type: 'number' as const },
@@ -136,6 +144,7 @@ const availableAIModels = [
   {
     id: '2',
     name: 'Surface Defect Detector',
+    folderId: 'quality-models',
     inputs: [
       { id: 'surface_image', name: 'Surface Image', type: 'image' as const },
       { id: 'material_type', name: 'Material Type', type: 'string' as const }
@@ -143,6 +152,35 @@ const availableAIModels = [
     outputs: [
       { id: 'defect_detected', name: 'Defect Detected', type: 'boolean' as const },
       { id: 'defect_location', name: 'Defect Location', type: 'array' as const }
+    ]
+  },
+  {
+    id: '3',
+    name: 'Equipment Health Monitor',
+    folderId: 'maintenance-models',
+    inputs: [
+      { id: 'vibration_data', name: 'Vibration Data', type: 'array' as const },
+      { id: 'temperature', name: 'Temperature', type: 'number' as const },
+      { id: 'operating_hours', name: 'Operating Hours', type: 'number' as const }
+    ],
+    outputs: [
+      { id: 'health_score', name: 'Health Score', type: 'number' as const },
+      { id: 'failure_probability', name: 'Failure Probability', type: 'number' as const },
+      { id: 'maintenance_recommendation', name: 'Maintenance Recommendation', type: 'string' as const }
+    ]
+  },
+  {
+    id: '4',
+    name: 'Production Efficiency Optimizer',
+    folderId: 'production-models',
+    inputs: [
+      { id: 'machine_speed', name: 'Machine Speed', type: 'number' as const },
+      { id: 'material_flow', name: 'Material Flow', type: 'number' as const },
+      { id: 'worker_count', name: 'Worker Count', type: 'number' as const }
+    ],
+    outputs: [
+      { id: 'optimal_speed', name: 'Optimal Speed', type: 'number' as const },
+      { id: 'efficiency_score', name: 'Efficiency Score', type: 'number' as const }
     ]
   }
 ];
@@ -336,6 +374,7 @@ export default function ModelConfigurationTab() {
   const [selectedModelForDetails, setSelectedModelForDetails] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['quality-models']));
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -524,6 +563,27 @@ export default function ModelConfigurationTab() {
     setDragOffset({
       x: e.clientX - rect.left - node.position.x,
       y: e.clientY - rect.top - node.position.y
+    });
+  };
+
+  // Delete node
+  const deleteNode = (nodeId: string) => {
+    setNodes(prev => prev.filter(node => node.id !== nodeId));
+    setConnections(prev => prev.filter(conn => 
+      conn.fromNodeId !== nodeId && conn.toNodeId !== nodeId
+    ));
+  };
+
+  // Toggle folder expansion
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
     });
   };
 
@@ -747,230 +807,116 @@ export default function ModelConfigurationTab() {
             )}
             
             {!isLeftPanelCollapsed && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* Uploaded AI Models */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {/* Uploaded AI Models by Folder */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
                     <Brain className="w-4 h-4 text-blue-600" />
                     Uploaded Models ({filteredAIModels.length})
                   </h4>
-                  <div className="space-y-2">
-                    {filteredAIModels.map((model) => (
-                    <div
-                      key={model.id}
-                      className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow relative group"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/json', JSON.stringify({
-                          type: 'ai-model',
-                          modelId: model.id,
-                          name: model.name
-                        }));
-                      }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
-                        <div className="flex-1 min-w-0">
-                          <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
-                          <div className="text-xs text-gray-500 mt-1">
-                            Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {model.inputs.slice(0, 2).map((input) => (
-                              <span
-                                key={input.id}
-                                className="inline-block px-1.5 py-0.5 text-xs rounded"
-                                style={{ 
-                                  backgroundColor: `${getTypeColor(input.type)}20`,
-                                  color: getTypeColor(input.type)
-                                }}
-                              >
-                                {input.name}
-                              </span>
-                            ))}
-                            {model.inputs.length > 2 && (
-                              <span className="text-xs text-gray-400">+{model.inputs.length - 2}</span>
-                            )}
+                  
+                  <div className="space-y-3">
+                    {modelFolders.map((folder) => {
+                      const folderModels = filteredAIModels.filter(model => model.folderId === folder.id);
+                      if (folderModels.length === 0) return null;
+                      
+                      const isExpanded = expandedFolders.has(folder.id);
+                      
+                      return (
+                        <div key={folder.id}>
+                          <div 
+                            className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => toggleFolder(folder.id)}
+                          >
+                            <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                            <Folder className="w-3 h-3 text-blue-500" />
+                            <span className="text-sm font-medium text-gray-900">{folder.name}</span>
+                            <Badge variant="secondary" className="text-xs">{folderModels.length}</Badge>
                           </div>
                           
-                          {/* Action Buttons */}
-                          <div className="flex gap-1 mt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAddNodePosition({ x: 100, y: 100 });
-                                createNode('ai-model', { modelId: model.id, name: model.name });
-                              }}
-                            >
-                              Add to Canvas
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs px-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedModelForDetails(model);
-                                setIsRightPanelOpen(true);
-                              }}
-                            >
-                              <Info className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`Delete model "${model.name}"?`)) {
-                                  // Here you would implement the delete functionality
-                                  toast({
-                                    title: "Model Deleted",
-                                    description: `${model.name} has been deleted.`,
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-                {/* Data Sources */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                    <Database className="w-4 h-4 text-green-600" />
-                    Data Sources ({filteredDataSources.length})
-                  </h4>
-                  <div className="space-y-3">
-                    {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
-                      const sources = filteredDataSources.filter(s => s.category === category);
-                      if (sources.length === 0) return null;
-                    
-                    return (
-                      <div key={category}>
-                        <div className="text-xs font-medium text-gray-600 mb-1">{category}</div>
-                        <div className="space-y-1">
-                          {sources.map(source => (
-                            <div
-                              key={source.id}
-                              className="p-2 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('application/json', JSON.stringify({
-                                  type: 'data-input',
-                                  sourceId: source.id,
-                                  name: source.name
-                                }));
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-900 truncate">{source.name}</div>
-                                    <div className="text-xs text-gray-500">{source.fields?.length || 0} fields</div>
-                                  </div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAddNodePosition({ x: 100, y: 200 });
-                                    createNode('data-input', { 
-                                      name: source.name, 
-                                      type: source.type,
-                                      sourceId: source.id
-                                    });
+                          {isExpanded && (
+                            <div className="ml-4 mt-2 space-y-2">
+                              {folderModels.map((model) => (
+                                <div
+                                  key={model.id}
+                                  className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow relative group"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('application/json', JSON.stringify({
+                                      type: 'ai-model',
+                                      modelId: model.id,
+                                      name: model.name
+                                    }));
                                   }}
                                 >
-                                  <Plus className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-                {/* Automation Triggers */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-purple-600" />
-                    Automation ({filteredAutomationTriggers.length})
-                  </h4>
-                  <div className="space-y-3">
-                    {['Schedule', 'Event', 'API'].map(category => {
-                      const triggers = filteredAutomationTriggers.filter(t => t.category === category);
-                      if (triggers.length === 0) return null;
-                    
-                    return (
-                      <div key={category}>
-                        <div className="text-xs font-medium text-gray-600 mb-1">{category}</div>
-                        <div className="space-y-1">
-                          {triggers.map(trigger => (
-                            <div
-                              key={trigger.id}
-                              className="p-2 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('application/json', JSON.stringify({
-                                  type: 'automation-input',
-                                  triggerId: trigger.id,
-                                  name: trigger.name
-                                }));
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-900 truncate">{trigger.name}</div>
-                                    <div className="text-xs text-gray-500">{trigger.outputs?.length || 0} outputs</div>
+                                  <div className="flex items-start gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                    <div className="flex-1 min-w-0">
+                                      <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {model.inputs.slice(0, 2).map((input) => (
+                                          <span
+                                            key={input.id}
+                                            className="inline-block px-1.5 py-0.5 text-xs rounded"
+                                            style={{ 
+                                              backgroundColor: `${getTypeColor(input.type)}20`,
+                                              color: getTypeColor(input.type)
+                                            }}
+                                          >
+                                            {input.name}
+                                          </span>
+                                        ))}
+                                        {model.inputs.length > 2 && (
+                                          <span className="text-xs text-gray-400">+{model.inputs.length - 2}</span>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Action Buttons */}
+                                      <div className="flex gap-1 mt-3">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex-1 text-xs"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAddNodePosition({ x: 100, y: 100 });
+                                            createNode('ai-model', { modelId: model.id, name: model.name });
+                                          }}
+                                        >
+                                          Add to Canvas
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-xs px-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedModelForDetails(model);
+                                            setIsRightPanelOpen(true);
+                                          }}
+                                        >
+                                          <Info className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAddNodePosition({ x: 100, y: 300 });
-                                    createNode('automation-input', { 
-                                      name: trigger.name, 
-                                      type: trigger.type,
-                                      triggerId: trigger.id
-                                    });
-                                  }}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </Button>
-                              </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+
 
           {/* Canvas Area */}
           <div className={`${isRightPanelOpen ? 'flex-1' : 'flex-1'} relative overflow-hidden bg-gray-900`}>
@@ -1079,11 +1025,45 @@ export default function ModelConfigurationTab() {
                 }`}>
                   <div className="flex items-center justify-between">
                     <span className="truncate">{node.name}</span>
-                    <Circle className={`w-3 h-3 ${
-                      node.status === 'ready' ? 'text-green-400' :
-                      node.status === 'running' ? 'text-yellow-400' :
-                      'text-red-400'
-                    }`} />
+                    <div className="flex items-center gap-1">
+                      {node.type === 'ai-model' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-white/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const model = availableAIModels.find(m => m.id === node.modelId);
+                              if (model) {
+                                setSelectedModelForDetails(model);
+                                setIsRightPanelOpen(true);
+                              }
+                            }}
+                          >
+                            <Info className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Delete "${node.name}" from canvas?`)) {
+                                deleteNode(node.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
+                      <Circle className={`w-3 h-3 ${
+                        node.status === 'ready' ? 'text-green-400' :
+                        node.status === 'running' ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`} />
+                    </div>
                   </div>
                 </div>
 
@@ -1331,44 +1311,94 @@ export default function ModelConfigurationTab() {
                               View Possible Connections
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-lg">
+                          <DialogContent className="sm:max-w-2xl">
                             <DialogHeader>
                               <DialogTitle>Possible Connections for "{input.name}"</DialogTitle>
                             </DialogHeader>
-                            <div className="space-y-4 max-h-96 overflow-y-auto">
-                              {getPossibleConnections(input.type).length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">
-                                  No compatible connections found for type "{input.type}"
-                                </div>
-                              ) : (
-                                getPossibleConnections(input.type).map((connection, index) => (
-                                  <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <div 
-                                        className="w-3 h-3 rounded-full"
-                                        style={{ 
-                                          backgroundColor: 
-                                            connection.type === 'ai-model' ? '#3b82f6' :
-                                            connection.type === 'data-integration' ? '#22c55e' :
-                                            '#8b5cf6'
-                                        }}
-                                      />
-                                      <span className="font-medium text-sm">
-                                        {connection.source} → {connection.field}
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-600">{connection.description}</p>
-                                    <div className="mt-2">
-                                      <Badge variant="secondary" className="text-xs">
-                                        {connection.type === 'ai-model' ? 'AI Model Output' :
-                                         connection.type === 'data-integration' ? 'Data Source' :
-                                         'Automation Trigger'}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                ))
-                              )}
+                            
+                            {/* Search for connections */}
+                            <div className="mb-4">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                <Input
+                                  placeholder="Search data sources and automation triggers..."
+                                  className="pl-10"
+                                />
+                              </div>
                             </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                              {/* AI Model Outputs */}
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                  <Brain className="w-4 h-4 text-blue-600" />
+                                  AI Model Outputs
+                                </h4>
+                                <div className="space-y-2">
+                                  {availableAIModels.map(model => 
+                                    model.outputs.filter(output => output.type === input.type).map(output => (
+                                      <div key={`${model.id}-${output.id}`} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div className="w-3 h-3 rounded-full bg-blue-500" />
+                                          <span className="font-medium text-sm">{model.name}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-600 ml-5">→ {output.name}</div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Data Integration Sources */}
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                  <Database className="w-4 h-4 text-green-600" />
+                                  Data Sources
+                                </h4>
+                                <div className="space-y-2">
+                                  {dataIntegrationSources.map(source => 
+                                    source.fields?.filter(field => field.type === input.type).map(field => (
+                                      <div key={`${source.id}-${field.name}`} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div className="w-3 h-3 rounded-full bg-green-500" />
+                                          <span className="font-medium text-sm">{source.name}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-600 ml-5">→ {field.description}</div>
+                                        <Badge variant="outline" className="text-xs mt-1 ml-5">{source.category}</Badge>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Automation Triggers */}
+                              <div className="md:col-span-2">
+                                <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                  <Zap className="w-4 h-4 text-purple-600" />
+                                  Automation Triggers
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {automationTriggers.map(trigger => 
+                                    trigger.outputs?.filter(output => output.type === input.type).map(output => (
+                                      <div key={`${trigger.id}-${output.name}`} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div className="w-3 h-3 rounded-full bg-purple-500" />
+                                          <span className="font-medium text-sm">{trigger.name}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-600 ml-5">→ {output.description}</div>
+                                        <Badge variant="outline" className="text-xs mt-1 ml-5">{trigger.category}</Badge>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {getPossibleConnections(input.type).length === 0 && (
+                              <div className="text-center py-8 text-gray-500">
+                                No compatible connections found for type "{input.type}"
+                              </div>
+                            )}
                           </DialogContent>
                         </Dialog>
                       </div>
