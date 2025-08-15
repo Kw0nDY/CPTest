@@ -93,6 +93,108 @@ const sampleModels: AIModel[] = [
       recall: 89.1,
       f1Score: 87.1
     }
+  },
+  {
+    id: '3',
+    name: 'Production Quality Prediction',
+    type: 'Classification',
+    version: '1.5.2',
+    status: 'ready',
+    accuracy: 91.8,
+    createdAt: '2024-01-08T00:00:00Z',
+    lastUsed: '2024-01-16T10:45:00Z',
+    inputSchema: [
+      { name: 'temperature', type: 'number', description: 'Production temperature (°C)' },
+      { name: 'pressure', type: 'number', description: 'System pressure (bar)' },
+      { name: 'humidity', type: 'number', description: 'Environmental humidity (%)' },
+      { name: 'material_grade', type: 'string', description: 'Raw material grade' }
+    ],
+    outputSchema: [
+      { name: 'quality_grade', type: 'string', description: 'Predicted quality grade (A/B/C)' },
+      { name: 'defect_probability', type: 'number', description: 'Probability of defects (0-1)' }
+    ],
+    metrics: {
+      accuracy: 91.8,
+      precision: 89.4,
+      recall: 94.2,
+      f1Score: 91.7
+    }
+  },
+  {
+    id: '4',
+    name: 'Equipment Maintenance Predictor',
+    type: 'Regression',
+    version: '1.0.3',
+    status: 'training',
+    accuracy: 82.3,
+    createdAt: '2024-01-12T00:00:00Z',
+    inputSchema: [
+      { name: 'operating_hours', type: 'number', description: 'Total operating hours' },
+      { name: 'vibration_level', type: 'number', description: 'Vibration amplitude (mm/s)' },
+      { name: 'temperature_avg', type: 'number', description: 'Average operating temperature' },
+      { name: 'load_factor', type: 'number', description: 'Equipment load factor (%)' }
+    ],
+    outputSchema: [
+      { name: 'days_until_maintenance', type: 'number', description: 'Predicted days until maintenance' },
+      { name: 'urgency_level', type: 'string', description: 'Maintenance urgency (Low/Medium/High)' }
+    ],
+    metrics: {
+      accuracy: 82.3,
+      precision: 80.1,
+      recall: 84.8,
+      f1Score: 82.4
+    }
+  },
+  {
+    id: '5',
+    name: 'Supply Chain Risk Assessment',
+    type: 'Classification',
+    version: '2.1.0',
+    status: 'ready',
+    accuracy: 88.9,
+    createdAt: '2024-01-03T00:00:00Z',
+    lastUsed: '2024-01-16T16:20:00Z',
+    inputSchema: [
+      { name: 'supplier_location', type: 'string', description: 'Supplier geographic location' },
+      { name: 'lead_time', type: 'number', description: 'Average lead time (days)' },
+      { name: 'order_volume', type: 'number', description: 'Monthly order volume' },
+      { name: 'payment_history', type: 'string', description: 'Payment reliability score' }
+    ],
+    outputSchema: [
+      { name: 'risk_level', type: 'string', description: 'Risk assessment (Low/Medium/High)' },
+      { name: 'mitigation_strategy', type: 'string', description: 'Recommended mitigation approach' }
+    ],
+    metrics: {
+      accuracy: 88.9,
+      precision: 86.7,
+      recall: 91.2,
+      f1Score: 88.9
+    }
+  },
+  {
+    id: '6',
+    name: 'Energy Consumption Optimizer',
+    type: 'Regression',
+    version: '1.3.1',
+    status: 'draft',
+    accuracy: 76.4,
+    createdAt: '2024-01-14T00:00:00Z',
+    inputSchema: [
+      { name: 'production_rate', type: 'number', description: 'Current production rate (units/hour)' },
+      { name: 'ambient_temperature', type: 'number', description: 'External temperature (°C)' },
+      { name: 'equipment_count', type: 'number', description: 'Number of active equipment' },
+      { name: 'time_of_day', type: 'string', description: 'Time period (peak/off-peak)' }
+    ],
+    outputSchema: [
+      { name: 'optimal_consumption', type: 'number', description: 'Recommended energy consumption (kWh)' },
+      { name: 'savings_potential', type: 'number', description: 'Potential cost savings (%)' }
+    ],
+    metrics: {
+      accuracy: 76.4,
+      precision: 74.8,
+      recall: 78.1,
+      f1Score: 76.4
+    }
   }
 ];
 
@@ -224,23 +326,162 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">
+          {/* Upload Zone */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="w-5 h-5" />
                 Upload AI Models
               </CardTitle>
+              <p className="text-sm text-gray-600">Upload trained AI models in various formats</p>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
+              <div 
+                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer"
+                onClick={() => setShowUploadDialog(true)}
+              >
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload Your AI Models</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Drag & Drop Model Files</h3>
                 <p className="text-gray-600 mb-4">
-                  Upload trained AI models in various formats (.pkl, .joblib, .h5, .onnx, .pb)
+                  Supported formats: .pkl, .joblib, .h5, .onnx, .pb, .pt, .pth
                 </p>
+                <p className="text-sm text-gray-500 mb-4">Maximum file size: 500MB</p>
                 <Button onClick={() => setShowUploadDialog(true)} size="lg">
                   <Upload className="w-4 h-4 mr-2" />
-                  Upload Model
+                  Browse Files
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Upload Examples */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Model Upload Examples
+              </CardTitle>
+              <p className="text-sm text-gray-600">Common model types and their use cases</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Brain className="w-4 h-4 text-blue-600" />
+                    <h4 className="font-medium">Classification Models</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">Customer segmentation, quality control, defect detection</p>
+                  <div className="text-xs text-gray-500">
+                    <span className="font-medium">Formats:</span> .pkl, .joblib, .h5
+                  </div>
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50/30 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 className="w-4 h-4 text-green-600" />
+                    <h4 className="font-medium">Regression Models</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">Demand forecasting, price prediction, resource optimization</p>
+                  <div className="text-xs text-gray-500">
+                    <span className="font-medium">Formats:</span> .pkl, .onnx, .pb
+                  </div>
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50/30 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-purple-600" />
+                    <h4 className="font-medium">Deep Learning</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">Image recognition, NLP, time series forecasting</p>
+                  <div className="text-xs text-gray-500">
+                    <span className="font-medium">Formats:</span> .h5, .pt, .pth, .onnx
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Upload Examples */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                Quick Start Templates
+              </CardTitle>
+              <p className="text-sm text-gray-600">Pre-configured templates for common manufacturing use cases</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start"
+                  onClick={() => {
+                    setUploadConfig({
+                      name: 'Production Quality Classifier',
+                      type: 'classification',
+                      file: null
+                    });
+                    setShowUploadDialog(true);
+                  }}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">Quality Control Model</div>
+                    <div className="text-sm text-gray-600">Predict product quality based on production parameters</div>
+                  </div>
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start"
+                  onClick={() => {
+                    setUploadConfig({
+                      name: 'Predictive Maintenance Model',
+                      type: 'regression',
+                      file: null
+                    });
+                    setShowUploadDialog(true);
+                  }}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">Maintenance Predictor</div>
+                    <div className="text-sm text-gray-600">Forecast equipment maintenance requirements</div>
+                  </div>
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start"
+                  onClick={() => {
+                    setUploadConfig({
+                      name: 'Demand Forecasting Model',
+                      type: 'regression',
+                      file: null
+                    });
+                    setShowUploadDialog(true);
+                  }}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">Demand Forecasting</div>
+                    <div className="text-sm text-gray-600">Predict future product demand and inventory needs</div>
+                  </div>
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start"
+                  onClick={() => {
+                    setUploadConfig({
+                      name: 'Supply Chain Risk Assessment',
+                      type: 'classification',
+                      file: null
+                    });
+                    setShowUploadDialog(true);
+                  }}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">Risk Assessment</div>
+                    <div className="text-sm text-gray-600">Evaluate supplier and supply chain risks</div>
+                  </div>
                 </Button>
               </div>
             </CardContent>
