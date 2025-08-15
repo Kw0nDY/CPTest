@@ -37,6 +37,17 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
+interface ViewData {
+  id: string;
+  name: string;
+  description?: string;
+  outputs?: Array<{
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
+  }>;
+}
+
 interface ModelNode {
   id: string;
   type: 'ai-model' | 'data-input' | 'automation-input' | 'view-data' | 'final-goal';
@@ -467,7 +478,7 @@ export default function ModelConfigurationTab() {
   });
 
   // Fetch real views data
-  const { data: availableViews = [] } = useQuery({
+  const { data: availableViews = [] } = useQuery<ViewData[]>({
     queryKey: ['/api/views'],
     staleTime: 60000
   });
@@ -645,7 +656,7 @@ export default function ModelConfigurationTab() {
           uniqueName: viewUniqueName,
           position: addNodePosition,
           inputs: [],
-          outputs: viewData?.outputs?.map((output, index) => ({
+          outputs: viewData?.outputs?.map((output: any, index: number) => ({
             id: `${id}-output-${output.id}`,
             name: output.name,
             type: output.type
@@ -1542,19 +1553,12 @@ export default function ModelConfigurationTab() {
                             const model = availableAIModels.find(m => m.id === node.modelId);
                             if (model) {
                               setSelectedModelForDetails(model);
+                              setSelectedNodeForDetails(null);
                               setIsRightPanelOpen(true);
                             }
-                          } else if (node.type === 'data-input') {
+                          } else {
                             setSelectedNodeForDetails(node);
-                            setIsRightPanelOpen(true);
-                          } else if (node.type === 'view-data') {
-                            setSelectedNodeForDetails(node);
-                            setIsRightPanelOpen(true);
-                          } else if (node.type === 'final-goal') {
-                            setSelectedNodeForDetails(node);
-                            setIsRightPanelOpen(true);
-                          } else if (node.type === 'automation-input') {
-                            setSelectedNodeForDetails(node);
+                            setSelectedModelForDetails(null);
                             setIsRightPanelOpen(true);
                           }
                         }}
@@ -1708,7 +1712,7 @@ export default function ModelConfigurationTab() {
                   {/* Views */}
                   <div className="mb-2">
                     <div className="text-xs text-gray-500 mb-1">Views</div>
-                    {availableViews.map(view => (
+                    {availableViews.map((view: any) => (
                       <button
                         key={view.id}
                         className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
@@ -1832,45 +1836,79 @@ export default function ModelConfigurationTab() {
                         <div>Status: {selectedNodeForDetails.status}</div>
                         <div>Inputs: {selectedNodeForDetails.inputs.length}</div>
                         <div>Outputs: {selectedNodeForDetails.outputs.length}</div>
+                        
+                        {/* Type-specific information */}
+                        {selectedNodeForDetails.type === 'data-input' && selectedNodeForDetails.sourceId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Data Source:</div>
+                            <div>{dataIntegrationSources.find(s => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'view-data' && selectedNodeForDetails.viewId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">View:</div>
+                            <div>{availableViews.find((v: any) => v.id === selectedNodeForDetails.viewId)?.name || 'Unknown View'}</div>
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'automation-input' && selectedNodeForDetails.triggerId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Trigger:</div>
+                            <div>{automationTriggers.find(t => t.id === selectedNodeForDetails.triggerId)?.name || 'Unknown Trigger'}</div>
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'final-goal' && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Purpose:</div>
+                            <div>Configuration output target for workflow results</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </>
                 ) : null}
 
                 {/* Outputs Section */}
-                <div>
-                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <ArrowRight className="w-4 h-4 text-green-600" />
-                    Outputs
-                  </h5>
-                  <div className="space-y-3">
-                    {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any) => (
-                      <div key={output.id} className="p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-gray-900">{output.name}</span>
-                          <span 
-                            className="px-2 py-1 text-xs rounded-full text-white"
-                            style={{ backgroundColor: getTypeColor(output.type) }}
-                          >
-                            {output.type}
-                          </span>
+                {((selectedModelForDetails?.outputs && selectedModelForDetails.outputs.length > 0) || 
+                  (selectedNodeForDetails?.outputs && selectedNodeForDetails.outputs.length > 0)) && (
+                  <div>
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-green-600" />
+                      Outputs
+                    </h5>
+                    <div className="space-y-3">
+                      {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any) => (
+                        <div key={output.id} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-gray-900">{output.name}</span>
+                            <span 
+                              className="px-2 py-1 text-xs rounded-full text-white"
+                              style={{ backgroundColor: getTypeColor(output.type) }}
+                            >
+                              {output.type}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            This output can be connected to inputs of the same type in other models
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-600">
-                          This output can be connected to inputs of the same type in other models
-                        </p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Inputs Section */}
-                <div>
-                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <ArrowRight className="w-4 h-4 text-blue-600 transform rotate-180" />
-                    Inputs
-                  </h5>
-                  <div className="space-y-3">
-                    {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any) => (
+                {((selectedModelForDetails?.inputs && selectedModelForDetails.inputs.length > 0) || 
+                  (selectedNodeForDetails?.inputs && selectedNodeForDetails.inputs.length > 0)) && (
+                  <div>
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-blue-600 transform rotate-180" />
+                      Inputs
+                    </h5>
+                    <div className="space-y-3">
+                      {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any) => (
                       <div key={input.id} className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-gray-900">{input.name}</span>
@@ -2008,9 +2046,10 @@ export default function ModelConfigurationTab() {
                           </DialogContent>
                         </Dialog>
                       </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
