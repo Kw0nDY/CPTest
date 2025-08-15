@@ -103,6 +103,7 @@ export default function ViewSettingTab() {
     assignedTo: [] as string[],
     assignedDepartments: [] as string[]
   });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -315,14 +316,133 @@ export default function ViewSettingTab() {
 
   if (showEditor && editingView) {
     return (
-      <ViewEditor
-        view={editingView}
-        onClose={() => {
-          setShowEditor(false);
-          setEditingView(null);
-        }}
-        onSave={handleSaveView}
-      />
+      <div className="h-full flex">
+        {/* System Sidebar - Collapsible */}
+        <div className={`bg-gray-50 border-r transition-all duration-300 ${isSidebarCollapsed ? 'w-12' : 'w-64'} flex flex-col shadow-sm`}>
+          <div className="p-3 border-b flex items-center justify-between bg-blue-600 text-white">
+            {!isSidebarCollapsed && (
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 bg-white rounded text-blue-600 flex items-center justify-center text-sm font-bold">
+                  CP
+                </div>
+                <span className="font-semibold">Collaboration Portal</span>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="h-8 w-8 p-0 text-white hover:bg-blue-700"
+            >
+              {isSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {isSidebarCollapsed ? (
+            <div className="flex-1 flex flex-col items-center py-4 space-y-3">
+              <Button variant="ghost" size="sm" className="w-8 h-8 p-0" title="Settings">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto bg-white">
+              {/* SETTINGS Section */}
+              <div className="p-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">SETTINGS</h3>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                      <Database className="h-4 w-4 mr-3" />
+                      Data Integration
+                      <ChevronDown className="h-4 w-4 ml-auto" />
+                    </Button>
+                    <div className="ml-7 space-y-1">
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        Data Integration
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs bg-blue-100 text-blue-700">
+                        View Setting
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        Automation
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                    <Zap className="h-4 w-4 mr-3" />
+                    AI Fac
+                    <ChevronRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                  
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                    <BarChart3 className="h-4 w-4 mr-3" />
+                    BOI
+                    <ChevronRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* MANAGEMENT Section */}
+              <div className="p-4 border-t">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">MANAGEMENT</h3>
+                <div className="space-y-2">
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                    <Users className="h-4 w-4 mr-3" />
+                    Member
+                    <ChevronRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                    <Settings className="h-4 w-4 mr-3" />
+                    APIs
+                    <ChevronRight className="h-4 w-4 ml-auto" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* MAIN MENU Section */}
+              <div className="p-4 border-t">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">MAIN MENU</h3>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Button variant="ghost" className="w-full justify-start text-sm font-medium">
+                      <Eye className="h-4 w-4 mr-3" />
+                      Main Menu
+                      <ChevronDown className="h-4 w-4 ml-auto" />
+                    </Button>
+                    <div className="ml-7 space-y-1">
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        All Views
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        Drilling Operations Monitor
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        Production Performance Dashboard
+                      </Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-gray-600">
+                        Equipment Maintenance Events
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* View Editor Content */}
+        <div className="flex-1">
+          <ViewEditor
+            view={editingView}
+            onClose={() => {
+              setShowEditor(false);
+              setEditingView(null);
+            }}
+            onSave={handleSaveView}
+          />
+        </div>
+      </div>
     );
   }
 
