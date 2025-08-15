@@ -140,16 +140,174 @@ const availableAIModels = [
   }
 ];
 
+// Real data sources from the system
 const dataIntegrationSources = [
-  { id: 'erp-data', name: 'ERP Production Data', type: 'object' },
-  { id: 'sensor-data', name: 'IoT Sensor Data', type: 'array' },
-  { id: 'quality-metrics', name: 'Quality Metrics', type: 'object' }
+  // SAP ERP Data Sources
+  { 
+    id: 'sap-customers', 
+    name: 'SAP Customer Data', 
+    type: 'object',
+    category: 'ERP',
+    fields: [
+      { name: 'customerId', type: 'string', description: 'Customer ID' },
+      { name: 'customerName', type: 'string', description: 'Customer Name' },
+      { name: 'country', type: 'string', description: 'Country' },
+      { name: 'creditLimit', type: 'number', description: 'Credit Limit' }
+    ]
+  },
+  { 
+    id: 'sap-orders', 
+    name: 'SAP Orders Data', 
+    type: 'object',
+    category: 'ERP',
+    fields: [
+      { name: 'orderId', type: 'string', description: 'Order ID' },
+      { name: 'customerId', type: 'string', description: 'Customer ID' },
+      { name: 'orderDate', type: 'string', description: 'Order Date' },
+      { name: 'totalAmount', type: 'number', description: 'Total Amount' },
+      { name: 'status', type: 'string', description: 'Order Status' }
+    ]
+  },
+  // Salesforce CRM Data Sources
+  { 
+    id: 'salesforce-accounts', 
+    name: 'Salesforce Account Data', 
+    type: 'object',
+    category: 'CRM',
+    fields: [
+      { name: 'sfId', type: 'string', description: 'Salesforce ID' },
+      { name: 'name', type: 'string', description: 'Account Name' },
+      { name: 'industry', type: 'string', description: 'Industry' },
+      { name: 'annualRevenue', type: 'number', description: 'Annual Revenue' }
+    ]
+  },
+  // AVEVA PI Data Sources
+  { 
+    id: 'aveva-process', 
+    name: 'AVEVA Process Data', 
+    type: 'array',
+    category: 'Industrial',
+    fields: [
+      { name: 'tagName', type: 'string', description: 'Tag Name' },
+      { name: 'value', type: 'number', description: 'Measured Value' },
+      { name: 'timestamp', type: 'string', description: 'Timestamp' },
+      { name: 'quality', type: 'string', description: 'Data Quality' }
+    ]
+  },
+  // Oracle Database Sources
+  { 
+    id: 'oracle-inventory', 
+    name: 'Oracle Inventory Data', 
+    type: 'object',
+    category: 'Database',
+    fields: [
+      { name: 'itemId', type: 'string', description: 'Item ID' },
+      { name: 'itemName', type: 'string', description: 'Item Name' },
+      { name: 'quantity', type: 'number', description: 'Quantity' },
+      { name: 'location', type: 'string', description: 'Location' }
+    ]
+  },
+  // Manufacturing Metrics
+  { 
+    id: 'production-metrics', 
+    name: 'Production Line Metrics', 
+    type: 'object',
+    category: 'Manufacturing',
+    fields: [
+      { name: 'lineId', type: 'string', description: 'Production Line ID' },
+      { name: 'throughput', type: 'number', description: 'Throughput Rate' },
+      { name: 'efficiency', type: 'number', description: 'Efficiency %' },
+      { name: 'defectRate', type: 'number', description: 'Defect Rate %' },
+      { name: 'temperature', type: 'number', description: 'Temperature' },
+      { name: 'pressure', type: 'number', description: 'Pressure' }
+    ]
+  },
+  // Quality Control Data
+  { 
+    id: 'quality-control', 
+    name: 'Quality Control Metrics', 
+    type: 'object',
+    category: 'Quality',
+    fields: [
+      { name: 'batchId', type: 'string', description: 'Batch ID' },
+      { name: 'testResults', type: 'array', description: 'Test Results' },
+      { name: 'passRate', type: 'number', description: 'Pass Rate %' },
+      { name: 'inspector', type: 'string', description: 'Inspector ID' }
+    ]
+  }
 ];
 
+// Real automation triggers from the system
 const automationTriggers = [
-  { id: 'schedule-trigger', name: 'Scheduled Trigger', type: 'object' },
-  { id: 'event-trigger', name: 'Event Trigger', type: 'object' },
-  { id: 'api-trigger', name: 'API Trigger', type: 'object' }
+  // Schedule-based triggers
+  { 
+    id: 'schedule-hourly', 
+    name: 'Hourly Schedule', 
+    type: 'object',
+    category: 'Schedule',
+    outputs: [
+      { name: 'timestamp', type: 'string', description: 'Trigger Timestamp' },
+      { name: 'interval', type: 'string', description: 'Schedule Interval' }
+    ]
+  },
+  { 
+    id: 'schedule-daily', 
+    name: 'Daily Schedule', 
+    type: 'object',
+    category: 'Schedule',
+    outputs: [
+      { name: 'timestamp', type: 'string', description: 'Trigger Timestamp' },
+      { name: 'date', type: 'string', description: 'Date' }
+    ]
+  },
+  // Event-based triggers
+  { 
+    id: 'data-change-trigger', 
+    name: 'Data Change Event', 
+    type: 'object',
+    category: 'Event',
+    outputs: [
+      { name: 'sourceId', type: 'string', description: 'Data Source ID' },
+      { name: 'changeType', type: 'string', description: 'Change Type' },
+      { name: 'newValue', type: 'object', description: 'New Value' },
+      { name: 'oldValue', type: 'object', description: 'Previous Value' }
+    ]
+  },
+  { 
+    id: 'threshold-trigger', 
+    name: 'Threshold Alert', 
+    type: 'object',
+    category: 'Event',
+    outputs: [
+      { name: 'metric', type: 'string', description: 'Metric Name' },
+      { name: 'value', type: 'number', description: 'Current Value' },
+      { name: 'threshold', type: 'number', description: 'Threshold Value' },
+      { name: 'alertLevel', type: 'string', description: 'Alert Level' }
+    ]
+  },
+  // API triggers
+  { 
+    id: 'webhook-trigger', 
+    name: 'Webhook Trigger', 
+    type: 'object',
+    category: 'API',
+    outputs: [
+      { name: 'payload', type: 'object', description: 'Webhook Payload' },
+      { name: 'headers', type: 'object', description: 'Request Headers' },
+      { name: 'method', type: 'string', description: 'HTTP Method' }
+    ]
+  },
+  { 
+    id: 'api-call-trigger', 
+    name: 'API Call Result', 
+    type: 'object',
+    category: 'API',
+    outputs: [
+      { name: 'response', type: 'object', description: 'API Response' },
+      { name: 'statusCode', type: 'number', description: 'Status Code' },
+      { name: 'timestamp', type: 'string', description: 'Call Timestamp' }
+    ]
+  }
 ];
 
 export default function ModelConfigurationTab() {
@@ -217,38 +375,50 @@ export default function ModelConfigurationTab() {
         break;
       
       case 'data-input':
+        const dataSource = dataIntegrationSources.find(ds => ds.id === data?.sourceId);
         newNode = {
           id,
           type,
           name: data?.name || 'Data Input',
           position: addNodePosition,
           inputs: [],
-          outputs: [{
+          outputs: dataSource?.fields?.map((field, index) => ({
+            id: `${id}-output-${field.name}`,
+            name: field.description || field.name,
+            type: field.type
+          })) || [{
             id: `${id}-output-data`,
             name: 'Data Output',
             type: data?.type || 'object'
           }],
+          modelId: data?.sourceId,
           status: 'ready',
-          width: 160,
-          height: 80
+          width: Math.max(180, (dataSource?.fields?.length || 1) * 25 + 80),
+          height: Math.max(100, (dataSource?.fields?.length || 1) * 25 + 60)
         };
         break;
 
       case 'automation-input':
+        const triggerData = automationTriggers.find(t => t.id === data?.triggerId);
         newNode = {
           id,
           type,
           name: data?.name || 'Automation Trigger',
           position: addNodePosition,
           inputs: [],
-          outputs: [{
+          outputs: triggerData?.outputs?.map((output, index) => ({
+            id: `${id}-output-${output.name}`,
+            name: output.description || output.name,
+            type: output.type
+          })) || [{
             id: `${id}-output-trigger`,
             name: 'Trigger Output',
             type: data?.type || 'object'
           }],
+          modelId: data?.triggerId,
           status: 'ready',
-          width: 160,
-          height: 80
+          width: Math.max(180, (triggerData?.outputs?.length || 1) * 25 + 80),
+          height: Math.max(100, (triggerData?.outputs?.length || 1) * 25 + 60)
         };
         break;
     }
@@ -519,12 +689,19 @@ export default function ModelConfigurationTab() {
 
                 {/* Node Body */}
                 <div className="p-3 space-y-1">
+                  {/* Node Info */}
+                  {node.type !== 'ai-model' && (
+                    <div className="text-xs text-gray-500 mb-2 border-b border-gray-600 pb-1">
+                      {node.type === 'data-input' ? 'Data Source' : 'Automation Trigger'}
+                    </div>
+                  )}
+                  
                   {/* Inputs */}
                   {node.inputs.map((input, index) => (
-                    <div key={input.id} className="flex items-center justify-between text-xs">
+                    <div key={input.id} className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full border-2 cursor-pointer"
+                          className="w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-transform"
                           style={{ 
                             backgroundColor: input.connected ? getTypeColor(input.type) : 'transparent',
                             borderColor: getTypeColor(input.type)
@@ -534,21 +711,30 @@ export default function ModelConfigurationTab() {
                               handleConnectionEnd(node.id, input.id, input.type);
                             }
                           }}
+                          title={`${input.name} (${input.type})`}
                         />
-                        <span className="text-gray-300">{input.name}</span>
+                        <span className="text-gray-300 truncate max-w-28">{input.name}</span>
                       </div>
+                      <span className="text-gray-500 text-xs">{input.type}</span>
                     </div>
                   ))}
 
+                  {/* Separator if both inputs and outputs exist */}
+                  {node.inputs.length > 0 && node.outputs.length > 0 && (
+                    <div className="border-t border-gray-600 my-2"></div>
+                  )}
+
                   {/* Outputs */}
                   {node.outputs.map((output, index) => (
-                    <div key={output.id} className="flex items-center justify-end text-xs">
+                    <div key={output.id} className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-gray-500 text-xs">{output.type}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-300">{output.name}</span>
+                        <span className="text-gray-300 truncate max-w-28">{output.name}</span>
                         <div
-                          className="w-3 h-3 rounded-full cursor-pointer"
+                          className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
                           style={{ backgroundColor: getTypeColor(output.type) }}
                           onClick={() => handleConnectionStart(node.id, output.id, output.type)}
+                          title={`${output.name} (${output.type})`}
                         />
                       </div>
                     </div>
@@ -583,32 +769,60 @@ export default function ModelConfigurationTab() {
                     ))}
                   </div>
 
-                  {/* Data Sources */}
+                  {/* Data Sources by Category */}
                   <div className="mb-2">
                     <div className="text-xs text-gray-500 mb-1">Data Integration</div>
-                    {dataIntegrationSources.map(source => (
-                      <button
-                        key={source.id}
-                        className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
-                        onClick={() => createNode('data-input', { name: source.name, type: source.type })}
-                      >
-                        {source.name}
-                      </button>
-                    ))}
+                    {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
+                      const sources = dataIntegrationSources.filter(s => s.category === category);
+                      if (sources.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="mb-1">
+                          <div className="text-xs text-gray-600 px-2 py-1">{category}</div>
+                          {sources.map(source => (
+                            <button
+                              key={source.id}
+                              className="w-full text-left px-4 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                              onClick={() => createNode('data-input', { 
+                                name: source.name, 
+                                type: source.type,
+                                sourceId: source.id
+                              })}
+                            >
+                              {source.name}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Automation */}
+                  {/* Automation by Category */}
                   <div>
                     <div className="text-xs text-gray-500 mb-1">Automation</div>
-                    {automationTriggers.map(trigger => (
-                      <button
-                        key={trigger.id}
-                        className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
-                        onClick={() => createNode('automation-input', { name: trigger.name, type: trigger.type })}
-                      >
-                        {trigger.name}
-                      </button>
-                    ))}
+                    {['Schedule', 'Event', 'API'].map(category => {
+                      const triggers = automationTriggers.filter(t => t.category === category);
+                      if (triggers.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="mb-1">
+                          <div className="text-xs text-gray-600 px-2 py-1">{category}</div>
+                          {triggers.map(trigger => (
+                            <button
+                              key={trigger.id}
+                              className="w-full text-left px-4 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                              onClick={() => createNode('automation-input', { 
+                                name: trigger.name, 
+                                type: trigger.type,
+                                triggerId: trigger.id
+                              })}
+                            >
+                              {trigger.name}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
