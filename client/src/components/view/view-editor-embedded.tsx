@@ -41,6 +41,7 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   const [editingView, setEditingView] = useState<View>(view);
   const [selectedComponent, setSelectedComponent] = useState<UIComponent | null>(null);
   const [selectedGrid, setSelectedGrid] = useState<GridRow | null>(null);
+  const [selectedGridColumn, setSelectedGridColumn] = useState<number | null>(null);
   const [isAddingComponent, setIsAddingComponent] = useState(false);
   const [isAddingGrid, setIsAddingGrid] = useState(false);
   const [activeTab, setActiveTab] = useState<'design' | 'preview'>('design');
@@ -95,13 +96,19 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   };
 
   const addComponent = (type: UIComponent['type']) => {
-    if (!selectedGrid) return;
+    if (!selectedGrid) {
+      alert('Please select a grid first');
+      return;
+    }
+
+    const gridPosition = selectedGridColumn !== null ? selectedGridColumn : 0;
 
     const newComponent: UIComponent = {
       id: `component-${Date.now()}`,
       type,
-      gridPosition: 0,
+      gridPosition,
       config: {
+        title: `New ${type}`,
         dataSource: '',
         selectedFields: [],
         chartType: type === 'chart' ? 'bar' : undefined,
@@ -124,6 +131,7 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
     setIsAddingComponent(false);
     setSelectedComponent(newComponent);
     setIsPropertiesPanelCollapsed(false);
+    setSelectedGridColumn(null);
   };
 
   const deleteComponent = (componentId: string) => {
@@ -303,9 +311,20 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
         <div className={`grid ${getGridColumns(grid.columns)} gap-4 p-4`}>
           {Array.from({ length: grid.columns }).map((_, columnIndex) => {
             const columnComponents = grid.components.filter(comp => comp.gridPosition === columnIndex);
+            const isSelectedColumn = selectedGrid?.id === grid.id && selectedGridColumn === columnIndex;
             return (
               <DropZone key={columnIndex} gridId={grid.id} position={columnIndex}>
-                <div className="min-h-[100px] space-y-2">
+                <div 
+                  className={`min-h-[100px] space-y-2 border-2 rounded-lg p-2 transition-all cursor-pointer ${
+                    isSelectedColumn 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-dashed border-gray-200 hover:border-blue-300'
+                  }`}
+                  onClick={() => {
+                    setSelectedGrid(grid);
+                    setSelectedGridColumn(columnIndex);
+                  }}
+                >
                   {columnComponents.map((component, compIndex) => (
                     <DraggableComponent 
                       key={component.id}
@@ -315,8 +334,10 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                     />
                   ))}
                   {columnComponents.length === 0 && (
-                    <div className="h-24 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                      <span className="text-sm">Drop component here</span>
+                    <div className="h-16 flex items-center justify-center text-gray-400">
+                      <span className="text-sm">
+                        {isSelectedColumn ? 'Selected column - click a component to add' : 'Click to select column'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -341,6 +362,12 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
         isDragging: monitor.isDragging(),
       }),
       canDrag: true,
+      end: (item, monitor) => {
+        const dropResult = monitor.getDropResult();
+        if (item && dropResult) {
+          console.log('Drag completed:', { item, dropResult });
+        }
+      },
     }), [component.id, gridId, component.gridPosition]);
 
     return (
@@ -418,9 +445,11 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
       accept: ItemTypes.COMPONENT,
       drop: (item: DraggedComponent) => {
+        console.log('Drop event:', { item, gridId, position });
         if (item.gridId !== gridId || item.position !== position) {
           moveComponent(item.id, gridId, position);
         }
+        return { gridId, position };
       },
       collect: (monitor) => ({
         isOver: monitor.isOver(),
@@ -527,20 +556,26 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                     key={type}
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (selectedGrid) {
-                        addComponent(type as UIComponent['type']);
-                      } else {
-                        alert('Please select a grid first');
-                      }
-                    }}
-                    className="flex items-center space-x-2 text-xs p-2"
+                    onClick={() => addComponent(type as UIComponent['type'])}
+                    disabled={!selectedGrid || selectedGridColumn === null}
+                    className={`flex items-center space-x-2 text-xs p-2 transition-all ${
+                      selectedGrid && selectedGridColumn !== null 
+                        ? 'hover:bg-blue-50 hover:border-blue-300' 
+                        : 'opacity-60 cursor-not-allowed'
+                    }`}
+                    title={!selectedGrid || selectedGridColumn === null ? 'Select a grid column first' : `Add ${label}`}
                   >
                     <Icon className="h-3 w-3" />
                     <span>{label}</span>
                   </Button>
                 ))}
               </div>
+              
+              {selectedGrid && selectedGridColumn !== null && (
+                <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                  Selected: Grid {selectedGrid.columns}-column, Column {selectedGridColumn + 1}
+                </div>
+              )}
             </div>
           </>
         )}
