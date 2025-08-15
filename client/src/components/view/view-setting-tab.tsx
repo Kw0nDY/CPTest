@@ -373,123 +373,125 @@ export default function ViewSettingTab() {
         </Dialog>
       </div>
 
-      {/* Views Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {views.map((view) => (
-          <Card key={view.id} className="hover:shadow-lg transition-shadow h-full flex flex-col">
-            <CardHeader className="pb-4">
-              {/* Header with Icon, Title, and Status - Fixed Height */}
-              <div className="flex items-start justify-between min-h-[32px] mb-3">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
+      {/* Views List */}
+      <div className="space-y-4">
+        {views.map((view, index) => (
+          <Card key={view.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                {/* Left Section: Icon, Title, Description */}
+                <div className="flex items-center space-x-4 flex-1 min-w-0">
                   <div className="flex-shrink-0">
                     {getTypeIcon(view.type)}
                   </div>
-                  <CardTitle className="text-lg truncate flex-1">{view.name}</CardTitle>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <CardTitle className="text-xl font-semibold truncate">{view.name}</CardTitle>
+                      <Badge className={`${getStatusColor(view.status)} flex-shrink-0`}>
+                        {view.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-1">{view.description}</p>
+                  </div>
                 </div>
-                <Badge className={`${getStatusColor(view.status)} flex-shrink-0 ml-2`}>
-                  {view.status}
-                </Badge>
-              </div>
-              
-              {/* Description - Fixed Height */}
-              <div className="min-h-[48px] max-h-[48px] overflow-hidden">
-                <p className="text-sm text-gray-600 line-clamp-2">{view.description}</p>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="flex-1 flex flex-col">
-              {/* Stats Grid - Fixed Height */}
-              <div className="space-y-4 mb-6 min-h-[120px]">
-                <div className="flex items-center justify-between text-sm min-h-[20px]">
-                  <span className="text-gray-600 font-medium">Type:</span>
-                  <span className="capitalize font-semibold text-gray-900">{view.type}</span>
+
+                {/* Middle Section: Stats */}
+                <div className="flex items-center space-x-8 text-center min-w-0 mx-8">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{view.type}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Type</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{view.dataSources?.length || 0}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Data Sources</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{(view.assignedTo?.length || 0) + (view.assignedDepartments?.length || 0)}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Assigned</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-gray-900">{view.updatedAt}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Updated</div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-sm min-h-[20px]">
-                  <span className="text-gray-600 font-medium">Data Sources:</span>
-                  <span className="font-semibold text-gray-900">{view.dataSources?.length || 0}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm min-h-[20px]">
-                  <span className="text-gray-600 font-medium">Assigned:</span>
-                  <span className="font-semibold text-gray-900">{(view.assignedTo?.length || 0) + (view.assignedDepartments?.length || 0)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm min-h-[20px]">
-                  <span className="text-gray-600 font-medium">Updated:</span>
-                  <span className="font-semibold text-gray-900 text-xs">{view.updatedAt}</span>
-                </div>
-              </div>
-              
-              {/* Action Buttons - Always at Bottom */}
-              <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200">
-                {/* Move Buttons */}
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleMoveView(view.id, 'up')}
-                    disabled={views.findIndex(v => v.id === view.id) === 0}
-                    className="h-9 w-9 p-0 hover:bg-blue-100 hover:text-blue-600"
-                    title="Move Up"
-                  >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleMoveView(view.id, 'down')}
-                    disabled={views.findIndex(v => v.id === view.id) === views.length - 1}
-                    className="h-9 w-9 p-0 hover:bg-blue-100 hover:text-blue-600"
-                    title="Move Down"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditView(view)}
-                    className="h-9 w-9 p-0 hover:bg-gray-100"
-                    data-testid={`edit-view-${view.id}`}
-                    title="Edit View"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleViewStatus(view.id)}
-                    className="h-9 w-9 p-0 hover:bg-gray-100"
-                    data-testid={`toggle-view-${view.id}`}
-                    title={view.status === 'active' ? 'Pause View' : 'Activate View'}
-                  >
-                    {view.status === 'active' ? (
-                      <Pause className="h-4 w-4" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => duplicateView(view)}
-                    className="h-9 w-9 p-0 hover:bg-gray-100"
-                    data-testid={`copy-view-${view.id}`}
-                    title="Copy View"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteView(view.id)}
-                    className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    data-testid={`delete-view-${view.id}`}
-                    title="Delete View"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                {/* Right Section: Order Controls and Actions */}
+                <div className="flex items-center space-x-3 flex-shrink-0">
+                  {/* Order Display and Controls */}
+                  <div className="flex flex-col items-center space-y-1 px-3 py-2 bg-gray-50 rounded-lg">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Order</div>
+                    <div className="text-lg font-bold text-gray-900">#{index + 1}</div>
+                    <div className="flex space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleMoveView(view.id, 'up')}
+                        disabled={index === 0}
+                        className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                        title="Move Up"
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleMoveView(view.id, 'down')}
+                        disabled={index === views.length - 1}
+                        className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                        title="Move Down"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditView(view)}
+                      className="h-9 w-9 p-0 hover:bg-gray-100"
+                      data-testid={`edit-view-${view.id}`}
+                      title="Edit View"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleViewStatus(view.id)}
+                      className="h-9 w-9 p-0 hover:bg-gray-100"
+                      data-testid={`toggle-view-${view.id}`}
+                      title={view.status === 'active' ? 'Pause View' : 'Activate View'}
+                    >
+                      {view.status === 'active' ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => duplicateView(view)}
+                      className="h-9 w-9 p-0 hover:bg-gray-100"
+                      data-testid={`copy-view-${view.id}`}
+                      title="Copy View"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteView(view.id)}
+                      className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      data-testid={`delete-view-${view.id}`}
+                      title="Delete View"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
