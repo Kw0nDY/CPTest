@@ -14,7 +14,12 @@ import {
   Eye,
   BarChart3,
   Activity,
-  Gauge
+  Gauge,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Database,
+  Zap
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -242,19 +247,21 @@ export default function ViewSettingTab() {
     createViewMutation.mutate(newView);
   };
 
-  const handleSaveView = (view: ViewConfig) => {
-    updateViewMutation.mutate(view);
+  const handleEditView = (view: ViewConfig) => {
+    setEditingView(view);
+    setShowEditor(true);
+  };
+
+  const handleSaveView = (updatedView: ViewConfig) => {
+    updateViewMutation.mutate(updatedView);
     setShowEditor(false);
     setEditingView(null);
   };
 
   const handleDeleteView = (viewId: string) => {
-    deleteViewMutation.mutate(viewId);
-  };
-
-  const handleEditView = (view: ViewConfig) => {
-    setEditingView(view);
-    setShowEditor(true);
+    if (confirm('Are you sure you want to delete this view?')) {
+      deleteViewMutation.mutate(viewId);
+    }
   };
 
   const handleAssignView = (view: ViewConfig) => {
