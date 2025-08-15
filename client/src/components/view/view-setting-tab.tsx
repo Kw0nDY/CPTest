@@ -559,16 +559,18 @@ export default function ViewSettingTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Full-screen View Editor */}
+      {/* Embedded View Editor */}
       {showEditor && editingView && (
-        <ViewEditor
-          view={editingView}
-          onClose={() => {
-            setShowEditor(false);
-            setEditingView(null);
-          }}
-          onSave={handleSaveView}
-        />
+        <div className="fixed inset-0 z-40 bg-white">
+          <ViewEditor
+            view={editingView}
+            onClose={() => {
+              setShowEditor(false);
+              setEditingView(null);
+            }}
+            onSave={handleSaveView}
+          />
+        </div>
       )}
     </div>
   );

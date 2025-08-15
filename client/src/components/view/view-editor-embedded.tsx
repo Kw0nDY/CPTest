@@ -68,6 +68,7 @@ interface UIComponent {
   config: {
     title?: string;
     dataSource?: string;
+    selectedFields?: string[];
     chartType?: 'bar' | 'line' | 'pie' | 'area' | 'doughnut' | 'scatter';
     metrics?: string[];
     dimensions?: string[];
@@ -190,6 +191,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
   const [activeTab, setActiveTab] = useState<'design' | 'preview'>('design');
   const [isComponentsPanelCollapsed, setIsComponentsPanelCollapsed] = useState(false);
   const [isTabsCollapsed, setIsTabsCollapsed] = useState(false);
+  const [isDataFieldsModalOpen, setIsDataFieldsModalOpen] = useState(false);
 
   const addGrid = (columns: number) => {
     const newGrid: GridRow = {
@@ -629,64 +631,38 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                 </Select>
               </div>
 
-              {/* Data Fields Selection */}
+              {/* Data Fields Configuration Button */}
               {selectedComponent.config.dataSource && (
                 <div>
-                  <Label>Available Data Fields</Label>
-                  <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border rounded-md p-3 bg-gray-50">
-                    {(() => {
-                      const selectedSource = availableDataSources.find(ds => ds.id === selectedComponent.config.dataSource);
-                      return selectedSource?.fields.map((field) => (
-                        <div key={field.name} className="flex items-center justify-between p-2 bg-white rounded border">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`field-${field.name}`}
-                              checked={selectedComponent.config.selectedFields?.includes(field.name) || false}
-                              onCheckedChange={(checked) => {
-                                const currentFields = selectedComponent.config.selectedFields || [];
-                                const updatedFields = checked 
-                                  ? [...currentFields, field.name]
-                                  : currentFields.filter(f => f !== field.name);
-                                updateComponent(selectedComponent.id, {
-                                  config: { ...selectedComponent.config, selectedFields: updatedFields }
-                                });
-                              }}
-                            />
-                            <div>
-                              <Label htmlFor={`field-${field.name}`} className="text-sm font-medium">
-                                {field.name}
-                              </Label>
-                              <p className="text-xs text-gray-500">{field.description}</p>
-                              <Badge variant="outline" className="text-xs">
-                                {field.type}
-                              </Badge>
-                            </div>
-                          </div>
-                          {field.sampleValues && (
-                            <div className="text-xs text-gray-400 flex space-x-1">
-                              {field.sampleValues.slice(0, 3).map((val, idx) => (
-                                <span key={idx} className="bg-gray-100 px-1 rounded">
-                                  {String(val)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )) || [];
-                    })()}
+                  <div className="flex items-center justify-between">
+                    <Label>Data Fields</Label>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsDataFieldsModalOpen(true)}
+                      data-testid="configure-data-fields"
+                    >
+                      <Database className="h-4 w-4 mr-1" />
+                      Configure Fields
+                    </Button>
                   </div>
                   
                   {selectedComponent.config.selectedFields && selectedComponent.config.selectedFields.length > 0 && (
-                    <div className="mt-2">
+                    <div className="mt-2 p-2 bg-green-50 rounded border">
                       <Label className="text-xs text-green-600">
                         Selected: {selectedComponent.config.selectedFields.length} field(s)
                       </Label>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedComponent.config.selectedFields.map((fieldName) => (
+                        {selectedComponent.config.selectedFields.slice(0, 3).map((fieldName: string) => (
                           <Badge key={fieldName} variant="secondary" className="text-xs">
                             {fieldName}
                           </Badge>
                         ))}
+                        {selectedComponent.config.selectedFields.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{selectedComponent.config.selectedFields.length - 3} more
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   )}
@@ -810,10 +786,13 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white shadow-sm">
         <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
           <h1 className="text-lg font-semibold">Edit View: {editingView.name}</h1>
           <Badge variant="outline" className="text-xs">
             {editingView.layout.grids.reduce((total, grid) => total + grid.components.length, 0)} component(s)
@@ -854,6 +833,89 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
         {activeTab === 'design' && renderDesignTab()}
         {activeTab === 'preview' && renderPreviewTab()}
       </div>
+
+      {/* Data Fields Configuration Modal */}
+      {selectedComponent && isDataFieldsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-lg font-semibold">Configure Data Fields</h2>
+                <p className="text-sm text-gray-600">
+                  Select fields from {availableDataSources.find(ds => ds.id === selectedComponent.config.dataSource)?.name}
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setIsDataFieldsModalOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-3">
+                {(() => {
+                  const selectedSource = availableDataSources.find(ds => ds.id === selectedComponent.config.dataSource);
+                  return selectedSource?.fields.map((field) => (
+                    <div key={field.name} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id={`modal-field-${field.name}`}
+                          checked={selectedComponent.config.selectedFields?.includes(field.name) || false}
+                          onCheckedChange={(checked) => {
+                            const currentFields = selectedComponent.config.selectedFields || [];
+                            const updatedFields = checked 
+                              ? [...currentFields, field.name]
+                              : currentFields.filter((f: string) => f !== field.name);
+                            updateComponent(selectedComponent.id, {
+                              config: { ...selectedComponent.config, selectedFields: updatedFields }
+                            });
+                          }}
+                        />
+                        <div>
+                          <Label htmlFor={`modal-field-${field.name}`} className="font-medium">
+                            {field.name}
+                          </Label>
+                          <p className="text-sm text-gray-500">{field.description}</p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {field.type}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      {field.sampleValues && (
+                        <div className="text-sm text-gray-400">
+                          <div className="text-xs text-gray-500 mb-1">Sample values:</div>
+                          <div className="flex space-x-1">
+                            {field.sampleValues.slice(0, 3).map((val, idx) => (
+                              <span key={idx} className="bg-gray-100 px-2 py-1 rounded text-xs">
+                                {String(val)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )) || [];
+                })()}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+              <div className="text-sm text-gray-600">
+                {selectedComponent.config.selectedFields?.length || 0} field(s) selected
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" onClick={() => setIsDataFieldsModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => setIsDataFieldsModalOpen(false)} className="bg-blue-600 hover:bg-blue-700">
+                  Apply Selection
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
