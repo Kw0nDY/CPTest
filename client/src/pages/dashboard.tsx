@@ -20,11 +20,8 @@ function DynamicViewRenderer({ viewId }: { viewId: string }) {
     queryKey: ['/api/views']
   });
 
-  // Find the view by matching the viewId pattern
-  const view = views.find(v => {
-    const normalizedName = v.name.toLowerCase().replace(/\s+/g, '-');
-    return `view-${normalizedName}` === viewId;
-  });
+  // Find the view by ID directly (viewId should be the actual view.id)
+  const view = views.find(v => v.id === viewId);
 
   if (!view) {
     return (
@@ -70,7 +67,7 @@ function DynamicViewRenderer({ viewId }: { viewId: string }) {
   );
 }
 
-type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | "view-drilling" | "view-production" | "view-maintenance";
+type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | string;
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<ViewType>("data-integration");
@@ -106,11 +103,11 @@ export default function Dashboard() {
         return <ManagementPage currentUser={currentUser} />;
       case "view-list":
         return <ViewListTab />;
-      case "view-drilling":
-      case "view-production":
-      case "view-maintenance":
-        return <DynamicViewRenderer viewId={activeView} />;
       default:
+        // Check if this is a view ID (from database views)
+        if (activeView.startsWith('view-') && activeView.length > 10) {
+          return <DynamicViewRenderer viewId={activeView} />;
+        }
         return <DataIntegrationTab />;
     }
   };

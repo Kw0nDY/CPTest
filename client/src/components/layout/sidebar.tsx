@@ -145,10 +145,10 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
     const baseItems = [{ id: "view-list", label: "All Views" }];
     
     // Add views from API
-    const viewItems = (views || []).map((view: any) => ({
+    const viewItems = Array.isArray(views) ? views.map((view: any) => ({
       id: view.id,
       label: view.name
-    }));
+    })) : [];
     
     return [...baseItems, ...viewItems];
   };
