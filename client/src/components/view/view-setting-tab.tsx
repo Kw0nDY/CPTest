@@ -90,10 +90,121 @@ const availableDataSources = [
 ];
 
 export default function ViewSettingTab() {
+  const [editingView, setEditingView] = useState<ViewConfig | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
   const [selectedView, setSelectedView] = useState<ViewConfig | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [newView, setNewView] = useState({
+    name: '',
+    description: '',
+    type: 'dashboard' as 'dashboard' | 'monitor' | 'analytics' | 'report',
+    assignedTo: [] as string[],
+    assignedDepartments: [] as string[]
+  });
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch views from API
+  const { data: views = [], isLoading, error } = useQuery<ViewConfig[]>({
+    queryKey: ['/api/views'],
+    queryFn: async () => {
+      const response = await fetch('/api/views');
+      if (!response.ok) throw new Error('Failed to fetch views');
+      return response.json();
+    }
+  });
+
+  // Create view mutation
+  const createViewMutation = useMutation({
+    mutationFn: async (viewData: any) => {
+      const view = {
+        id: `view-${Date.now()}`,
+        ...viewData,
+        status: 'draft',
+        dataSources: [],
+        layout: { grids: [] },
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0]
+      };
+      
+      return await apiRequest('/api/views', {
+        method: 'POST',
+        body: JSON.stringify(view)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+      setIsCreateDialogOpen(false);
+      setNewView({
+        name: '',
+        description: '',
+        type: 'dashboard',
+        assignedTo: [],
+        assignedDepartments: []
+      });
+      toast({
+        title: "Success",
+        description: "View created successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create view",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Update view mutation
+  const updateViewMutation = useMutation({
+    mutationFn: async (view: ViewConfig) => {
+      return await apiRequest(`/api/views/${view.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(view)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+      toast({
+        title: "Success",
+        description: "View updated successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error", 
+        description: "Failed to update view",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Delete view mutation
+  const deleteViewMutation = useMutation({
+    mutationFn: async (viewId: string) => {
+      return await apiRequest(`/api/views/${viewId}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+      toast({
+        title: "Success",
+        description: "View deleted successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete view",
+        variant: "destructive" 
+      });
+    }
+  });
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -155,7 +266,6 @@ export default function ViewSettingTab() {
 
   const duplicateView = (view: ViewConfig) => {
     const duplicatedView = {
-      ...newView,
       name: `${view.name} (Copy)`,
       description: view.description,
       type: view.type,
@@ -165,6 +275,32 @@ export default function ViewSettingTab() {
     createViewMutation.mutate(duplicatedView);
   };
 
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-gray-600">Loading views...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <p className="text-red-600">Failed to load views</p>
+            <p className="text-gray-600 mt-1">Please try refreshing the page</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -173,7 +309,7 @@ export default function ViewSettingTab() {
           <p className="text-gray-600 mt-1">Create and manage dynamic views for your dashboard</p>
         </div>
         
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center space-x-2" data-testid="create-view-button">
               <Plus className="h-4 w-4" />
@@ -232,7 +368,7 @@ export default function ViewSettingTab() {
                 >
                   Create & Edit
                 </Button>
-                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} className="flex-1">Cancel</Button>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="flex-1">Cancel</Button>
               </div>
             </div>
           </DialogContent>
