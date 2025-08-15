@@ -48,7 +48,7 @@ The platform has been fully localized to English while maintaining Korean commun
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+Preferred communication style: Korean language communication requested. Always respond in Korean while maintaining English for all service content and UI elements.
 
 ## System Architecture
 
