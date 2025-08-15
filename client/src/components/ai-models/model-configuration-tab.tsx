@@ -82,6 +82,8 @@ interface Connection {
   toNodeId: string;
   toInputId: string;
   type: string;
+  sourceOutputName?: string;
+  targetInputName?: string;
 }
 
 interface ConfigurationFolder {
@@ -747,37 +749,147 @@ export default function ModelConfigurationTab() {
     });
   };
 
-  // Connect two nodes
+  // Connect two nodes with improved validation and management
   const connectNodes = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
-    const newConnection = {
-      id: `conn-${Date.now()}`,
-      fromNodeId,
-      fromOutputId,
-      toNodeId,
-      toInputId,
-      type: 'data' as const
-    };
+    const sourceNode = nodes.find(n => n.id === fromNodeId);
+    const targetNode = nodes.find(n => n.id === toNodeId);
     
-    setConnections(prev => [...prev, newConnection]);
+    if (!sourceNode || !targetNode) {
+      toast({
+        title: "Connection Failed",
+        description: "Source or target node not found",
+        variant: "destructive"
+      });
+      return;
+    }
     
-    // Update the input as connected
+    const sourceOutput = sourceNode.outputs.find(o => o.id === fromOutputId);
+    const targetInput = targetNode.inputs.find(i => i.id === toInputId);
+    
+    if (!sourceOutput || !targetInput) {
+      toast({
+        title: "Connection Failed",
+        description: "Source output or target input not found",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Check type compatibility
+    if (sourceOutput.type !== targetInput.type) {
+      toast({
+        title: "Connection Failed",
+        description: `Cannot connect ${sourceOutput.type} to ${targetInput.type}`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const connectionId = `${fromNodeId}-${fromOutputId}-${toNodeId}-${toInputId}`;
+    
+    setConnections(prev => {
+      // Remove existing connection to the same input
+      const filtered = prev.filter(c => !(c.toNodeId === toNodeId && c.toInputId === toInputId));
+      
+      return [...filtered, {
+        id: connectionId,
+        fromNodeId,
+        fromOutputId,
+        toNodeId,
+        toInputId,
+        type: sourceOutput.type,
+        sourceOutputName: sourceOutput.name,
+        targetInputName: targetInput.name
+      }];
+    });
+    
+    // Update target input as connected
     setNodes(prev => prev.map(node => {
       if (node.id === toNodeId) {
         return {
           ...node,
-          inputs: node.inputs.map(input => 
-            input.id === toInputId 
-              ? { ...input, connected: true }
-              : input
-          )
+          inputs: node.inputs.map(input => {
+            if (input.id === toInputId) {
+              return { ...input, connected: true };
+            }
+            return input;
+          })
         };
       }
       return node;
     }));
-
+    
     toast({
       title: "Connection Created",
-      description: "Nodes have been connected successfully.",
+      description: `Connected ${sourceOutput.name} to ${targetInput.name}`,
+    });
+  };
+
+  // Get node position for connection rendering
+  const getNodePosition = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    return node ? node.position : { x: 0, y: 0 };
+  };
+
+  // Get port position within a node
+  const getPortPosition = (nodeId: string, portId: string, isOutput: boolean = false) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    
+    const ports = isOutput ? node.outputs : node.inputs;
+    const portIndex = ports.findIndex(p => p.id === portId);
+    
+    const baseX = isOutput ? node.position.x + node.width : node.position.x;
+    const baseY = node.position.y + 40 + (portIndex * 25) + 12; // Header height + port spacing + port center
+    
+    return { x: baseX, y: baseY };
+  };
+
+  // Render connection lines (SVG paths)
+  const renderConnections = () => {
+    return connections.map(connection => {
+      const sourcePos = getPortPosition(connection.fromNodeId, connection.fromOutputId, true);
+      const targetPos = getPortPosition(connection.toNodeId, connection.toInputId, false);
+      
+      // Create curved path for better visual appeal
+      const midX = (sourcePos.x + targetPos.x) / 2;
+      const path = `M ${sourcePos.x} ${sourcePos.y} C ${midX} ${sourcePos.y}, ${midX} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+      
+      return (
+        <path
+          key={connection.id}
+          d={path}
+          stroke={getTypeColor(connection.type)}
+          strokeWidth="2"
+          fill="none"
+          className="cursor-pointer hover:stroke-width-3"
+          onClick={() => {
+            // Remove connection on click
+            if (window.confirm('Remove this connection?')) {
+              setConnections(prev => prev.filter(c => c.id !== connection.id));
+              // Update target node input as disconnected
+              setNodes(prev => prev.map(node => {
+                if (node.id === connection.toNodeId) {
+                  return {
+                    ...node,
+                    inputs: node.inputs.map(input => {
+                      if (input.id === connection.toInputId) {
+                        return { ...input, connected: false };
+                      }
+                      return input;
+                    })
+                  };
+                }
+                return node;
+              }));
+              toast({
+                title: "Connection Removed",
+                description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+              });
+            }
+          }}
+        />
+      );
     });
   };
 
@@ -1479,7 +1591,7 @@ export default function ModelConfigurationTab() {
             />
 
             {/* Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            <svg className="absolute inset-0 w-full h-full pointer-events-auto">
               {connections.map(connection => {
                 const fromNode = nodes.find(n => n.id === connection.fromNodeId);
                 const toNode = nodes.find(n => n.id === connection.toNodeId);
@@ -1489,21 +1601,56 @@ export default function ModelConfigurationTab() {
                 if (!fromNode || !toNode || !fromOutput || !toInput) return null;
 
                 const fromX = fromNode.position.x + fromNode.width;
-                const fromY = fromNode.position.y + 60 + fromNode.outputs.indexOf(fromOutput) * 25 + 12;
+                const fromY = fromNode.position.y + 60 + fromNode.outputs.indexOf(fromOutput) * 20 + 10;
                 const toX = toNode.position.x;
-                const toY = toNode.position.y + 60 + toNode.inputs.indexOf(toInput) * 25 + 12;
+                const toY = toNode.position.y + 60 + toNode.inputs.indexOf(toInput) * 20 + 10;
 
                 const midX = (fromX + toX) / 2;
                 
                 return (
-                  <path
-                    key={connection.id}
-                    d={`M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`}
-                    stroke={getTypeColor(connection.type)}
-                    strokeWidth="2"
-                    fill="none"
-                    className="drop-shadow-sm"
-                  />
+                  <g key={connection.id}>
+                    {/* Invisible thick path for easier clicking */}
+                    <path
+                      d={`M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`}
+                      stroke="transparent"
+                      strokeWidth="10"
+                      fill="none"
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Remove connection between ${connection.sourceOutputName} and ${connection.targetInputName}?`)) {
+                          setConnections(prev => prev.filter(c => c.id !== connection.id));
+                          // Update target node input as disconnected
+                          setNodes(prev => prev.map(node => {
+                            if (node.id === connection.toNodeId) {
+                              return {
+                                ...node,
+                                inputs: node.inputs.map(input => {
+                                  if (input.id === connection.toInputId) {
+                                    return { ...input, connected: false };
+                                  }
+                                  return input;
+                                })
+                              };
+                            }
+                            return node;
+                          }));
+                          toast({
+                            title: "Connection Removed",
+                            description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+                          });
+                        }
+                      }}
+                    />
+                    {/* Visible connection line */}
+                    <path
+                      d={`M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`}
+                      stroke={getTypeColor(connection.type)}
+                      strokeWidth="3"
+                      fill="none"
+                      className="drop-shadow-sm pointer-events-none"
+                    />
+                  </g>
                 );
               })}
             </svg>
@@ -1899,6 +2046,91 @@ export default function ModelConfigurationTab() {
                   </div>
                 )}
 
+                {/* Connections Section */}
+                <div>
+                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-purple-600" />
+                    Active Connections
+                  </h5>
+                  {(() => {
+                    const nodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
+                    const nodeConnections = connections.filter(c => c.fromNodeId === nodeId || c.toNodeId === nodeId);
+                    
+                    return nodeConnections.length > 0 ? (
+                      <div className="space-y-2">
+                        {nodeConnections.map(connection => {
+                          const isOutput = connection.fromNodeId === nodeId;
+                          const otherNodeId = isOutput ? connection.toNodeId : connection.fromNodeId;
+                          const otherNode = nodes.find(n => n.id === otherNodeId);
+                          
+                          return (
+                            <div key={connection.id} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isOutput ? (
+                                    <>
+                                      <ArrowRight className="w-3 h-3 text-green-600" />
+                                      <span className="text-sm font-medium">Output to</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ArrowRight className="w-3 h-3 text-blue-600 transform rotate-180" />
+                                      <span className="text-sm font-medium">Input from</span>
+                                    </>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1"
+                                  onClick={() => {
+                                    if (window.confirm('Remove this connection?')) {
+                                      setConnections(prev => prev.filter(c => c.id !== connection.id));
+                                      // Update target node input as disconnected
+                                      setNodes(prev => prev.map(node => {
+                                        if (node.id === connection.toNodeId) {
+                                          return {
+                                            ...node,
+                                            inputs: node.inputs.map(input => {
+                                              if (input.id === connection.toInputId) {
+                                                return { ...input, connected: false };
+                                              }
+                                              return input;
+                                            })
+                                          };
+                                        }
+                                        return node;
+                                      }));
+                                      toast({
+                                        title: "Connection Removed",
+                                        description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <span className="font-medium">{otherNode?.uniqueName || 'Unknown Node'}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {isOutput ? connection.sourceOutputName : connection.targetInputName} → {isOutput ? connection.targetInputName : connection.sourceOutputName}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-500">
+                        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <div className="text-sm">No connections</div>
+                        <div className="text-xs">Use the canvas to connect this node</div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* Inputs Section */}
                 {((selectedModelForDetails?.inputs && selectedModelForDetails.inputs.length > 0) || 
                   (selectedNodeForDetails?.inputs && selectedNodeForDetails.inputs.length > 0)) && (
@@ -1912,12 +2144,17 @@ export default function ModelConfigurationTab() {
                       <div key={input.id} className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-gray-900">{input.name}</span>
-                          <span 
-                            className="px-2 py-1 text-xs rounded-full text-white"
-                            style={{ backgroundColor: getTypeColor(input.type) }}
-                          >
-                            {input.type}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="px-2 py-1 text-xs rounded-full text-white"
+                              style={{ backgroundColor: getTypeColor(input.type) }}
+                            >
+                              {input.type}
+                            </span>
+                            {input.connected && (
+                              <div className="w-2 h-2 rounded-full bg-green-500" title="Connected" />
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-gray-600 mb-3">
                           Required input for model processing
