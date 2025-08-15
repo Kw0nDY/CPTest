@@ -159,10 +159,14 @@ export default function ViewSettingTab() {
   const moveViewMutation = useMutation({
     mutationFn: async ({ viewId, direction }: { viewId: string; direction: 'up' | 'down' }) => {
       const currentIndex = views.findIndex(v => v.id === viewId);
-      if (currentIndex === -1) return;
+      if (currentIndex === -1) return { viewName: '', oldPosition: 0, newPosition: 0 };
       
       const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      if (targetIndex < 0 || targetIndex >= views.length) return;
+      if (targetIndex < 0 || targetIndex >= views.length) return { viewName: '', oldPosition: 0, newPosition: 0 };
+      
+      const viewName = views[currentIndex].name;
+      const oldPosition = currentIndex + 1;
+      const newPosition = targetIndex + 1;
       
       // Update view order by swapping updatedAt timestamps
       const currentView = views[currentIndex];
@@ -190,9 +194,24 @@ export default function ViewSettingTab() {
           body: JSON.stringify(newTargetView)
         })
       ]);
+
+      return { viewName, oldPosition, newPosition };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+      if (data && data.viewName) {
+        toast({
+          title: "View moved successfully!",
+          description: `"${data.viewName}" moved from position #${data.oldPosition} to #${data.newPosition}`,
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to move view. Please try again.",
+        variant: "destructive",
+      });
     }
   });
 
@@ -237,6 +256,23 @@ export default function ViewSettingTab() {
   };
 
   const handleMoveView = (viewId: string, direction: 'up' | 'down') => {
+    const currentIndex = views.findIndex(v => v.id === viewId);
+    if (currentIndex === -1) return;
+
+    // Check if move is possible
+    if (direction === 'up' && currentIndex === 0) return;
+    if (direction === 'down' && currentIndex === views.length - 1) return;
+
+    const viewName = views[currentIndex].name;
+    const oldPosition = currentIndex + 1;
+    const newPosition = direction === 'up' ? oldPosition - 1 : oldPosition + 1;
+
+    // Show immediate feedback
+    toast({
+      title: "Moving view...",
+      description: `Moving "${viewName}" from position #${oldPosition} to #${newPosition}`,
+    });
+
     moveViewMutation.mutate({ viewId, direction });
   };
 
@@ -376,7 +412,7 @@ export default function ViewSettingTab() {
       {/* Views List */}
       <div className="space-y-4">
         {views.map((view, index) => (
-          <Card key={view.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+          <Card key={view.id} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 animate-in slide-in-from-left-2">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 {/* Left Section: Icon, Title, Description */}
@@ -426,9 +462,9 @@ export default function ViewSettingTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMoveView(view.id, 'up')}
-                        disabled={index === 0}
-                        className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
-                        title="Move Up"
+                        disabled={index === 0 || moveViewMutation.isPending}
+                        className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600 disabled:opacity-30"
+                        title={index === 0 ? "Already at top" : "Move Up"}
                       >
                         <ChevronUp className="h-3 w-3" />
                       </Button>
@@ -436,9 +472,9 @@ export default function ViewSettingTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMoveView(view.id, 'down')}
-                        disabled={index === views.length - 1}
-                        className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
-                        title="Move Down"
+                        disabled={index === views.length - 1 || moveViewMutation.isPending}
+                        className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600 disabled:opacity-30"
+                        title={index === views.length - 1 ? "Already at bottom" : "Move Down"}
                       >
                         <ChevronDown className="h-3 w-3" />
                       </Button>

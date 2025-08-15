@@ -16,6 +16,46 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
+
+  .view-move-highlight {
+    animation: view-move 0.6s ease-in-out;
+    border-left-color: #10b981 !important;
+    border-left-width: 6px !important;
+  }
+
+  @keyframes view-move {
+    0% {
+      transform: translateX(0);
+      background-color: rgba(16, 185, 129, 0.1);
+    }
+    25% {
+      transform: translateX(10px);
+      background-color: rgba(16, 185, 129, 0.2);
+    }
+    75% {
+      transform: translateX(-5px);
+      background-color: rgba(16, 185, 129, 0.2);
+    }
+    100% {
+      transform: translateX(0);
+      background-color: rgba(16, 185, 129, 0.05);
+    }
+  }
+
+  .order-badge-highlight {
+    animation: badge-pulse 0.8s ease-in-out;
+  }
+
+  @keyframes badge-pulse {
+    0%, 100% {
+      transform: scale(1);
+      background-color: rgb(249, 250, 251);
+    }
+    50% {
+      transform: scale(1.1);
+      background-color: rgba(16, 185, 129, 0.2);
+    }
+  }
 }
 
 :root {
