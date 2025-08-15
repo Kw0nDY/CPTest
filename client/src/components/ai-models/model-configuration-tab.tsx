@@ -2,7 +2,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +25,12 @@ import {
   Brain,
   ChevronLeft,
   MoreVertical,
-  Circle
+  Circle,
+  ChevronRight,
+  X,
+  Info,
+  ArrowRight,
+  Link2
 } from 'lucide-react';
 
 interface ModelNode {
@@ -324,6 +330,11 @@ export default function ModelConfigurationTab() {
   const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string } | null>(null);
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
   const [addNodePosition, setAddNodePosition] = useState({ x: 0, y: 0 });
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [selectedModelForDetails, setSelectedModelForDetails] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -341,6 +352,78 @@ export default function ModelConfigurationTab() {
       boolean: '#06b6d4'    // cyan
     };
     return colors[type as keyof typeof colors] || '#6b7280';
+  };
+
+  // Filter models based on search and category
+  const filteredAIModels = availableAIModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
+
+  const filteredDataSources = dataIntegrationSources.filter(source => {
+    const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredAutomationTriggers = automationTriggers.filter(trigger => {
+    const matchesSearch = trigger.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || trigger.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get possible connections for an input
+  const getPossibleConnections = (inputType: string) => {
+    const connections: Array<{
+      type: string;
+      source: string;
+      field: string;
+      description: string;
+    }> = [];
+    
+    // AI Model outputs
+    availableAIModels.forEach(model => {
+      model.outputs.forEach(output => {
+        if (output.type === inputType) {
+          connections.push({
+            type: 'ai-model',
+            source: model.name,
+            field: output.name,
+            description: `Output from ${model.name}`
+          });
+        }
+      });
+    });
+    
+    // Data Integration sources
+    dataIntegrationSources.forEach(source => {
+      source.fields?.forEach(field => {
+        if (field.type === inputType) {
+          connections.push({
+            type: 'data-integration',
+            source: source.name,
+            field: field.name,
+            description: `${field.description} from ${source.name}`
+          });
+        }
+      });
+    });
+    
+    // Automation triggers
+    automationTriggers.forEach(trigger => {
+      trigger.outputs?.forEach(output => {
+        if (output.type === inputType) {
+          connections.push({
+            type: 'automation',
+            source: trigger.name,
+            field: output.name,
+            description: `${output.description} from ${trigger.name}`
+          });
+        }
+      });
+    });
+    
+    return connections;
   };
 
   // Create new node
@@ -610,21 +693,68 @@ export default function ModelConfigurationTab() {
         {/* Editor Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - AI Models */}
-          <div className="w-80 bg-gray-100 border-r border-gray-300 flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Models</h3>
-              <p className="text-sm text-gray-600">Drag models to canvas</p>
+          <div className={`${isLeftPanelCollapsed ? 'w-12' : 'w-80'} bg-gray-100 border-r border-gray-300 flex flex-col transition-all duration-300`}>
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              {!isLeftPanelCollapsed && (
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Models</h3>
+                  <p className="text-sm text-gray-600">Drag models to canvas</p>
+                </div>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
+                className="flex-shrink-0"
+              >
+                {isLeftPanelCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </Button>
             </div>
+
+            {!isLeftPanelCollapsed && (
+              <>
+                {/* Search and Filter */}
+                <div className="p-4 border-b border-gray-200 space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search models, data sources..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="ERP">ERP</SelectItem>
+                      <SelectItem value="CRM">CRM</SelectItem>
+                      <SelectItem value="Industrial">Industrial</SelectItem>
+                      <SelectItem value="Database">Database</SelectItem>
+                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="Quality">Quality</SelectItem>
+                      <SelectItem value="Schedule">Schedule</SelectItem>
+                      <SelectItem value="Event">Event</SelectItem>
+                      <SelectItem value="API">API</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Uploaded AI Models */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-blue-600" />
-                  Uploaded Models
-                </h4>
-                <div className="space-y-2">
-                  {availableAIModels.map((model) => (
+            {!isLeftPanelCollapsed && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Uploaded AI Models */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-blue-600" />
+                    Uploaded Models ({filteredAIModels.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {filteredAIModels.map((model) => (
                     <div
                       key={model.id}
                       className="p-3 bg-white border border-gray-200 rounded-lg cursor-grab hover:shadow-md transition-shadow"
@@ -639,6 +769,10 @@ export default function ModelConfigurationTab() {
                       onClick={() => {
                         setAddNodePosition({ x: 100, y: 100 });
                         createNode('ai-model', { modelId: model.id, name: model.name });
+                      }}
+                      onDoubleClick={() => {
+                        setSelectedModelForDetails(model);
+                        setIsRightPanelOpen(true);
                       }}
                     >
                       <div className="flex items-start gap-2">
@@ -665,6 +799,19 @@ export default function ModelConfigurationTab() {
                               <span className="text-xs text-gray-400">+{model.inputs.length - 2}</span>
                             )}
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full mt-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedModelForDetails(model);
+                              setIsRightPanelOpen(true);
+                            }}
+                          >
+                            <Info className="w-3 h-3 mr-1" />
+                            View Details
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -672,16 +819,16 @@ export default function ModelConfigurationTab() {
                 </div>
               </div>
 
-              {/* Data Sources */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                  <Database className="w-4 h-4 text-green-600" />
-                  Data Sources
-                </h4>
-                <div className="space-y-3">
-                  {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
-                    const sources = dataIntegrationSources.filter(s => s.category === category);
-                    if (sources.length === 0) return null;
+                {/* Data Sources */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                    <Database className="w-4 h-4 text-green-600" />
+                    Data Sources ({filteredDataSources.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
+                      const sources = filteredDataSources.filter(s => s.category === category);
+                      if (sources.length === 0) return null;
                     
                     return (
                       <div key={category}>
@@ -724,16 +871,16 @@ export default function ModelConfigurationTab() {
                 </div>
               </div>
 
-              {/* Automation Triggers */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-purple-600" />
-                  Automation
-                </h4>
-                <div className="space-y-3">
-                  {['Schedule', 'Event', 'API'].map(category => {
-                    const triggers = automationTriggers.filter(t => t.category === category);
-                    if (triggers.length === 0) return null;
+                {/* Automation Triggers */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-purple-600" />
+                    Automation ({filteredAutomationTriggers.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {['Schedule', 'Event', 'API'].map(category => {
+                      const triggers = filteredAutomationTriggers.filter(t => t.category === category);
+                      if (triggers.length === 0) return null;
                     
                     return (
                       <div key={category}>
@@ -773,13 +920,14 @@ export default function ModelConfigurationTab() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Canvas Area */}
-          <div className="flex-1 relative overflow-hidden bg-gray-900">
+          <div className={`${isRightPanelOpen ? 'flex-1' : 'flex-1'} relative overflow-hidden bg-gray-900`}>
           <div
             ref={canvasRef}
             className="w-full h-full relative cursor-crosshair"
@@ -1035,6 +1183,135 @@ export default function ModelConfigurationTab() {
             )}
           </div>
           </div>
+
+          {/* Right Panel - Model Details */}
+          {isRightPanelOpen && selectedModelForDetails && (
+            <div className="w-96 bg-white border-l border-gray-300 flex flex-col">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Model Details</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsRightPanelOpen(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {/* Model Info */}
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedModelForDetails.name}</h4>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div>Model ID: {selectedModelForDetails.id}</div>
+                    <div>Inputs: {selectedModelForDetails.inputs.length}</div>
+                    <div>Outputs: {selectedModelForDetails.outputs.length}</div>
+                  </div>
+                </div>
+
+                {/* Outputs Section */}
+                <div>
+                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <ArrowRight className="w-4 h-4 text-green-600" />
+                    Outputs
+                  </h5>
+                  <div className="space-y-3">
+                    {selectedModelForDetails.outputs.map((output: any) => (
+                      <div key={output.id} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900">{output.name}</span>
+                          <span 
+                            className="px-2 py-1 text-xs rounded-full text-white"
+                            style={{ backgroundColor: getTypeColor(output.type) }}
+                          >
+                            {output.type}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          This output can be connected to inputs of the same type in other models
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Inputs Section */}
+                <div>
+                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <ArrowRight className="w-4 h-4 text-blue-600 transform rotate-180" />
+                    Inputs
+                  </h5>
+                  <div className="space-y-3">
+                    {selectedModelForDetails.inputs.map((input: any) => (
+                      <div key={input.id} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900">{input.name}</span>
+                          <span 
+                            className="px-2 py-1 text-xs rounded-full text-white"
+                            style={{ backgroundColor: getTypeColor(input.type) }}
+                          >
+                            {input.type}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Required input for model processing
+                        </p>
+                        
+                        {/* Possible Connections Button */}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Link2 className="w-3 h-3 mr-1" />
+                              View Possible Connections
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>Possible Connections for "{input.name}"</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                              {getPossibleConnections(input.type).length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                  No compatible connections found for type "{input.type}"
+                                </div>
+                              ) : (
+                                getPossibleConnections(input.type).map((connection, index) => (
+                                  <div key={index} className="p-3 border border-gray-200 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <div 
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ 
+                                          backgroundColor: 
+                                            connection.type === 'ai-model' ? '#3b82f6' :
+                                            connection.type === 'data-integration' ? '#22c55e' :
+                                            '#8b5cf6'
+                                        }}
+                                      />
+                                      <span className="font-medium text-sm">
+                                        {connection.source} → {connection.field}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600">{connection.description}</p>
+                                    <div className="mt-2">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {connection.type === 'ai-model' ? 'AI Model Output' :
+                                         connection.type === 'data-integration' ? 'Data Source' :
+                                         'Automation Trigger'}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
