@@ -106,7 +106,7 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
         selectedFields: [],
         chartType: type === 'chart' ? 'bar' : undefined,
         refreshRate: 30,
-        animationEnabled: true
+        animation: true
       }
     };
 
@@ -179,7 +179,7 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   };
 
   // Component movement functions
-  const moveComponent = useCallback((draggedId: string, targetGridId: string, targetPosition: number) => {
+  const moveComponent = (draggedId: string, targetGridId: string, targetPosition: number) => {
     let draggedComponent: UIComponent | null = null;
     
     // First, find the dragged component from any grid
@@ -196,7 +196,11 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       
       if (grid.id === targetGridId) {
         // Add component to target grid at target position
-        const updatedComponent = { ...draggedComponent, gridPosition: targetPosition };
+        const updatedComponent = { 
+          ...draggedComponent, 
+          id: draggedComponent.id || '',
+          gridPosition: targetPosition 
+        };
         const newComponents = [...componentsWithoutDragged];
         
         newComponents.push(updatedComponent);
@@ -207,11 +211,11 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       return { ...grid, components: componentsWithoutDragged };
     });
 
-    setEditingView(prev => ({
-      ...prev,
+    setEditingView({
+      ...editingView,
       layout: { grids: updatedGrids }
-    }));
-  }, [editingView.layout?.grids]);
+    });
+  };
 
   const moveComponentWithinGrid = (componentId: string, direction: 'up' | 'down') => {
     const updatedGrids = (editingView.layout?.grids || []).map(grid => {
@@ -665,7 +669,7 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
                       <Select
                         value={selectedComponent.config.chartType}
                         onValueChange={(value) => updateComponent(selectedComponent.id, {
-                          config: { ...selectedComponent.config, chartType: value }
+                          config: { ...selectedComponent.config, chartType: value as any }
                         })}
                       >
                         <SelectTrigger className="h-8 text-xs">
@@ -699,9 +703,9 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
 
                   <div className="flex items-center space-x-2">
                     <Switch
-                      checked={selectedComponent.config.animationEnabled}
+                      checked={selectedComponent.config.animation}
                       onCheckedChange={(checked) => updateComponent(selectedComponent.id, {
-                        config: { ...selectedComponent.config, animationEnabled: checked }
+                        config: { ...selectedComponent.config, animation: checked }
                       })}
                     />
                     <Label className="text-xs">Enable animations</Label>
