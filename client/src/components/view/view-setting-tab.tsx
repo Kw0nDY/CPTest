@@ -313,6 +313,19 @@ export default function ViewSettingTab() {
     );
   }
 
+  if (showEditor && editingView) {
+    return (
+      <ViewEditor
+        view={editingView}
+        onClose={() => {
+          setShowEditor(false);
+          setEditingView(null);
+        }}
+        onSave={handleSaveView}
+      />
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -558,22 +571,6 @@ export default function ViewSettingTab() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Embedded View Editor */}
-      {showEditor && editingView && (
-        <div className="fixed inset-0 z-40 bg-white">
-          <div className="h-full">
-            <ViewEditor
-              view={editingView}
-              onClose={() => {
-                setShowEditor(false);
-                setEditingView(null);
-              }}
-              onSave={handleSaveView}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

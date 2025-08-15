@@ -1,197 +1,79 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  X, 
-  Save, 
-  Plus,
-  Trash2,
-  Move,
-  BarChart3,
-  Activity,
-  Gauge,
-  Table,
-  MapPin,
-  Image as ImageIcon,
-  Type,
-  Clock,
-  Zap,
-  Database,
-  Layout,
-  Grid3X3,
-  ChevronUp,
-  ChevronDown,
-  Copy,
-  Eye,
-  EyeOff,
-  ChevronLeft,
-  ChevronRight,
-  Columns,
-  Rows,
-  Settings
-} from "lucide-react";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-
-interface ViewConfig {
-  id: string;
-  name: string;
-  description: string;
-  type: 'dashboard' | 'monitor' | 'analytics' | 'report';
-  status: 'active' | 'paused' | 'draft';
-  assignedTo: string[];
-  assignedDepartments: string[];
-  dataSources: string[];
-  layout: {
-    grids: GridRow[];
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface GridRow {
-  id: string;
-  columns: number; // 1, 2, 3, or 4
-  components: UIComponent[];
-}
-
-interface UIComponent {
-  id: string;
-  type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline';
-  gridPosition: number; // 0, 1, 2, 3 (column index)
-  visible: boolean;
-  config: {
-    title?: string;
-    dataSource?: string;
-    selectedFields?: string[];
-    chartType?: 'bar' | 'line' | 'pie' | 'area' | 'doughnut' | 'scatter';
-    metrics?: string[];
-    dimensions?: string[];
-    filters?: DataFilter[];
-    styling?: ComponentStyling;
-    refreshRate?: number;
-    showLegend?: boolean;
-    showGrid?: boolean;
-    animation?: boolean;
-  };
-}
-
-interface DataFilter {
-  field: string;
-  operator: 'equals' | 'contains' | 'greater' | 'less' | 'between';
-  value: any;
-}
-
-interface ComponentStyling {
-  backgroundColor?: string;
-  borderColor?: string;
-  textColor?: string;
-  fontSize?: number;
-  padding?: number;
-  borderRadius?: number;
-  shadow?: boolean;
-}
-
-interface DataField {
-  name: string;
-  type: 'string' | 'number' | 'date' | 'boolean';
-  description?: string;
-  sampleValues?: any[];
-}
-
-const componentTypes = [
-  { type: 'chart', label: 'Chart', icon: BarChart3, description: 'Bar, line, pie, and area charts' },
-  { type: 'table', label: 'Data Table', icon: Table, description: 'Tabular data display' },
-  { type: 'metric', label: 'KPI Metric', icon: Gauge, description: 'Key performance indicators' },
-  { type: 'text', label: 'Text Block', icon: Type, description: 'Static text and descriptions' },
-  { type: 'image', label: 'Image', icon: ImageIcon, description: 'Static images and logos' },
-  { type: 'map', label: 'Map View', icon: MapPin, description: 'Geographic data visualization' },
-  { type: 'gauge', label: 'Gauge', icon: Activity, description: 'Circular progress indicators' },
-  { type: 'timeline', label: 'Timeline', icon: Clock, description: 'Time-based event display' }
-];
-
-const availableDataSources = [
-  { 
-    id: 'aveva-pi', 
-    name: 'AVEVA PI System', 
-    type: 'Industrial Data',
-    status: 'connected',
-    fields: [
-      { name: 'timestamp', type: 'date' as const, description: 'Measurement timestamp' },
-      { name: 'temperature', type: 'number' as const, description: 'Temperature readings', sampleValues: [23.5, 24.1, 22.8] },
-      { name: 'pressure', type: 'number' as const, description: 'Pressure measurements', sampleValues: [1013.25, 1014.2, 1012.8] },
-      { name: 'flow_rate', type: 'number' as const, description: 'Flow rate data', sampleValues: [45.2, 46.1, 44.8] },
-      { name: 'equipment_id', type: 'string' as const, description: 'Equipment identifier', sampleValues: ['EQ001', 'EQ002', 'EQ003'] },
-      { name: 'status', type: 'string' as const, description: 'Equipment status', sampleValues: ['Running', 'Idle', 'Maintenance'] }
-    ]
-  },
-  { 
-    id: 'sap-erp', 
-    name: 'SAP ERP', 
-    type: 'Enterprise Resource Planning',
-    status: 'connected',
-    fields: [
-      { name: 'order_id', type: 'string' as const, description: 'Order identifier', sampleValues: ['ORD001', 'ORD002', 'ORD003'] },
-      { name: 'customer_name', type: 'string' as const, description: 'Customer name', sampleValues: ['ABC Corp', 'XYZ Ltd', 'DEF Inc'] },
-      { name: 'order_amount', type: 'number' as const, description: 'Order value', sampleValues: [15000, 23500, 8750] },
-      { name: 'order_date', type: 'date' as const, description: 'Order creation date' },
-      { name: 'delivery_status', type: 'string' as const, description: 'Delivery status', sampleValues: ['Pending', 'Shipped', 'Delivered'] },
-      { name: 'region', type: 'string' as const, description: 'Sales region', sampleValues: ['North', 'South', 'East', 'West'] }
-    ]
-  },
-  { 
-    id: 'oracle-db', 
-    name: 'Oracle Database', 
-    type: 'Database',
-    status: 'connected',
-    fields: [
-      { name: 'user_id', type: 'string' as const, description: 'User identifier' },
-      { name: 'session_duration', type: 'number' as const, description: 'Session length in minutes', sampleValues: [45, 62, 38] },
-      { name: 'page_views', type: 'number' as const, description: 'Number of page views', sampleValues: [12, 8, 15] },
-      { name: 'login_time', type: 'date' as const, description: 'Login timestamp' },
-      { name: 'user_type', type: 'string' as const, description: 'User category', sampleValues: ['Admin', 'Manager', 'User'] }
-    ]
-  },
-  { 
-    id: 'salesforce', 
-    name: 'Salesforce CRM', 
-    type: 'Customer Relationship Management',
-    status: 'connected',
-    fields: [
-      { name: 'lead_id', type: 'string' as const, description: 'Lead identifier' },
-      { name: 'company', type: 'string' as const, description: 'Company name', sampleValues: ['Tech Corp', 'Innovation Ltd', 'Future Inc'] },
-      { name: 'lead_score', type: 'number' as const, description: 'Lead qualification score', sampleValues: [85, 92, 76] },
-      { name: 'created_date', type: 'date' as const, description: 'Lead creation date' },
-      { name: 'stage', type: 'string' as const, description: 'Sales stage', sampleValues: ['Qualified', 'Proposal', 'Negotiation', 'Closed'] },
-      { name: 'industry', type: 'string' as const, description: 'Industry sector', sampleValues: ['Technology', 'Healthcare', 'Finance'] }
-    ]
-  }
-];
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronLeft, ChevronRight, Plus, Grid3X3, BarChart3, Table, Gauge, Eye, Layout, 
+         Settings, Zap, X, Trash2, Copy, Monitor, Text, Image as ImageIcon, Map, Clock } from 'lucide-react';
+import type { View, GridRow, UIComponent } from '@shared/schema';
 
 interface ViewEditorProps {
-  view: ViewConfig;
+  view: View;
   onClose: () => void;
-  onSave: (view: ViewConfig) => void;
+  onSave: (view: View) => void;
 }
 
-export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditorProps) {
-  const [editingView, setEditingView] = useState<ViewConfig>({
-    ...view,
-    layout: view.layout.grids ? view.layout : { grids: [] }
-  });
+export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
+  const [editingView, setEditingView] = useState<View>(view);
   const [selectedComponent, setSelectedComponent] = useState<UIComponent | null>(null);
   const [selectedGrid, setSelectedGrid] = useState<GridRow | null>(null);
   const [isAddingComponent, setIsAddingComponent] = useState(false);
   const [isAddingGrid, setIsAddingGrid] = useState(false);
   const [activeTab, setActiveTab] = useState<'design' | 'preview'>('design');
   const [isComponentsPanelCollapsed, setIsComponentsPanelCollapsed] = useState(false);
+  const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const [isTabsCollapsed, setIsTabsCollapsed] = useState(false);
   const [isDataFieldsModalOpen, setIsDataFieldsModalOpen] = useState(false);
+
+  const availableDataSources = [
+    {
+      id: 'sap-erp',
+      name: 'SAP ERP',
+      fields: [
+        { name: 'order_number', type: 'string', description: 'Production order number', sampleValues: ['PO001', 'PO002', 'PO003'] },
+        { name: 'quantity', type: 'number', description: 'Order quantity', sampleValues: [100, 250, 150] },
+        { name: 'status', type: 'string', description: 'Order status', sampleValues: ['In Progress', 'Completed', 'Pending'] },
+        { name: 'due_date', type: 'date', description: 'Due date', sampleValues: ['2024-01-15', '2024-01-20', '2024-01-25'] },
+        { name: 'priority', type: 'string', description: 'Priority level', sampleValues: ['High', 'Medium', 'Low'] }
+      ]
+    },
+    {
+      id: 'aveva-pi',
+      name: 'AVEVA PI System',
+      fields: [
+        { name: 'temperature', type: 'number', description: 'Temperature reading', sampleValues: [75.2, 82.1, 78.9] },
+        { name: 'pressure', type: 'number', description: 'Pressure value', sampleValues: [14.7, 15.2, 14.9] },
+        { name: 'flow_rate', type: 'number', description: 'Flow rate measurement', sampleValues: [120.5, 115.8, 125.2] },
+        { name: 'timestamp', type: 'datetime', description: 'Measurement timestamp', sampleValues: ['2024-01-15 10:30:00', '2024-01-15 10:31:00', '2024-01-15 10:32:00'] },
+        { name: 'unit_id', type: 'string', description: 'Unit identifier', sampleValues: ['Unit-A1', 'Unit-B2', 'Unit-C3'] }
+      ]
+    },
+    {
+      id: 'salesforce-crm',
+      name: 'Salesforce CRM',
+      fields: [
+        { name: 'account_name', type: 'string', description: 'Customer account name', sampleValues: ['ABC Manufacturing', 'XYZ Corp', 'Global Industries'] },
+        { name: 'opportunity_value', type: 'number', description: 'Opportunity value', sampleValues: [50000, 75000, 120000] },
+        { name: 'stage', type: 'string', description: 'Sales stage', sampleValues: ['Qualification', 'Proposal', 'Closed Won'] },
+        { name: 'close_date', type: 'date', description: 'Expected close date', sampleValues: ['2024-02-15', '2024-03-01', '2024-02-28'] },
+        { name: 'probability', type: 'number', description: 'Win probability', sampleValues: [75, 60, 90] }
+      ]
+    },
+    {
+      id: 'oracle-db',
+      name: 'Oracle Database',
+      fields: [
+        { name: 'product_id', type: 'string', description: 'Product identifier', sampleValues: ['PROD001', 'PROD002', 'PROD003'] },
+        { name: 'stock_level', type: 'number', description: 'Current stock level', sampleValues: [500, 250, 750] },
+        { name: 'reorder_point', type: 'number', description: 'Reorder point', sampleValues: [100, 50, 150] },
+        { name: 'cost', type: 'number', description: 'Unit cost', sampleValues: [25.50, 45.75, 32.25] },
+        { name: 'supplier', type: 'string', description: 'Supplier name', sampleValues: ['Supplier A', 'Supplier B', 'Supplier C'] }
+      ]
+    }
+  ];
 
   const addGrid = (columns: number) => {
     const newGrid: GridRow = {
@@ -199,83 +81,43 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
       columns,
       components: []
     };
-
     setEditingView({
       ...editingView,
       layout: {
+        ...editingView.layout,
         grids: [...editingView.layout.grids, newGrid]
       }
     });
-    setSelectedGrid(newGrid);
     setIsAddingGrid(false);
   };
 
-  const moveGrid = (gridId: string, direction: 'up' | 'down') => {
-    const grids = [...editingView.layout.grids];
-    const currentIndex = grids.findIndex(g => g.id === gridId);
-    
-    if (direction === 'up' && currentIndex > 0) {
-      [grids[currentIndex], grids[currentIndex - 1]] = [grids[currentIndex - 1], grids[currentIndex]];
-    } else if (direction === 'down' && currentIndex < grids.length - 1) {
-      [grids[currentIndex], grids[currentIndex + 1]] = [grids[currentIndex + 1], grids[currentIndex]];
-    }
+  const addComponent = (gridId: string, type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'timeline') => {
+    const grid = editingView.layout.grids.find(g => g.id === gridId);
+    if (!grid) return;
 
-    setEditingView({
-      ...editingView,
-      layout: { grids }
-    });
-  };
-
-  const deleteGrid = (gridId: string) => {
-    const updatedGrids = editingView.layout.grids.filter(g => g.id !== gridId);
-    setEditingView({
-      ...editingView,
-      layout: { grids: updatedGrids }
-    });
-    
-    if (selectedGrid?.id === gridId) {
-      setSelectedGrid(null);
-    }
-  };
-
-  const addComponentToGrid = (gridId: string, type: string, position: number) => {
     const newComponent: UIComponent = {
       id: `component-${Date.now()}`,
-      type: type as any,
-      gridPosition: position,
+      type,
+      gridPosition: 0,
       visible: true,
       config: {
-        title: `New ${type}`,
+        title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         dataSource: '',
-        chartType: type === 'chart' ? 'bar' : undefined,
-        metrics: [],
-        dimensions: [],
-        filters: [],
+        selectedFields: [],
+        refreshRate: 30,
         styling: {
           backgroundColor: '#ffffff',
-          borderColor: '#e5e7eb',
-          textColor: '#374151',
-          fontSize: 14,
-          padding: 16,
-          borderRadius: 8,
-          shadow: true
-        },
-        refreshRate: 30,
-        showLegend: true,
-        showGrid: true,
-        animation: true
+          textColor: '#000000',
+          borderRadius: 8
+        }
       }
     };
 
-    const updatedGrids = editingView.layout.grids.map(grid => {
-      if (grid.id === gridId) {
-        return {
-          ...grid,
-          components: [...grid.components, newComponent]
-        };
-      }
-      return grid;
-    });
+    const updatedGrids = editingView.layout.grids.map(g => 
+      g.id === gridId 
+        ? { ...g, components: [...g.components, newComponent] }
+        : g
+    );
 
     setEditingView({
       ...editingView,
@@ -288,11 +130,11 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
   const updateComponent = (componentId: string, updates: Partial<UIComponent>) => {
     const updatedGrids = editingView.layout.grids.map(grid => ({
       ...grid,
-      components: grid.components.map(comp =>
+      components: grid.components.map(comp => 
         comp.id === componentId ? { ...comp, ...updates } : comp
       )
     }));
-    
+
     setEditingView({
       ...editingView,
       layout: { grids: updatedGrids }
@@ -308,7 +150,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
       ...grid,
       components: grid.components.filter(comp => comp.id !== componentId)
     }));
-    
+
     setEditingView({
       ...editingView,
       layout: { grids: updatedGrids }
@@ -380,235 +222,238 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
             {/* Grid Layout Section */}
             <div className="p-4 border-b bg-white">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium text-gray-700">Grid Layout</h4>
+                <h4 className="text-sm font-medium text-gray-900">Grid Layout</h4>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setIsAddingGrid(!isAddingGrid)}
-                  className="h-8 px-2"
-                  data-testid="add-grid-button"
+                  className="h-7 w-7 p-0"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3 w-3" />
                 </Button>
               </div>
               
               {isAddingGrid && (
-                <div className="space-y-2 mb-4">
-                  {[1, 2, 3, 4].map((cols) => (
-                    <Button
-                      key={cols}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start h-8"
-                      onClick={() => addGrid(cols)}
-                    >
-                      <Grid3X3 className="h-4 w-4 mr-2" />
-                      {cols} Column{cols > 1 ? 's' : ''}
-                    </Button>
-                  ))}
+                <div className="space-y-2 mb-3 p-3 bg-blue-50 rounded-md">
+                  <p className="text-xs text-gray-600">Add new grid row:</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map(cols => (
+                      <Button
+                        key={cols}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addGrid(cols)}
+                        className="text-xs"
+                      >
+                        {cols} Col
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Components Section */}
-            <div className="flex-1 overflow-y-auto bg-white">
-              <div className="p-4">
-                <h4 className="font-medium mb-3 text-gray-700">Components</h4>
-                <div className="space-y-2">
-                  {componentTypes.map((compType) => (
-                    <div
-                      key={compType.type}
-                      className="flex items-center p-3 rounded border cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('component-type', compType.type);
-                      }}
-                      data-testid={`component-${compType.type}`}
-                    >
-                      <compType.icon className="h-5 w-5 mr-3 text-gray-600" />
-                      <span className="text-sm font-medium">{compType.label}</span>
-                    </div>
-                  ))}
-                </div>
-                {!selectedGrid && (
-                  <p className="text-xs text-gray-500 mt-3 text-center bg-gray-50 p-2 rounded">
-                    드래그하여 그리드에 컴포넌트를 추가하세요
-                  </p>
-                )}
+            <div className="p-4 bg-white flex-1">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Components</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <BarChart3 className="h-3 w-3" />
+                  <span>Chart</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <Table className="h-3 w-3" />
+                  <span>Table</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <Gauge className="h-3 w-3" />
+                  <span>Metric</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <Text className="h-3 w-3" />
+                  <span>Text</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <ImageIcon className="h-3 w-3" />
+                  <span>Image</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingComponent(!isAddingComponent)}
+                  className="flex items-center space-x-2 text-xs p-2"
+                >
+                  <Clock className="h-3 w-3" />
+                  <span>Timeline</span>
+                </Button>
               </div>
             </div>
           </>
         )}
       </div>
 
-      {/* Main Canvas */}
-      <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
-        <div className="p-4 bg-white border-b">
-          <div className="flex items-center justify-between">
+      {/* Main Canvas Area */}
+      <div className="flex-1 bg-white overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold">{editingView.name}</h2>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setIsAddingGrid(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Grid
-              </Button>
-            </div>
+            <Button
+              onClick={() => addGrid(2)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Grid</span>
+            </Button>
           </div>
-        </div>
-        
-        <div className="flex-1 overflow-auto p-6">
+
           <div className="space-y-6">
-            {editingView.layout.grids.map((grid, gridIndex) => (
+            {editingView.layout.grids.map((grid) => (
               <div 
                 key={grid.id} 
-                className={`border rounded-lg p-4 bg-white shadow-sm ${selectedGrid?.id === grid.id ? 'border-blue-500' : 'border-gray-200'}`}
+                className={`border-2 border-dashed border-gray-200 rounded-lg p-4 ${selectedGrid?.id === grid.id ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}
                 onClick={() => setSelectedGrid(grid)}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2">
-                      <Grid3X3 className="h-4 w-4" />
-                      <span className="font-medium">{grid.columns} Column Grid</span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {grid.components.length} component(s)
-                    </Badge>
-                  </div>
-                  <div className="flex space-x-1">
+                  <Badge variant="outline" className="text-xs">
+                    {grid.columns} Column Grid ({grid.components.length} components)
+                  </Badge>
+                  <div className="flex space-x-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        moveGrid(grid.id, 'up');
+                        setIsAddingComponent(true);
+                        setSelectedGrid(grid);
                       }}
-                      disabled={gridIndex === 0}
                     >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveGrid(grid.id, 'down');
-                      }}
-                      disabled={gridIndex === editingView.layout.grids.length - 1}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteGrid(grid.id);
-                      }}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-
-                <div 
-                  className={`grid ${getGridColumns(grid.columns)} gap-4 min-h-40`}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const componentType = e.dataTransfer.getData('component-type');
-                    if (componentType) {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX - rect.left;
-                      const columnWidth = rect.width / grid.columns;
-                      const targetColumn = Math.floor(x / columnWidth);
-                      addComponentToGrid(grid.id, componentType, targetColumn);
-                    }
-                  }}
-                >
+                
+                <div className={`grid ${getGridColumns(grid.columns)} gap-4`}>
                   {Array.from({ length: grid.columns }).map((_, colIndex) => {
-                    const columnsComponents = grid.components.filter(comp => comp.gridPosition === colIndex);
+                    const columnComponents = grid.components.filter(comp => comp.gridPosition === colIndex);
                     
                     return (
-                      <div key={colIndex} className="border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-40 bg-gray-50">
-                        {columnsComponents.length === 0 ? (
-                          <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
-                            <Plus className="h-8 w-8 mb-2" />
-                            <p className="text-sm">Drop component here</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {columnsComponents.map((component) => (
-                              <div
-                                key={component.id}
-                                className={`border rounded-lg p-4 bg-white cursor-pointer transition-all ${
-                                  selectedComponent?.id === component.id
-                                    ? 'border-blue-500 shadow-lg ring-2 ring-blue-200'
-                                    : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedComponent(component);
-                                }}
-                              >
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <h4 className="font-medium text-sm">{component.config.title}</h4>
-                                    <Badge variant="secondary" className="text-xs capitalize">
-                                      {component.type}
-                                    </Badge>
-                                  </div>
+                      <div key={colIndex} className="min-h-32 bg-gray-50 rounded border-2 border-dashed border-gray-200 p-3">
+                        <div className="text-xs text-gray-500 mb-2">Column {colIndex + 1}</div>
+                        <div className="space-y-2">
+                          {columnComponents.map((component) => (
+                            <div
+                              key={component.id}
+                              className={`p-3 bg-white rounded border cursor-pointer transition-all ${
+                                selectedComponent?.id === component.id 
+                                  ? 'border-blue-500 shadow-md' 
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedComponent(component);
+                              }}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center space-x-2">
+                                  {component.type === 'chart' && <BarChart3 className="h-4 w-4 text-blue-600" />}
+                                  {component.type === 'table' && <Table className="h-4 w-4 text-green-600" />}
+                                  {component.type === 'metric' && <Gauge className="h-4 w-4 text-purple-600" />}
+                                  {component.type === 'text' && <Text className="h-4 w-4 text-gray-600" />}
+                                  {component.type === 'image' && <ImageIcon className="h-4 w-4 text-orange-600" />}
+                                  {component.type === 'timeline' && <Clock className="h-4 w-4 text-red-600" />}
+                                  <span className="text-sm font-medium">{component.config.title}</span>
+                                </div>
+                                <div className="flex space-x-1">
                                   <Button
                                     variant="ghost"
                                     size="sm"
+                                    className="h-6 w-6 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Duplicate component logic
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-red-600"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       deleteComponent(component.id);
                                     }}
-                                    className="text-red-600 hover:text-red-700"
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </div>
-                                
-                                <div className="bg-gray-50 rounded p-4 text-center text-gray-600 min-h-20 flex flex-col items-center justify-center">
-                                  {component.type === 'chart' && <BarChart3 className="h-8 w-8 mb-2 text-blue-600" />}
-                                  {component.type === 'table' && <Table className="h-8 w-8 mb-2 text-green-600" />}
-                                  {component.type === 'metric' && <Gauge className="h-8 w-8 mb-2 text-purple-600" />}
-                                  {component.type === 'text' && <Type className="h-8 w-8 mb-2 text-gray-600" />}
-                                  {component.type === 'image' && <ImageIcon className="h-8 w-8 mb-2 text-orange-600" />}
-                                  {component.type === 'map' && <MapPin className="h-8 w-8 mb-2 text-red-600" />}
-                                  {component.type === 'gauge' && <Activity className="h-8 w-8 mb-2 text-yellow-600" />}
-                                  {component.type === 'timeline' && <Clock className="h-8 w-8 mb-2 text-indigo-600" />}
-                                  <p className="text-xs font-medium">
-                                    {component.config.dataSource
-                                      ? availableDataSources.find(ds => ds.id === component.config.dataSource)?.name || 'No data source'
-                                      : 'No data source'
-                                    }
-                                  </p>
-                                </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
+                              <div className="text-xs text-gray-500">
+                                {component.config.dataSource ? (
+                                  <span className="text-green-600">
+                                    Connected to {availableDataSources.find(ds => ds.id === component.config.dataSource)?.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-orange-600">No data source</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {columnComponents.length === 0 && (
+                            <Button
+                              variant="ghost"
+                              className="w-full h-24 border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600"
+                              onClick={() => {
+                                setIsAddingComponent(true);
+                                setSelectedGrid(grid);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Drop component here
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             ))}
-
+            
             {editingView.layout.grids.length === 0 && (
-              <div className="text-center py-20 text-gray-500">
-                <Grid3X3 className="h-20 w-20 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-xl font-medium mb-2">Start with a Grid Layout</h3>
-                <p className="text-sm mb-6">Add grid rows to organize your components</p>
-                <Button onClick={() => setIsAddingGrid(true)} size="lg">
+              <div className="text-center py-12 text-gray-500">
+                <Grid3X3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium mb-2">No grids yet</p>
+                <p className="text-sm mb-4">Start by adding a grid layout to organize your components</p>
+                <Button onClick={() => addGrid(2)} className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="h-4 w-4 mr-2" />
-                  Add First Grid
+                  Add Your First Grid
                 </Button>
               </div>
             )}
@@ -617,132 +462,144 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
       </div>
 
       {/* Right Properties Panel */}
-      <div className="w-80 bg-white border-l flex flex-col">
-        <div className="p-4 border-b">
-          <h3 className="font-semibold text-base">Properties</h3>
+      <div className={`bg-gray-50 border-l transition-all duration-300 ${isPropertiesPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm`}>
+        <div className="p-3 border-b flex items-center justify-between bg-gray-50">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsPropertiesPanelCollapsed(!isPropertiesPanelCollapsed)}
+            className="h-8 w-8 p-0"
+            data-testid="toggle-properties-panel"
+          >
+            {isPropertiesPanelCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </Button>
+          {!isPropertiesPanelCollapsed && <h3 className="font-semibold text-base">Properties</h3>}
         </div>
         
-        <div className="flex-1 overflow-y-auto">
-          {selectedComponent ? (
-            <div className="p-4 space-y-4">
-              <div>
-                <Label htmlFor="comp-title">Title</Label>
-                <Input
-                  id="comp-title"
-                  value={selectedComponent.config.title}
-                  onChange={(e) => updateComponent(selectedComponent.id, {
-                    config: { ...selectedComponent.config, title: e.target.value }
-                  })}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="comp-datasource">Data Source</Label>
-                <Select
-                  value={selectedComponent.config.dataSource}
-                  onValueChange={(value) => updateComponent(selectedComponent.id, {
-                    config: { ...selectedComponent.config, dataSource: value, selectedFields: [] }
-                  })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select data source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDataSources.map((source) => (
-                      <SelectItem key={source.id} value={source.id}>
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${source.status === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                          <span>{source.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Data Fields Configuration Button */}
-              {selectedComponent.config.dataSource && (
+        {isPropertiesPanelCollapsed ? (
+          <div className="flex-1 flex flex-col items-center py-4 space-y-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-8 h-8 p-0"
+              title="Properties"
+              data-testid="collapsed-properties-button"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto bg-white">
+            {selectedComponent ? (
+              <div className="p-4 space-y-4">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Data Fields</Label>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setIsDataFieldsModalOpen(true)}
-                      data-testid="configure-data-fields"
-                    >
-                      <Database className="h-4 w-4 mr-1" />
-                      Configure Fields
-                    </Button>
-                  </div>
-                  
-                  {selectedComponent.config.selectedFields && selectedComponent.config.selectedFields.length > 0 && (
-                    <div className="mt-2 p-2 bg-green-50 rounded border">
-                      <Label className="text-xs text-green-600">
-                        Selected: {selectedComponent.config.selectedFields.length} field(s)
-                      </Label>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedComponent.config.selectedFields.slice(0, 3).map((fieldName: string) => (
-                          <Badge key={fieldName} variant="secondary" className="text-xs">
-                            {fieldName}
-                          </Badge>
-                        ))}
-                        {selectedComponent.config.selectedFields.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{selectedComponent.config.selectedFields.length - 3} more
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  <Label htmlFor="comp-title">Title</Label>
+                  <Input
+                    id="comp-title"
+                    value={selectedComponent.config.title}
+                    onChange={(e) => updateComponent(selectedComponent.id, {
+                      config: { ...selectedComponent.config, title: e.target.value }
+                    })}
+                    className="mt-1"
+                  />
                 </div>
-              )}
-
-              {selectedComponent.type === 'chart' && (
+              
                 <div>
-                  <Label htmlFor="chart-type">Chart Type</Label>
+                  <Label htmlFor="comp-datasource">Data Source</Label>
                   <Select
-                    value={selectedComponent.config.chartType}
+                    value={selectedComponent.config.dataSource}
                     onValueChange={(value) => updateComponent(selectedComponent.id, {
-                      config: { ...selectedComponent.config, chartType: value as any }
+                      config: { ...selectedComponent.config, dataSource: value, selectedFields: [] }
                     })}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue />
+                      <SelectValue placeholder="Select data source" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bar">Bar Chart</SelectItem>
-                      <SelectItem value="line">Line Chart</SelectItem>
-                      <SelectItem value="pie">Pie Chart</SelectItem>
-                      <SelectItem value="area">Area Chart</SelectItem>
-                      <SelectItem value="doughnut">Doughnut Chart</SelectItem>
-                      <SelectItem value="scatter">Scatter Plot</SelectItem>
+                      {availableDataSources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
 
-              <div>
-                <Label htmlFor="refresh-rate">Refresh Rate (seconds)</Label>
-                <Input
-                  id="refresh-rate"
-                  type="number"
-                  value={selectedComponent.config.refreshRate}
-                  onChange={(e) => updateComponent(selectedComponent.id, {
-                    config: { ...selectedComponent.config, refreshRate: parseInt(e.target.value) || 30 }
-                  })}
-                  className="mt-1"
-                />
+                {selectedComponent.config.dataSource && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Data Fields</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsDataFieldsModalOpen(true)}
+                        className="text-xs"
+                      >
+                        Configure Fields
+                      </Button>
+                    </div>
+                    <div className="mt-2 text-sm text-gray-600">
+                      {selectedComponent.config.selectedFields?.length || 0} field(s) selected
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="comp-visible">Visible</Label>
+                  <Switch
+                    id="comp-visible"
+                    checked={selectedComponent.visible}
+                    onCheckedChange={(checked) => updateComponent(selectedComponent.id, {
+                      visible: checked
+                    })}
+                  />
+                </div>
+
+                {selectedComponent.type === 'chart' && (
+                  <div>
+                    <Label htmlFor="chart-type">Chart Type</Label>
+                    <Select
+                      value={selectedComponent.config.chartType || 'bar'}
+                      onValueChange={(value) => updateComponent(selectedComponent.id, {
+                        config: { ...selectedComponent.config, chartType: value }
+                      })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bar">Bar Chart</SelectItem>
+                        <SelectItem value="line">Line Chart</SelectItem>
+                        <SelectItem value="pie">Pie Chart</SelectItem>
+                        <SelectItem value="area">Area Chart</SelectItem>
+                        <SelectItem value="doughnut">Doughnut Chart</SelectItem>
+                        <SelectItem value="scatter">Scatter Plot</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="refresh-rate">Refresh Rate (seconds)</Label>
+                  <Input
+                    id="refresh-rate"
+                    type="number"
+                    value={selectedComponent.config.refreshRate}
+                    onChange={(e) => updateComponent(selectedComponent.id, {
+                      config: { ...selectedComponent.config, refreshRate: parseInt(e.target.value) || 30 }
+                    })}
+                    className="mt-1"
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="p-4 text-center text-gray-500">
-              <Settings className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-sm">Select a component to edit its properties</p>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="p-4 text-center text-gray-500">
+                <Settings className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Select a component to edit its properties</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -780,19 +637,20 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                           {component.type === 'chart' && <BarChart3 className="h-12 w-12 mb-2 text-blue-600" />}
                           {component.type === 'table' && <Table className="h-12 w-12 mb-2 text-green-600" />}
                           {component.type === 'metric' && <Gauge className="h-12 w-12 mb-2 text-purple-600" />}
-                          {component.type === 'text' && <Type className="h-12 w-12 mb-2 text-gray-600" />}
+                          {component.type === 'text' && <Text className="h-12 w-12 mb-2 text-gray-600" />}
                           {component.type === 'image' && <ImageIcon className="h-12 w-12 mb-2 text-orange-600" />}
-                          {component.type === 'map' && <MapPin className="h-12 w-12 mb-2 text-red-600" />}
-                          {component.type === 'gauge' && <Activity className="h-12 w-12 mb-2 text-yellow-600" />}
-                          {component.type === 'timeline' && <Clock className="h-12 w-12 mb-2 text-indigo-600" />}
-                          <p className="text-sm font-medium">
-                            {component.config.dataSource
-                              ? `Connected to ${availableDataSources.find(ds => ds.id === component.config.dataSource)?.name}`
-                              : 'Awaiting data connection'
-                            }
+                          {component.type === 'timeline' && <Clock className="h-12 w-12 mb-2 text-red-600" />}
+                          <p className="text-sm text-gray-500 mt-2">
+                            {component.config.dataSource ? (
+                              <>Connected to {availableDataSources.find(ds => ds.id === component.config.dataSource)?.name}</>
+                            ) : (
+                              'No data source configured'
+                            )}
                           </p>
-                          {component.config.refreshRate && (
-                            <p className="text-xs text-gray-500">Refreshes every {component.config.refreshRate}s</p>
+                          {component.config.selectedFields && component.config.selectedFields.length > 0 && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              Fields: {component.config.selectedFields.join(', ')}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -802,15 +660,14 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
               })}
             </div>
           ))}
+          
+          {editingView.layout.grids.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <Monitor className="h-16 w-16 mx-auto mb-4" />
+              <p className="text-lg">Preview will appear here once you add grids and components</p>
+            </div>
+          )}
         </div>
-        
-        {editingView.layout.grids.length === 0 && (
-          <div className="text-center py-16 text-gray-500">
-            <Eye className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium mb-2">Preview will appear here</h3>
-            <p className="text-sm">Add grids and components to see the live preview</p>
-          </div>
-        )}
       </div>
     </div>
   );
