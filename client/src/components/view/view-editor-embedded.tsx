@@ -33,7 +33,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns,
-  Rows
+  Rows,
+  Settings
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
@@ -336,10 +337,10 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
 
   const renderDesignTab = () => (
     <div className="flex h-full">
-      {/* Left Sidebar - Collapsible */}
+      {/* Left Sidebar - Elements Panel */}
       <div className={`bg-white border-r transition-all duration-300 ${isComponentsPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col`}>
-        <div className="p-2 border-b flex items-center justify-between">
-          {!isComponentsPanelCollapsed && <h3 className="font-semibold">Elements</h3>}
+        <div className="p-3 border-b flex items-center justify-between">
+          {!isComponentsPanelCollapsed && <h3 className="font-semibold text-base">Elements</h3>}
           <Button
             variant="ghost"
             size="sm"
@@ -351,14 +352,15 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
 
         {!isComponentsPanelCollapsed && (
           <>
-            {/* Grid Section */}
+            {/* Grid Layout Section */}
             <div className="p-4 border-b">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium text-sm">Grid Layout</h4>
+                <h4 className="font-medium">Grid Layout</h4>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setIsAddingGrid(!isAddingGrid)}
+                  className="h-8 px-2"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -371,7 +373,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                       key={cols}
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start"
+                      className="w-full justify-start h-8"
                       onClick={() => addGrid(cols)}
                     >
                       <Grid3X3 className="h-4 w-4 mr-2" />
@@ -383,113 +385,35 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
             </div>
 
             {/* Components Section */}
-            <div className="p-4 border-b">
-              <h4 className="font-medium text-sm mb-3">Components</h4>
-              <div className="space-y-2">
-                {componentTypes.map((compType) => (
-                  <div
-                    key={compType.type}
-                    className="flex items-center p-2 rounded border cursor-pointer hover:bg-gray-50"
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('component-type', compType.type);
-                    }}
-                  >
-                    <compType.icon className="h-4 w-4 mr-2" />
-                    <span className="text-sm">{compType.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Properties Panel */}
-            {selectedComponent && (
-              <div className="flex-1 p-4 overflow-y-auto">
-                <h4 className="font-medium text-sm mb-4">Properties</h4>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="comp-title">Title</Label>
-                    <Input
-                      id="comp-title"
-                      value={selectedComponent.config.title}
-                      onChange={(e) => updateComponent(selectedComponent.id, {
-                        config: { ...selectedComponent.config, title: e.target.value }
-                      })}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="comp-datasource">Data Source</Label>
-                    <Select
-                      value={selectedComponent.config.dataSource}
-                      onValueChange={(value) => updateComponent(selectedComponent.id, {
-                        config: { ...selectedComponent.config, dataSource: value }
-                      })}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4">
+                <h4 className="font-medium mb-3">Components</h4>
+                <div className="space-y-2">
+                  {componentTypes.map((compType) => (
+                    <div
+                      key={compType.type}
+                      className="flex items-center p-3 rounded border cursor-pointer hover:bg-gray-50 transition-colors"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('component-type', compType.type);
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select data source" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableDataSources.map((source) => (
-                          <SelectItem key={source.id} value={source.id}>
-                            <div className="flex items-center space-x-2">
-                              <div className={`w-2 h-2 rounded-full ${source.status === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                              <span>{source.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedComponent.type === 'chart' && (
-                    <div>
-                      <Label htmlFor="chart-type">Chart Type</Label>
-                      <Select
-                        value={selectedComponent.config.chartType}
-                        onValueChange={(value) => updateComponent(selectedComponent.id, {
-                          config: { ...selectedComponent.config, chartType: value as any }
-                        })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bar">Bar Chart</SelectItem>
-                          <SelectItem value="line">Line Chart</SelectItem>
-                          <SelectItem value="pie">Pie Chart</SelectItem>
-                          <SelectItem value="area">Area Chart</SelectItem>
-                          <SelectItem value="doughnut">Doughnut Chart</SelectItem>
-                          <SelectItem value="scatter">Scatter Plot</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <compType.icon className="h-5 w-5 mr-3" />
+                      <span className="text-sm font-medium">{compType.label}</span>
                     </div>
-                  )}
-
-                  <div>
-                    <Label htmlFor="refresh-rate">Refresh Rate (seconds)</Label>
-                    <Input
-                      id="refresh-rate"
-                      type="number"
-                      value={selectedComponent.config.refreshRate}
-                      onChange={(e) => updateComponent(selectedComponent.id, {
-                        config: { ...selectedComponent.config, refreshRate: parseInt(e.target.value) || 30 }
-                      })}
-                    />
-                  </div>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>
 
       {/* Main Canvas */}
-      <div className="flex-1 overflow-auto p-6 bg-gray-100">
-        <div className="min-h-full bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold">{editingView.name}</h2>
+      <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
+        <div className="p-4 bg-white border-b">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">{editingView.name}</h2>
             <div className="flex items-center space-x-2">
               <Button 
                 variant="outline" 
@@ -501,18 +425,22 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
               </Button>
             </div>
           </div>
-          
+        </div>
+        
+        <div className="flex-1 overflow-auto p-6">
           <div className="space-y-6">
             {editingView.layout.grids.map((grid, gridIndex) => (
               <div 
                 key={grid.id} 
-                className={`border rounded-lg p-4 ${selectedGrid?.id === grid.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                className={`border rounded-lg p-4 bg-white shadow-sm ${selectedGrid?.id === grid.id ? 'border-blue-500' : 'border-gray-200'}`}
                 onClick={() => setSelectedGrid(grid)}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <Grid3X3 className="h-4 w-4" />
-                    <span className="text-sm font-medium">{grid.columns} Column Grid</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <Grid3X3 className="h-4 w-4" />
+                      <span className="font-medium">{grid.columns} Column Grid</span>
+                    </div>
                     <Badge variant="outline" className="text-xs">
                       {grid.components.length} component(s)
                     </Badge>
@@ -527,7 +455,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                       }}
                       disabled={gridIndex === 0}
                     >
-                      <ChevronUp className="h-3 w-3" />
+                      <ChevronUp className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -538,7 +466,7 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                       }}
                       disabled={gridIndex === editingView.layout.grids.length - 1}
                     >
-                      <ChevronDown className="h-3 w-3" />
+                      <ChevronDown className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -547,15 +475,15 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                         e.stopPropagation();
                         deleteGrid(grid.id);
                       }}
-                      className="text-red-600"
+                      className="text-red-600 hover:text-red-700"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
                 <div 
-                  className={`grid ${getGridColumns(grid.columns)} gap-4 min-h-32`}
+                  className={`grid ${getGridColumns(grid.columns)} gap-4 min-h-40`}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -573,10 +501,11 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                     const columnsComponents = grid.components.filter(comp => comp.gridPosition === colIndex);
                     
                     return (
-                      <div key={colIndex} className="border-2 border-dashed border-gray-200 rounded-lg p-4 min-h-32">
+                      <div key={colIndex} className="border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-40 bg-gray-50">
                         {columnsComponents.length === 0 ? (
-                          <div className="text-center text-gray-400 text-sm">
-                            Drop component here
+                          <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
+                            <Plus className="h-8 w-8 mb-2" />
+                            <p className="text-sm">Drop component here</p>
                           </div>
                         ) : (
                           <div className="space-y-4">
@@ -607,24 +536,24 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
                                       e.stopPropagation();
                                       deleteComponent(component.id);
                                     }}
-                                    className="text-red-600"
+                                    className="text-red-600 hover:text-red-700"
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </div>
                                 
-                                <div className="bg-gray-50 rounded p-4 text-center text-gray-600 min-h-16 flex flex-col items-center justify-center">
-                                  {component.type === 'chart' && <BarChart3 className="h-6 w-6 mb-1" />}
-                                  {component.type === 'table' && <Table className="h-6 w-6 mb-1" />}
-                                  {component.type === 'metric' && <Gauge className="h-6 w-6 mb-1" />}
-                                  {component.type === 'text' && <Type className="h-6 w-6 mb-1" />}
-                                  {component.type === 'image' && <ImageIcon className="h-6 w-6 mb-1" />}
-                                  {component.type === 'map' && <MapPin className="h-6 w-6 mb-1" />}
-                                  {component.type === 'gauge' && <Activity className="h-6 w-6 mb-1" />}
-                                  {component.type === 'timeline' && <Clock className="h-6 w-6 mb-1" />}
-                                  <p className="text-xs">
+                                <div className="bg-gray-50 rounded p-4 text-center text-gray-600 min-h-20 flex flex-col items-center justify-center">
+                                  {component.type === 'chart' && <BarChart3 className="h-8 w-8 mb-2 text-blue-600" />}
+                                  {component.type === 'table' && <Table className="h-8 w-8 mb-2 text-green-600" />}
+                                  {component.type === 'metric' && <Gauge className="h-8 w-8 mb-2 text-purple-600" />}
+                                  {component.type === 'text' && <Type className="h-8 w-8 mb-2 text-gray-600" />}
+                                  {component.type === 'image' && <ImageIcon className="h-8 w-8 mb-2 text-orange-600" />}
+                                  {component.type === 'map' && <MapPin className="h-8 w-8 mb-2 text-red-600" />}
+                                  {component.type === 'gauge' && <Activity className="h-8 w-8 mb-2 text-yellow-600" />}
+                                  {component.type === 'timeline' && <Clock className="h-8 w-8 mb-2 text-indigo-600" />}
+                                  <p className="text-xs font-medium">
                                     {component.config.dataSource
-                                      ? availableDataSources.find(ds => ds.id === component.config.dataSource)?.name
+                                      ? availableDataSources.find(ds => ds.id === component.config.dataSource)?.name || 'No data source'
                                       : 'No data source'
                                     }
                                   </p>
@@ -641,17 +570,108 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
             ))}
 
             {editingView.layout.grids.length === 0 && (
-              <div className="text-center py-16 text-gray-500">
-                <Grid3X3 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium mb-2">Start with a Grid Layout</h3>
-                <p className="text-sm mb-4">Add grid rows to organize your components</p>
-                <Button onClick={() => setIsAddingGrid(true)}>
+              <div className="text-center py-20 text-gray-500">
+                <Grid3X3 className="h-20 w-20 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl font-medium mb-2">Start with a Grid Layout</h3>
+                <p className="text-sm mb-6">Add grid rows to organize your components</p>
+                <Button onClick={() => setIsAddingGrid(true)} size="lg">
                   <Plus className="h-4 w-4 mr-2" />
                   Add First Grid
                 </Button>
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Right Properties Panel */}
+      <div className="w-80 bg-white border-l flex flex-col">
+        <div className="p-4 border-b">
+          <h3 className="font-semibold text-base">Properties</h3>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto">
+          {selectedComponent ? (
+            <div className="p-4 space-y-4">
+              <div>
+                <Label htmlFor="comp-title">Title</Label>
+                <Input
+                  id="comp-title"
+                  value={selectedComponent.config.title}
+                  onChange={(e) => updateComponent(selectedComponent.id, {
+                    config: { ...selectedComponent.config, title: e.target.value }
+                  })}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="comp-datasource">Data Source</Label>
+                <Select
+                  value={selectedComponent.config.dataSource}
+                  onValueChange={(value) => updateComponent(selectedComponent.id, {
+                    config: { ...selectedComponent.config, dataSource: value }
+                  })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select data source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDataSources.map((source) => (
+                      <SelectItem key={source.id} value={source.id}>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${source.status === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>{source.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedComponent.type === 'chart' && (
+                <div>
+                  <Label htmlFor="chart-type">Chart Type</Label>
+                  <Select
+                    value={selectedComponent.config.chartType}
+                    onValueChange={(value) => updateComponent(selectedComponent.id, {
+                      config: { ...selectedComponent.config, chartType: value as any }
+                    })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bar">Bar Chart</SelectItem>
+                      <SelectItem value="line">Line Chart</SelectItem>
+                      <SelectItem value="pie">Pie Chart</SelectItem>
+                      <SelectItem value="area">Area Chart</SelectItem>
+                      <SelectItem value="doughnut">Doughnut Chart</SelectItem>
+                      <SelectItem value="scatter">Scatter Plot</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="refresh-rate">Refresh Rate (seconds)</Label>
+                <Input
+                  id="refresh-rate"
+                  type="number"
+                  value={selectedComponent.config.refreshRate}
+                  onChange={(e) => updateComponent(selectedComponent.id, {
+                    config: { ...selectedComponent.config, refreshRate: parseInt(e.target.value) || 30 }
+                  })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 text-center text-gray-500">
+              <Settings className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">Select a component to edit its properties</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -726,11 +746,11 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
   );
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="fixed inset-0 z-50 bg-white flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white shadow-sm">
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">Edit View: {editingView.name}</h1>
+          <h1 className="text-lg font-semibold">Edit View: {editingView.name}</h1>
           <Badge variant="outline" className="text-xs">
             {editingView.layout.grids.reduce((total, grid) => total + grid.components.length, 0)} component(s)
           </Badge>
@@ -738,48 +758,32 @@ export default function ViewEditorEmbedded({ view, onClose, onSave }: ViewEditor
         
         <div className="flex items-center space-x-2">
           <Button variant="outline" onClick={onClose}>
-            <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
+          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
             Save View
           </Button>
         </div>
       </div>
 
-      {/* Navigation Tabs - Collapsible */}
-      <div className="border-b bg-gray-50 flex">
-        <div className={`transition-all duration-300 ${isTabsCollapsed ? 'w-12' : 'w-auto'} flex`}>
-          {!isTabsCollapsed && (
-            <>
-              <Button
-                variant={activeTab === 'design' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('design')}
-                className="flex items-center space-x-2 rounded-none"
-              >
-                <Layout className="h-4 w-4" />
-                <span>Design</span>
-              </Button>
-              <Button
-                variant={activeTab === 'preview' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('preview')}
-                className="flex items-center space-x-2 rounded-none"
-              >
-                <Eye className="h-4 w-4" />
-                <span>Preview</span>
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsTabsCollapsed(!isTabsCollapsed)}
-            className="rounded-none"
-          >
-            {isTabsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
-        </div>
+      {/* Navigation Tabs */}
+      <div className="border-b bg-white flex">
+        <Button
+          variant={activeTab === 'design' ? 'default' : 'ghost'}
+          onClick={() => setActiveTab('design')}
+          className="flex items-center space-x-2 rounded-none"
+        >
+          <Layout className="h-4 w-4" />
+          <span>Design</span>
+        </Button>
+        <Button
+          variant={activeTab === 'preview' ? 'default' : 'ghost'}
+          onClick={() => setActiveTab('preview')}
+          className="flex items-center space-x-2 rounded-none"
+        >
+          <Eye className="h-4 w-4" />
+          <span>Preview</span>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-hidden">
