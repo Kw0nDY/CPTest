@@ -184,14 +184,14 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   const renderDesignTab = () => (
     <div className="flex h-full">
       {/* Left Elements Panel */}
-      <div className={`bg-gray-50 border-r transition-all duration-300 ${isComponentsPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm`}>
-        <div className="p-3 border-b flex items-center justify-between bg-gray-50">
+      <div className={`bg-gray-50 border-r transition-all duration-300 ${isComponentsPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm relative`}>
+        <div className="p-3 border-b flex items-center justify-between bg-gray-50 relative">
           {!isComponentsPanelCollapsed && <h3 className="font-semibold text-base">Elements</h3>}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsComponentsPanelCollapsed(!isComponentsPanelCollapsed)}
-            className="h-8 w-8 p-0"
+            className={`h-7 w-7 p-0 transition-all duration-300 hover:bg-blue-100 hover:text-blue-600 ${isComponentsPanelCollapsed ? 'absolute top-2 left-1/2 transform -translate-x-1/2' : 'ml-auto'}`}
             data-testid="toggle-left-panel"
           >
             {isComponentsPanelCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -203,7 +203,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="w-8 h-8 p-0"
+              className="w-8 h-8 p-0 hover:bg-blue-100 hover:text-blue-600"
               title="Grid Layout"
               data-testid="collapsed-grid-button"
             >
@@ -212,7 +212,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="w-8 h-8 p-0"
+              className="w-8 h-8 p-0 hover:bg-blue-100 hover:text-blue-600"
               title="Components"
               data-testid="collapsed-components-button"
             >
@@ -465,13 +465,13 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
       </div>
 
       {/* Right Properties Panel */}
-      <div className={`bg-gray-50 border-l transition-all duration-300 ${isPropertiesPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm`}>
-        <div className="p-3 border-b flex items-center justify-between bg-gray-50">
+      <div className={`bg-gray-50 border-l transition-all duration-300 ${isPropertiesPanelCollapsed ? 'w-12' : 'w-80'} flex flex-col shadow-sm relative`}>
+        <div className="p-3 border-b flex items-center justify-between bg-gray-50 relative">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsPropertiesPanelCollapsed(!isPropertiesPanelCollapsed)}
-            className="h-8 w-8 p-0"
+            className={`h-7 w-7 p-0 transition-all duration-300 hover:bg-blue-100 hover:text-blue-600 ${isPropertiesPanelCollapsed ? 'absolute top-2 left-1/2 transform -translate-x-1/2' : 'mr-auto'}`}
             data-testid="toggle-properties-panel"
           >
             {isPropertiesPanelCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -484,7 +484,7 @@ export default function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="w-8 h-8 p-0"
+              className="w-8 h-8 p-0 hover:bg-blue-100 hover:text-blue-600"
               title="Properties"
               data-testid="collapsed-properties-button"
             >
