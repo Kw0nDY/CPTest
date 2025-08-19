@@ -26,7 +26,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
-import { GoogleSheetsDialog } from './google-sheets-dialog';
+import { GoogleSheetsConnectionDialog } from './google-sheets-connection-dialog';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
@@ -201,7 +201,7 @@ export default function DataIntegrationTab() {
   const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
   const [showExcelUploadDialog, setShowExcelUploadDialog] = useState(false);
-  const [showGoogleSheetsDialog, setShowGoogleSheetsDialog] = useState(false);
+  const [googleSheetsDialogRef, setGoogleSheetsDialogRef] = useState<{ openDialog: () => void } | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -485,9 +485,11 @@ export default function DataIntegrationTab() {
       setSelectedDataSource(dataSource);
       setShowExcelUploadDialog(true);
     } else if (dataSource.id === 'google-sheets') {
-      // Show Google Sheets OAuth dialog
-      setSelectedDataSource(dataSource);
-      setShowGoogleSheetsDialog(true);
+      // Click the hidden trigger for Google Sheets dialog
+      const trigger = document.getElementById('hidden-google-sheets-trigger');
+      if (trigger) {
+        trigger.click();
+      }
     } else {
       // Handle regular database connections
       setSelectedDataSource(dataSource);
@@ -593,7 +595,7 @@ export default function DataIntegrationTab() {
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
       
       // Close the dialog
-      setShowGoogleSheetsDialog(false);
+      // Google Sheets success handled by the dialog itself
       
     } catch (error) {
       console.error('Google Sheets success handler error:', error);
@@ -1135,11 +1137,18 @@ export default function DataIntegrationTab() {
         onSuccess={handleExcelUploadSuccess}
       />
       
-      {/* Google Sheets Dialog */}
-      <GoogleSheetsDialog
-        open={showGoogleSheetsDialog}
-        onOpenChange={setShowGoogleSheetsDialog}
-        onSuccess={handleGoogleSheetsSuccess}
+      {/* Google Sheets Dialog - Controlled visibility */}
+      <GoogleSheetsConnectionDialog
+        trigger={
+          <Button 
+            id="hidden-google-sheets-trigger"
+            style={{ display: 'none' }}
+            onClick={() => {}}
+          >
+            Hidden Trigger
+          </Button>
+        }
+        onConnect={handleGoogleSheetsSuccess}
       />
     </div>
   );

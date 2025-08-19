@@ -964,6 +964,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Google API Config management endpoints
+  app.get("/api/google-api-configs", async (req, res) => {
+    try {
+      const { type } = req.query;
+      let configs;
+      
+      if (type && (type === 'drive' || type === 'sheets')) {
+        configs = await storage.getGoogleApiConfigsByType(type as 'drive' | 'sheets');
+      } else {
+        configs = await storage.getGoogleApiConfigs();
+      }
+      
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching Google API configs:", error);
+      res.status(500).json({ error: "Failed to fetch Google API configs" });
+    }
+  });
+
+  app.get("/api/google-api-configs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.getGoogleApiConfig(id);
+      
+      if (!config) {
+        return res.status(404).json({ error: "Google API config not found" });
+      }
+      
+      res.json(config);
+    } catch (error) {
+      console.error("Error fetching Google API config:", error);
+      res.status(500).json({ error: "Failed to fetch Google API config" });
+    }
+  });
+
+  app.post("/api/google-api-configs", async (req, res) => {
+    try {
+      const { title, type, clientId, clientSecret, projectId, apiKey, scopes } = req.body;
+      
+      if (!title || !type || !clientId || !clientSecret) {
+        return res.status(400).json({ 
+          error: "Title, type, clientId, and clientSecret are required" 
+        });
+      }
+
+      if (type !== 'drive' && type !== 'sheets') {
+        return res.status(400).json({ 
+          error: "Type must be either 'drive' or 'sheets'" 
+        });
+      }
+
+      const config = await storage.createGoogleApiConfig({
+        title,
+        type,
+        clientId,
+        clientSecret,
+        projectId,
+        apiKey,
+        scopes: scopes || []
+      });
+      
+      res.status(201).json(config);
+    } catch (error) {
+      console.error("Error creating Google API config:", error);
+      res.status(500).json({ error: "Failed to create Google API config" });
+    }
+  });
+
+  app.put("/api/google-api-configs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const config = await storage.updateGoogleApiConfig(id, updates);
+      res.json(config);
+    } catch (error) {
+      console.error("Error updating Google API config:", error);
+      res.status(500).json({ error: "Failed to update Google API config" });
+    }
+  });
+
+  app.delete("/api/google-api-configs/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteGoogleApiConfig(id);
+      res.status(200).json({ message: "Google API config deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting Google API config:", error);
+      res.status(500).json({ error: "Failed to delete Google API config" });
+    }
+  });
+
+  // Test Google API config endpoint
+  app.post("/api/google-api-configs/:id/test", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.getGoogleApiConfig(id);
+      
+      if (!config) {
+        return res.status(404).json({ error: "Google API config not found" });
+      }
+
+      // Test the API configuration
+      const { google } = await import('googleapis');
+      
+      const auth = new google.auth.OAuth2(
+        config.clientId,
+        config.clientSecret,
+        config.redirectUri
+      );
+
+      // Try to validate the configuration by checking OAuth endpoints
+      try {
+        // Simple validation - check if we can create auth URL
+        const authUrl = auth.generateAuthUrl({
+          access_type: 'offline',
+          scope: config.scopes || []
+        });
+        
+        res.json({
+          success: true,
+          message: "API configuration is valid",
+          authUrl: authUrl,
+          config: {
+            title: config.title,
+            type: config.type,
+            clientId: config.clientId,
+            projectId: config.projectId
+          }
+        });
+      } catch (testError: any) {
+        res.status(400).json({
+          success: false,
+          error: "Invalid API configuration",
+          details: testError.message
+        });
+      }
+    } catch (error) {
+      console.error("Error testing Google API config:", error);
+      res.status(500).json({ error: "Failed to test Google API config" });
+    }
+  });
+
   // Excel File Upload and Processing API
   app.post("/api/excel/process", async (req, res) => {
     try {

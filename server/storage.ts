@@ -1,7 +1,8 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
-  salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations,
-  type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, type ExcelFile, type InsertExcelFile
+  salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
+  type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
+  type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -31,6 +32,14 @@ export interface IStorage {
   // Excel Files methods
   getExcelFiles(dataSourceId: string): Promise<ExcelFile[]>;
   createExcelFile(excelFile: InsertExcelFile): Promise<ExcelFile>;
+  
+  // Google API Config methods
+  getGoogleApiConfigs(): Promise<GoogleApiConfig[]>;
+  getGoogleApiConfig(id: string): Promise<GoogleApiConfig | undefined>;
+  getGoogleApiConfigsByType(type: 'drive' | 'sheets'): Promise<GoogleApiConfig[]>;
+  createGoogleApiConfig(config: InsertGoogleApiConfig): Promise<GoogleApiConfig>;
+  updateGoogleApiConfig(id: string, updates: Partial<GoogleApiConfig>): Promise<GoogleApiConfig>;
+  deleteGoogleApiConfig(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -433,6 +442,48 @@ export class DatabaseStorage implements IStorage {
       console.error('Error fetching table data:', error);
       return [];
     }
+  }
+
+  // Google API Config methods
+  async getGoogleApiConfigs(): Promise<GoogleApiConfig[]> {
+    return await db.select().from(googleApiConfigs);
+  }
+
+  async getGoogleApiConfig(id: string): Promise<GoogleApiConfig | undefined> {
+    const [config] = await db.select().from(googleApiConfigs).where(eq(googleApiConfigs.id, id));
+    return config || undefined;
+  }
+
+  async getGoogleApiConfigsByType(type: 'drive' | 'sheets'): Promise<GoogleApiConfig[]> {
+    return await db.select().from(googleApiConfigs).where(eq(googleApiConfigs.type, type));
+  }
+
+  async createGoogleApiConfig(config: InsertGoogleApiConfig): Promise<GoogleApiConfig> {
+    const newId = `gapi-${Date.now()}`;
+    const [created] = await db
+      .insert(googleApiConfigs)
+      .values({
+        id: newId,
+        ...config
+      })
+      .returning();
+    return created;
+  }
+
+  async updateGoogleApiConfig(id: string, updates: Partial<GoogleApiConfig>): Promise<GoogleApiConfig> {
+    const [updated] = await db
+      .update(googleApiConfigs)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(googleApiConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteGoogleApiConfig(id: string): Promise<void> {
+    await db.delete(googleApiConfigs).where(eq(googleApiConfigs.id, id));
   }
 }
 

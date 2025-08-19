@@ -194,6 +194,21 @@ export const piDrillingOperations = pgTable('pi_drilling_operations', {
   timestamp: timestamp('timestamp').defaultNow()
 });
 
+// Google API Configurations
+export const googleApiConfigs = pgTable('google_api_configs', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  type: text('type').notNull(), // 'drive' | 'sheets'
+  clientId: text('client_id').notNull(),
+  clientSecret: text('client_secret').notNull(),
+  projectId: text('project_id'),
+  apiKey: text('api_key'),
+  scopes: json('scopes').$type<string[]>().default([]),
+  status: text('status').notNull().default('active'), // 'active' | 'inactive'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -204,6 +219,11 @@ export const insertSalesforceAccountSchema = createInsertSchema(salesforceAccoun
 export const insertSalesforceOpportunitySchema = createInsertSchema(salesforceOpportunities);
 export const insertPiAssetHierarchySchema = createInsertSchema(piAssetHierarchy);
 export const insertPiDrillingOperationsSchema = createInsertSchema(piDrillingOperations);
+export const insertGoogleApiConfigSchema = createInsertSchema(googleApiConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -216,3 +236,5 @@ export type DataTable = typeof dataTables.$inferSelect;
 export type InsertDataTable = z.infer<typeof insertDataTableSchema>;
 export type ExcelFile = typeof excelFiles.$inferSelect;
 export type InsertExcelFile = z.infer<typeof insertExcelFileSchema>;
+export type GoogleApiConfig = typeof googleApiConfigs.$inferSelect;
+export type InsertGoogleApiConfig = z.infer<typeof insertGoogleApiConfigSchema>;

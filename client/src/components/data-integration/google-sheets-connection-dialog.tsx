@@ -1,0 +1,554 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+import { FileSpreadsheet, Calendar, Users, Eye, EyeOff, ChevronDown, ChevronRight, ArrowLeft, ArrowRight, Settings, CheckCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { GoogleApiConfigDialog } from "./google-api-config-dialog";
+
+interface Sheet {
+  name: string;
+  properties: {
+    title: string;
+    gridProperties: {
+      rowCount: number;
+      columnCount: number;
+    };
+  };
+}
+
+interface GoogleApiConfig {
+  id: string;
+  title: string;
+  type: 'drive' | 'sheets';
+  clientId: string;
+  clientSecret: string;
+  projectId?: string;
+  apiKey?: string;
+  scopes: string[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface GoogleSheetsConnectionDialogProps {
+  trigger?: React.ReactNode;
+  onConnect?: (dataSource: any) => void;
+}
+
+export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheetsConnectionDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<'api-selection' | 'authentication' | 'sheet-selection' | 'review'>(
+    'api-selection'
+  );
+  const [connectionData, setConnectionData] = useState<any>(null);
+  const [selectedDriveConfig, setSelectedDriveConfig] = useState<GoogleApiConfig | null>(null);
+  const [selectedSheetsConfig, setSelectedSheetsConfig] = useState<GoogleApiConfig | null>(null);
+  const [config, setConfig] = useState({
+    title: '',
+    description: ''
+  });
+  const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Get available Google Sheets
+  const { data: availableSheets = [], isLoading: isSheetsLoading } = useQuery({
+    queryKey: ['/api/google-sheets'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/google-sheets');
+      return response.json();
+    },
+    enabled: currentStep === 'sheet-selection' && !!connectionData?.access_token
+  });
+
+  // Mock sheets data for testing
+  const mockSheets = [
+    { id: 'sheet1', name: 'Sales Data 2024', sheets: ['Q1 Sales', 'Q2 Sales', 'Q3 Sales'], lastModified: '2025-01-15' },
+    { id: 'sheet2', name: 'Customer Database', sheets: ['Active Customers', 'Prospects'], lastModified: '2025-01-14' },
+    { id: 'sheet3', name: 'Product Inventory', sheets: ['Current Stock', 'Reorder List'], lastModified: '2025-01-13' }
+  ];
+
+  // Get sheet data preview
+  const { data: sheetData } = useQuery({
+    queryKey: ['/api/google-sheets/data', selectedSheets],
+    queryFn: async () => {
+      if (selectedSheets.length === 0) return null;
+      const response = await apiRequest('POST', '/api/google-sheets/data', {
+        sheetIds: selectedSheets
+      });
+      return response.json();
+    },
+    enabled: currentStep === 'review' && selectedSheets.length > 0
+  });
+
+  // Connect mutation
+  const connectMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest('POST', '/api/google-sheets/connect', data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "연결 성공",
+        description: "Google Sheets가 성공적으로 연결되었습니다."
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      onConnect?.(data);
+      setOpen(false);
+      resetDialog();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "연결 실패",
+        description: error.message || "Google Sheets 연결에 실패했습니다.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const resetDialog = () => {
+    setCurrentStep('api-selection');
+    setSelectedSheets([]);
+    setConnectionData(null);
+    setSelectedDriveConfig(null);
+    setSelectedSheetsConfig(null);
+    setConfig({ title: '', description: '' });
+    setExpandedSheets(new Set());
+  };
+
+  const handleNext = () => {
+    if (currentStep === 'api-selection') {
+      if (!selectedDriveConfig || !selectedSheetsConfig) {
+        toast({
+          title: "API 설정 필요",
+          description: "Drive API와 Sheets API를 모두 선택해주세요.",
+          variant: "destructive"
+        });
+        return;
+      }
+      setCurrentStep('authentication');
+    } else if (currentStep === 'authentication') {
+      setCurrentStep('sheet-selection');
+    } else if (currentStep === 'sheet-selection') {
+      if (selectedSheets.length === 0) {
+        toast({
+          title: "시트 선택 필요",
+          description: "최소 하나의 시트를 선택해주세요.",
+          variant: "destructive"
+        });
+        return;
+      }
+      setCurrentStep('review');
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep === 'authentication') {
+      setCurrentStep('api-selection');
+    } else if (currentStep === 'sheet-selection') {
+      setCurrentStep('authentication');
+    } else if (currentStep === 'review') {
+      setCurrentStep('sheet-selection');
+    }
+  };
+
+  const handleConnect = () => {
+    connectMutation.mutate({
+      title: config.title,
+      description: config.description,
+      selectedSheets,
+      driveConfig: selectedDriveConfig,
+      sheetsConfig: selectedSheetsConfig,
+      connectionData
+    });
+  };
+
+  const getStepNumber = (step: string) => {
+    const steps = ['api-selection', 'authentication', 'sheet-selection', 'review'];
+    return steps.indexOf(step) + 1;
+  };
+
+  const getProgress = () => {
+    return (getStepNumber(currentStep) / 4) * 100;
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button variant="outline" className="w-full">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Google Sheets 연결
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5" />
+            Google Sheets 연결 설정
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Progress Bar */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>단계 {getStepNumber(currentStep)} / 4</span>
+            <span>{Math.round(getProgress())}% 완료</span>
+          </div>
+          <Progress value={getProgress()} className="w-full" />
+        </div>
+
+        {/* Step Navigation */}
+        <div className="flex justify-between items-center text-sm">
+          {['API 선택', '로그인', '시트 선택', '검토'].map((stepName, index) => (
+            <div key={stepName} className="flex items-center">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                index + 1 <= getStepNumber(currentStep) 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-500'
+              }`}>
+                {index + 1 < getStepNumber(currentStep) ? (
+                  <CheckCircle className="w-3 h-3" />
+                ) : (
+                  index + 1
+                )}
+              </div>
+              <span className={`ml-2 ${
+                index + 1 === getStepNumber(currentStep) 
+                  ? 'text-blue-600 font-medium' 
+                  : index + 1 < getStepNumber(currentStep)
+                    ? 'text-gray-900'
+                    : 'text-gray-500'
+              }`}>
+                {stepName}
+              </span>
+              {index < 3 && (
+                <ArrowRight className="w-4 h-4 mx-3 text-gray-300" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Step Content */}
+        <div className="min-h-[400px]">
+          {/* Step 1: API Selection */}
+          {currentStep === 'api-selection' && (
+            <div className="space-y-6">
+              <div className="text-center py-4">
+                <h3 className="text-xl font-semibold mb-2">Google API 설정 선택</h3>
+                <p className="text-muted-foreground">
+                  Drive API와 Sheets API 설정을 선택하거나 새로 등록하세요.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                {/* Drive API Selection */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="w-5 h-5" />
+                      Drive API 설정
+                    </CardTitle>
+                    <CardDescription>
+                      Google Drive 접근을 위한 API 설정
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedDriveConfig ? (
+                      <Card className="p-3 bg-blue-50 border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{selectedDriveConfig.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {selectedDriveConfig.clientId.slice(0, 20)}...
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedDriveConfig(null)}
+                          >
+                            변경
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <GoogleApiConfigDialog
+                        type="drive"
+                        onSelect={setSelectedDriveConfig}
+                        selectedConfigId={selectedDriveConfig?.id}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Sheets API Selection */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-5 h-5" />
+                      Sheets API 설정
+                    </CardTitle>
+                    <CardDescription>
+                      Google Sheets 접근을 위한 API 설정
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedSheetsConfig ? (
+                      <Card className="p-3 bg-green-50 border-green-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{selectedSheetsConfig.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {selectedSheetsConfig.clientId.slice(0, 20)}...
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedSheetsConfig(null)}
+                          >
+                            변경
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <GoogleApiConfigDialog
+                        type="sheets"
+                        onSelect={setSelectedSheetsConfig}
+                        selectedConfigId={selectedSheetsConfig?.id}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Authentication */}
+          {currentStep === 'authentication' && (
+            <div className="space-y-6">
+              <div className="text-center py-4">
+                <h3 className="text-xl font-semibold mb-2">Google 계정 인증</h3>
+                <p className="text-muted-foreground">
+                  선택한 API 설정으로 Google 계정에 로그인하세요.
+                </p>
+              </div>
+
+              <Card className="max-w-md mx-auto">
+                <CardContent className="pt-6 text-center space-y-4">
+                  <div className="space-y-2">
+                    <p className="font-medium">선택된 API 설정:</p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>Drive API: {selectedDriveConfig?.title}</p>
+                      <p>Sheets API: {selectedSheetsConfig?.title}</p>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    className="w-full"
+                    onClick={() => {
+                      // TODO: Implement actual Google OAuth flow
+                      setConnectionData({ access_token: 'mock_token' });
+                      setTimeout(() => handleNext(), 1000);
+                    }}
+                  >
+                    Google 계정으로 로그인
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Step 3: Sheet Selection */}
+          {currentStep === 'sheet-selection' && (
+            <div className="space-y-6">
+              <div className="text-center py-4">
+                <h3 className="text-xl font-semibold mb-2">스프레드시트 선택</h3>
+                <p className="text-muted-foreground">
+                  연결하고 싶은 Google Sheets를 선택하세요.
+                </p>
+              </div>
+
+              {isSheetsLoading ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />
+                    Google Sheets를 불러오는 중...
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(availableSheets.length > 0 ? availableSheets : mockSheets).map((sheet: any, index: number) => (
+                    <Card
+                      key={sheet?.id || `sheet-${index}`}
+                      className={`cursor-pointer transition-colors ${
+                        selectedSheets.includes(sheet?.id || `sheet-${index}`)
+                          ? 'ring-2 ring-blue-500 bg-blue-50'
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        const sheetId = sheet?.id || `sheet-${index}`;
+                        if (selectedSheets.includes(sheetId)) {
+                          setSelectedSheets(selectedSheets.filter(id => id !== sheetId));
+                        } else {
+                          setSelectedSheets([...selectedSheets, sheetId]);
+                        }
+                      }}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Checkbox 
+                              checked={selectedSheets.includes(sheet?.id || `sheet-${index}`)}
+                              onCheckedChange={() => {}}
+                            />
+                            <div>
+                              <CardTitle className="text-base">{sheet?.name || 'Untitled Sheet'}</CardTitle>
+                              <CardDescription>
+                                {sheet?.sheets?.length || 0}개 시트 • 마지막 수정: {sheet?.lastModified ? new Date(sheet.lastModified).toLocaleDateString('ko-KR') : 'Unknown'}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          <Badge variant="secondary">
+                            {sheet?.sheets?.length || 0} 시트
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Review */}
+          {currentStep === 'review' && (
+            <div className="space-y-6">
+              <div className="text-center py-4">
+                <h3 className="text-xl font-semibold mb-2">연결 설정 검토</h3>
+                <p className="text-muted-foreground">
+                  설정을 확인하고 Google Sheets 연결을 완료하세요.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>연결 정보</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <Label className="font-medium">Drive API</Label>
+                        <p className="text-muted-foreground">{selectedDriveConfig?.title}</p>
+                      </div>
+                      <div>
+                        <Label className="font-medium">Sheets API</Label>
+                        <p className="text-muted-foreground">{selectedSheetsConfig?.title}</p>
+                      </div>
+                      <div>
+                        <Label className="font-medium">선택된 시트</Label>
+                        <p className="text-muted-foreground">{selectedSheets.length}개 스프레드시트</p>
+                      </div>
+                      <div>
+                        <Label className="font-medium">연결 상태</Label>
+                        <Badge variant="default" className="ml-2">준비 완료</Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="title">데이터 소스 이름</Label>
+                      <Input
+                        id="title"
+                        value={config.title}
+                        onChange={(e) => setConfig(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="예: 회사 Google Sheets"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="description">설명 (선택사항)</Label>
+                      <Input
+                        id="description"
+                        value={config.description}
+                        onChange={(e) => setConfig(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="이 데이터 소스에 대한 설명을 입력하세요"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between pt-4 border-t">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 'api-selection'}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            이전
+          </Button>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpen(false);
+                resetDialog();
+              }}
+            >
+              취소
+            </Button>
+
+            {currentStep === 'review' ? (
+              <Button
+                onClick={handleConnect}
+                disabled={connectMutation.isPending || !config.title}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {connectMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    연결 중...
+                  </>
+                ) : (
+                  '연결 완료'
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={
+                  (currentStep === 'api-selection' && (!selectedDriveConfig || !selectedSheetsConfig)) ||
+                  (currentStep === 'authentication' && !connectionData) ||
+                  (currentStep === 'sheet-selection' && selectedSheets.length === 0)
+                }
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                다음
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
