@@ -45,19 +45,34 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
 
   const handleGoogleAuth = async () => {
     setAuthStatus('authorizing');
+    console.log('Starting Google OAuth flow...');
     
     try {
       // Initiate Google OAuth flow
       const response = await apiRequest('POST', '/api/google-sheets/auth', {});
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
+      console.log('Auth response:', result);
       
       if (result.authUrl) {
+        console.log('Opening popup with URL:', result.authUrl);
+        
         // Open Google OAuth in popup window
         const authWindow = window.open(
           result.authUrl, 
           'google-auth', 
           'width=500,height=600,scrollbars=yes,resizable=yes'
         );
+        
+        console.log('Popup window opened:', !!authWindow);
+        
+        if (!authWindow) {
+          throw new Error('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해주세요.');
+        }
 
         // Listen for messages from the popup window
         const handleMessage = async (event: MessageEvent) => {
@@ -107,14 +122,20 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
         }, 1000);
 
       } else {
-        throw new Error('Auth URL not received');
+        throw new Error('Auth URL not received from server');
       }
     } catch (error) {
       console.error('Google auth error:', error);
       setAuthStatus('error');
+      
+      let errorMessage = "Google 인증을 시작할 수 없습니다.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "인증 오류",
-        description: "Google 인증을 시작할 수 없습니다.",
+        description: errorMessage,
         variant: "destructive"
       });
     }
