@@ -1,16 +1,22 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ProgressIndicator } from "@/components/ui/progress-indicator";
-import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, CheckCircle } from "lucide-react";
-import { SystemSource } from "@/types/integration";
-import { type DataSource } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+
+interface SystemSource {
+  id: string;
+  name: string;
+  type: string;
+  icon: string;
+  color: string;
+  description: string;
+}
 
 interface DataSourcesTabProps {
   onNext: () => void;
@@ -39,9 +45,8 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const [showExcelFiles, setShowExcelFiles] = useState(false);
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: dataSources = [] } = useQuery<DataSource[]>({
+  const { data: dataSources = [] } = useQuery({
     queryKey: ['/api/data-sources'],
   });
 
@@ -52,32 +57,69 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-      toast({ title: "성공", description: "데이터 소스가 생성되었습니다." });
+      toast({ title: "데이터 소스 연결됨", description: "Successfully connected to data source" });
+      setSelectedSource(null);
+      setConnectionForm({
+        name: '',
+        endpoint: '',
+        authMethod: 'oauth2',
+        clientId: '',
+        clientSecret: '',
+      });
     },
-    onError: () => {
-      toast({ title: "오류", description: "데이터 소스 생성에 실패했습니다.", variant: "destructive" });
+    onError: (error) => {
+      console.error('Connection error:', error);
+      toast({ title: "연결 실패", description: "Failed to connect data source", variant: "destructive" });
     },
   });
 
   const testConnectionMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest('POST', `/api/data-sources/${id}/test`);
+    mutationFn: async (dataSourceId: string) => {
+      const response = await apiRequest('POST', `/api/data-sources/${dataSourceId}/test`);
       return response.json();
     },
-    onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "연결 성공", description: data.message });
-        queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-      }
+    onSuccess: () => {
+      toast({ title: "테스트 성공", description: "Connection test successful" });
     },
-    onError: () => {
-      toast({ title: "연결 실패", description: "연결 테스트에 실패했습니다.", variant: "destructive" });
+    onError: (error) => {
+      console.error('Test error:', error);
+      toast({ title: "테스트 실패", description: "Connection test failed", variant: "destructive" });
     },
   });
+
+  const connectedSources = dataSources.filter((ds: any) => ds.status === 'connected');
+
+  const getIcon = (iconName: string) => {
+    const iconMap: { [key: string]: any } = {
+      Building,
+      TrendingUp,
+      Users,
+      Handshake,
+      Database,
+      FileSpreadsheet,
+    };
+    const IconComponent = iconMap[iconName] || Database;
+    return <IconComponent className="w-4 h-4" />;
+  };
+
+  const getColorClasses = (color: string) => {
+    const colorMap: { [key: string]: string } = {
+      blue: 'bg-blue-100 text-blue-600',
+      green: 'bg-green-100 text-green-600',
+      orange: 'bg-orange-100 text-orange-600',
+      purple: 'bg-purple-100 text-purple-600',
+      red: 'bg-red-100 text-red-600',
+    };
+    return colorMap[color] || 'bg-gray-100 text-gray-600';
+  };
 
   const handleSourceSelect = (source: SystemSource) => {
     setSelectedSource(source);
     setConnectionForm(prev => ({ ...prev, name: `${source.name} 연결` }));
+  };
+
+  const handleTestConnection = (dataSourceId: string) => {
+    testConnectionMutation.mutate(dataSourceId);
   };
 
   const handleSaveConnection = async () => {
@@ -181,45 +223,16 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     }
   };
 
-  const handleTestConnection = (id: string) => {
-    testConnectionMutation.mutate(id);
-  };
-
-  const getIcon = (iconName: string) => {
-    const icons = { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet };
-    const Icon = icons[iconName as keyof typeof icons] || Building;
-    return <Icon className="w-5 h-5" />;
-  };
-
-  const getColorClasses = (color: string) => {
-    const colors = {
-      blue: 'bg-blue-100 text-blue-600',
-      green: 'bg-green-100 text-green-600',
-      orange: 'bg-orange-100 text-orange-600',
-      purple: 'bg-purple-100 text-purple-600',
-      red: 'bg-red-100 text-red-600',
-    };
-    return colors[color as keyof typeof colors] || 'bg-gray-100 text-gray-600';
-  };
-
-  const connectedSources = dataSources.filter((ds) => ds.status === 'connected');
-
   return (
-    <div className="p-6 space-y-6">
-      <ProgressIndicator 
-        title="Data Source Connection Progress" 
-        currentStep={1} 
-        totalSteps={5}
-      />
-
+    <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Available Data Sources */}
         <Card>
           <CardHeader>
             <CardTitle>Available Data Sources</CardTitle>
-            <p className="text-sm text-gray-600">Select a system to connect</p>
+            <p className="text-sm text-gray-600">Select a system to connect to</p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {/* ERP Systems */}
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-3">ERP Systems</h4>
@@ -233,6 +246,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         ? 'border-primary bg-primary/5'
                         : 'border-gray-200 hover:border-primary hover:bg-primary/5'
                     }`}
+                    data-testid={`source-${source.id}`}
                   >
                     <div className="flex items-center space-x-3">
                       <div className={`w-8 h-8 rounded flex items-center justify-center ${getColorClasses(source.color)}`}>
@@ -261,6 +275,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         ? 'border-primary bg-primary/5'
                         : 'border-gray-200 hover:border-primary hover:bg-primary/5'
                     }`}
+                    data-testid={`source-${source.id}`}
                   >
                     <div className="flex items-center space-x-3">
                       <div className={`w-8 h-8 rounded flex items-center justify-center ${getColorClasses(source.color)}`}>
@@ -289,6 +304,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         ? 'border-primary bg-primary/5'
                         : 'border-gray-200 hover:border-primary hover:bg-primary/5'
                     }`}
+                    data-testid={`source-${source.id}`}
                   >
                     <div className="flex items-center space-x-3">
                       <div className={`w-8 h-8 rounded flex items-center justify-center ${getColorClasses(source.color)}`}>
@@ -326,19 +342,23 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                     value={connectionForm.name}
                     onChange={(e) => setConnectionForm(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g. Sales Team Salesforce"
+                    data-testid="input-connection-name"
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="endpoint">API Endpoint</Label>
-                  <Input
-                    id="endpoint"
-                    type="url"
-                    value={connectionForm.endpoint}
-                    onChange={(e) => setConnectionForm(prev => ({ ...prev, endpoint: e.target.value }))}
-                    placeholder="https://your-domain.salesforce.com"
-                  />
-                </div>
+                {selectedSource.id !== 'excel' && (
+                  <div>
+                    <Label htmlFor="endpoint">API Endpoint</Label>
+                    <Input
+                      id="endpoint"
+                      type="url"
+                      value={connectionForm.endpoint}
+                      onChange={(e) => setConnectionForm(prev => ({ ...prev, endpoint: e.target.value }))}
+                      placeholder="https://your-domain.salesforce.com"
+                      data-testid="input-endpoint"
+                    />
+                  </div>
+                )}
 
                 {selectedSource.id !== 'excel' && (
                   <div>
@@ -347,7 +367,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                       value={connectionForm.authMethod}
                       onValueChange={(value) => setConnectionForm(prev => ({ ...prev, authMethod: value }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="select-auth-method">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -375,6 +395,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         value={connectionForm.clientId}
                         onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
                         placeholder="기본 설정 사용 (비어둘 수 있음)"
+                        data-testid="input-excel-client-id"
                       />
                       <p className="text-xs text-gray-600">
                         사용자 정의 Microsoft 앱을 사용하려면 Client ID를 입력하세요. 비어두면 기본 설정을 사용합니다.
@@ -401,6 +422,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         value={connectionForm.clientId}
                         onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
                         placeholder="Enter client ID"
+                        data-testid="input-client-id"
                       />
                     </div>
                     <div>
@@ -411,6 +433,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         value={connectionForm.clientSecret}
                         onChange={(e) => setConnectionForm(prev => ({ ...prev, clientSecret: e.target.value }))}
                         placeholder="••••••••"
+                        data-testid="input-client-secret"
                       />
                     </div>
                   </div>
@@ -455,38 +478,6 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                     </>
                   )}
                 </div>
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="client-secret">Client Secret</Label>
-                    <Input
-                      id="client-secret"
-                      type="password"
-                      value={connectionForm.clientSecret}
-                      onChange={(e) => setConnectionForm(prev => ({ ...prev, clientSecret: e.target.value }))}
-                      placeholder="••••••••"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex space-x-3">
-                  <Button 
-                    variant="outline"
-                    disabled={!connectionForm.name || !connectionForm.endpoint}
-                    onClick={() => {
-                      // First save, then test
-                      handleSaveConnection();
-                    }}
-                  >
-                    Test Connection
-                  </Button>
-                  <Button 
-                    onClick={handleSaveConnection}
-                    disabled={createDataSourceMutation.isPending || !connectionForm.name}
-                  >
-                    {createDataSourceMutation.isPending ? 'Saving...' : 'Save & Continue'}
-                  </Button>
-                </div>
 
                 {/* Connected Sources */}
                 {connectedSources.length > 0 && (
@@ -511,61 +502,95 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
         </Card>
       </div>
 
-      {/* Connected Sources List */}
-      {dataSources.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Connected Data Sources</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {dataSources.map((source) => (
-                <div key={source.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                      source.status === 'connected' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {getIcon('Database')}
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-medium">{source.name}</h5>
-                      <p className="text-xs text-gray-500">{source.type}</p>
+      {/* Excel Files List */}
+      {showExcelFiles && excelFiles.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Excel Files</CardTitle>
+              <p className="text-sm text-gray-600">Select files to import data from</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {excelFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      toast({ 
+                        title: "파일 선택됨", 
+                        description: `${file.name} 파일이 선택되었습니다.` 
+                      });
+                    }}
+                    data-testid={`excel-file-${file.id}`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {Math.round(file.size / 1024)} KB • {new Date(file.lastModified).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      source.status === 'connected' 
-                        ? 'bg-green-100 text-green-800'
-                        : source.status === 'error'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {source.status === 'connected' ? 'Connected' : source.status === 'error' ? 'Error' : 'Disconnected'}
-                    </span>
-                    {source.status !== 'connected' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleTestConnection(source.id)}
-                        disabled={testConnectionMutation.isPending}
-                      >
-                        {testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      <div className="flex justify-end">
-        <Button 
-          onClick={onNext}
-          disabled={connectedSources.length === 0}
-        >
-Continue to Data Mapping
+      {/* Connected Sources List */}
+      {dataSources.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Connected Data Sources</CardTitle>
+              <p className="text-sm text-gray-600">Manage your active connections</p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dataSources.map((dataSource: any) => (
+                  <div key={dataSource.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded flex items-center justify-center ${
+                        dataSource.status === 'connected' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {dataSource.type === 'excel' ? <FileSpreadsheet className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium">{dataSource.name}</h4>
+                        <p className="text-xs text-gray-500">
+                          {dataSource.type.toUpperCase()} • {dataSource.status}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {dataSource.status === 'connected' && (
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestConnection(dataSource.id)}
+                        disabled={testConnectionMutation.isPending}
+                        data-testid={`button-test-${dataSource.id}`}
+                      >
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="mt-8 text-center">
+        <Button onClick={onNext} disabled={connectedSources.length === 0} data-testid="button-continue">
+          Continue to Data Mapping
         </Button>
       </div>
     </div>
