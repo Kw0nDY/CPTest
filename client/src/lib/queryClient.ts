@@ -12,10 +12,12 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const shouldIncludeBody = method !== 'GET' && method !== 'HEAD' && data;
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: shouldIncludeBody ? { "Content-Type": "application/json" } : {},
+    body: shouldIncludeBody ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 

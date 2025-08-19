@@ -143,7 +143,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
 
   const loadGoogleSheets = async () => {
     try {
-      const response = await apiRequest('GET', '/api/google-sheets/list', {});
+      const response = await apiRequest('GET', '/api/google-sheets/list');
       const result = await response.json();
       
       if (result.success) {
