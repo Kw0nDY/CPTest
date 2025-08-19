@@ -491,6 +491,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         const driveData = await driveResponse.json();
+        
+        console.log('Drive API Response Status:', driveResponse.status);
+        console.log('Drive API Response Data:', JSON.stringify(driveData, null, 2));
 
         if (driveData.error) {
           console.error('Google Drive API Error:', driveData.error);
@@ -539,6 +542,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         console.log(`Successfully loaded ${sheets.length} spreadsheets from Google Drive`);
+        
+        const filteredSheets = sheets.filter((sheet: any) => sheet.sheets.length > 0);
+        return res.json({
+          success: true,
+          sheets: filteredSheets
+        });
       } catch (error) {
         console.error('Error accessing Google Drive API:', error);
         return res.status(500).json({ 
@@ -546,11 +555,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           helpMessage: "Google Cloud Console에서 Google Drive API가 활성화되어 있는지 확인해주세요."
         });
       }
-
-      res.json({
-        success: true,
-        sheets: sheets.filter(sheet => sheet.sheets.length > 0)
-      });
     } catch (error) {
       console.error("Error listing Google Sheets:", error);
       res.status(500).json({ error: "Failed to list Google Sheets" });
