@@ -294,11 +294,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dataSources = await storage.getDataSources();
       
       // Add default dataSchema and sampleData for mock sources that don't have it
-      const enhancedDataSources = dataSources.map(ds => ({
-        ...ds,
-        dataSchema: ds.dataSchema || getDefaultDataSchema(ds.type, ds.id),
-        sampleData: ds.sampleData || getDefaultSampleData(ds.type, ds.id)
-      }));
+      const enhancedDataSources = dataSources.map(ds => {
+        let dataSchema = ds.dataSchema;
+        let sampleData = ds.sampleData;
+        
+        // For Excel sources, try to get data from config
+        if (ds.type === 'Excel' && ds.config) {
+          const config = ds.config as any;
+          if (config.dataSchema) {
+            dataSchema = config.dataSchema;
+          }
+          if (config.sampleData) {
+            sampleData = config.sampleData;
+          }
+        }
+        
+        // Fallback to defaults if still not found
+        if (!dataSchema) {
+          dataSchema = getDefaultDataSchema(ds.type, ds.id);
+        }
+        if (!sampleData) {
+          sampleData = getDefaultSampleData(ds.type, ds.id);
+        }
+        
+        return {
+          ...ds,
+          dataSchema,
+          sampleData
+        };
+      });
       
       res.json(enhancedDataSources);
     } catch (error) {
