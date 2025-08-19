@@ -641,6 +641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Token expired, please re-authenticate" });
       }
 
+      const { google } = await import('googleapis');
+      
       const auth = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
@@ -668,9 +670,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Format the data for display
         const headers = rows.length > 0 ? rows[0] : [];
-        const data = rows.slice(1).map(row => {
+        const data = rows.slice(1).map((row: any[]) => {
           const rowData: any = {};
-          headers.forEach((header, index) => {
+          headers.forEach((header: string, index: number) => {
             rowData[header || `Column_${index + 1}`] = row[index] || '';
           });
           return rowData;
