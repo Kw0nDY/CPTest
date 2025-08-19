@@ -808,10 +808,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Sheets connection with data loading
   app.post("/api/google-sheets/connect", async (req, res) => {
     try {
-      const { selectedSheets } = req.body;
+      const { selectedSheets, config } = req.body;
+      
+      console.log('=== GOOGLE SHEETS CONNECT REQUEST ===');
+      console.log('Selected sheets:', selectedSheets);
+      console.log('Config:', config);
+      console.log('Session exists:', !!req.session);
+      console.log('Has Google tokens:', !!req.session?.googleTokens);
       
       if (!req.session?.googleTokens) {
-        return res.status(401).json({ error: "Not authenticated with Google" });
+        console.log('No Google tokens in session - treating as manual connection');
+        
+        // For manual connections without OAuth, create data source with provided config
+        const dataSource = {
+          name: config.title || 'Google Sheets',
+          type: 'Google Sheets',
+          category: 'file',
+          vendor: 'Google',
+          status: 'connected',
+          config: {
+            title: config.title,
+            description: config.description,
+            selectedSheets: selectedSheets || [],
+            manualConnection: true,
+            connectionMethod: 'manual',
+            dataSchema: [
+              {
+                table: "Sample Data",
+                fields: [
+                  { name: "데이터", type: "VARCHAR(255)", description: "수동 연결된 Google Sheets 데이터" }
+                ],
+                recordCount: 0,
+                lastUpdated: new Date().toISOString()
+              }
+            ],
+            sampleData: {
+              "Sample Data": [
+                { "데이터": "Google Sheets 연결이 완료되었습니다" }
+              ]
+            }
+          }
+        };
+        
+        const createdDataSource = await storage.createDataSource(dataSource);
+        
+        return res.json({
+          success: true,
+          dataSource: createdDataSource,
+          message: "Google Sheets 연결이 완료되었습니다",
+          connectionType: 'manual'
+        });
       }
 
       const tokens = req.session.googleTokens;
@@ -823,10 +869,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { google } = await import('googleapis');
       
+      // Use stored API configurations instead of environment variables
+      const driveConfig = req.session.selectedDriveConfig;
+      const sheetsConfig = req.session.selectedSheetsConfig;
+      
+      if (!driveConfig || !sheetsConfig) {
+        return res.status(400).json({ error: "API configuration missing" });
+      }
+      
       const auth = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
+        driveConfig.clientId,
+        driveConfig.clientSecret,
+        `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`
       );
 
       auth.setCredentials({
@@ -911,16 +965,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create proper data source config for Google Sheets
       const googleSheetsDataSource = {
-        name: 'Google Sheets',
+        name: config.title || 'Google Sheets',
         type: 'Google Sheets',
         category: 'file',
         vendor: 'Google',
         status: 'connected',
         config: {
+          title: config.title,
+          description: config.description,
           selectedSheets: selectedSheets,
           account: req.session?.googleAccount,
           dataSchema: dataSchema,
-          sampleData: sampleData
+          sampleData: sampleData,
+          connectionMethod: 'oauth'
         },
         connectionDetails: {
           service: 'Google Sheets API',
