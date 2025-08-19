@@ -50,6 +50,14 @@ The platform has been fully localized to English while maintaining Korean commun
 
 Preferred communication style: Korean language communication requested. Always respond in Korean while maintaining English for all service content and UI elements.
 
+**Google API Integration Requirements:**
+- 4-step Google Sheets connection process implemented (API Selection → Authentication → Sheet Selection → Review)
+- User-configurable Google API management system with database storage
+- Comprehensive setup guide and help system for API configuration
+- Step-by-step instructions for Google Cloud Console setup
+- Support for both Drive API and Sheets API with separate configurations
+- API validation and testing functionality
+
 **Excel Integration Requirements:**
 - Direct file upload approach preferred over OAuth 2.0 authentication
 - System must read actual Excel file content, not generate mock data based on filenames

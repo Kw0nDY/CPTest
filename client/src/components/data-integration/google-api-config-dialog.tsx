@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, TestTube, CheckCircle, XCircle } from "lucide-react";
+import { Trash2, Plus, TestTube, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { GoogleApiSetupGuide } from "./google-api-setup-guide";
 
 interface GoogleApiConfig {
   id: string;
@@ -151,14 +152,24 @@ export function GoogleApiConfigDialog({ type, onSelect, selectedConfigId }: Goog
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">기존 API 설정</h3>
-              <Button 
-                onClick={() => setIsCreating(true)} 
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                신규 등록
-              </Button>
+              <div className="flex gap-2">
+                <GoogleApiSetupGuide 
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      <HelpCircle className="w-4 h-4 mr-2" />
+                      설정 가이드
+                    </Button>
+                  }
+                />
+                <Button 
+                  onClick={() => setIsCreating(true)} 
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  신규 등록
+                </Button>
+              </div>
             </div>
 
             {isLoading ? (
@@ -233,10 +244,22 @@ export function GoogleApiConfigDialog({ type, onSelect, selectedConfigId }: Goog
           {isCreating && (
             <Card>
               <CardHeader>
-                <CardTitle>새 {type === 'drive' ? 'Drive' : 'Sheets'} API 설정 추가</CardTitle>
-                <CardDescription>
-                  Google Cloud Console에서 생성한 OAuth 2.0 클라이언트 정보를 입력하세요.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>새 {type === 'drive' ? 'Drive' : 'Sheets'} API 설정 추가</CardTitle>
+                    <CardDescription>
+                      Google Cloud Console에서 생성한 OAuth 2.0 클라이언트 정보를 입력하세요.
+                    </CardDescription>
+                  </div>
+                  <GoogleApiSetupGuide 
+                    trigger={
+                      <Button variant="outline" size="sm">
+                        <HelpCircle className="w-4 h-4 mr-2" />
+                        도움말
+                      </Button>
+                    }
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <form
@@ -278,6 +301,9 @@ export function GoogleApiConfigDialog({ type, onSelect, selectedConfigId }: Goog
                       required
                       data-testid="input-client-id"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Google Cloud Console → API 및 서비스 → 사용자 인증 정보에서 확인 가능
+                    </p>
                   </div>
 
                   <div>
@@ -290,6 +316,9 @@ export function GoogleApiConfigDialog({ type, onSelect, selectedConfigId }: Goog
                       required
                       data-testid="input-client-secret"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      OAuth 2.0 클라이언트 ID 생성 시 다운로드한 JSON 파일에서 확인
+                    </p>
                   </div>
 
                   <div>
@@ -300,6 +329,9 @@ export function GoogleApiConfigDialog({ type, onSelect, selectedConfigId }: Goog
                       placeholder="AIza..."
                       data-testid="input-api-key"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      추가 보안을 위한 API 키 (선택사항)
+                    </p>
                   </div>
 
                   <div className="flex gap-2">
