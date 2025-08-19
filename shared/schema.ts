@@ -75,10 +75,40 @@ export const dataSources = pgTable('data_sources', {
   status: text('status').notNull().default('disconnected'),
   config: json('config').notNull(),
   connectionDetails: json('connection_details'),
+  credentials: json('credentials').$type<{
+    accessToken?: string;
+    refreshToken?: string;
+    clientId?: string;
+    clientSecret?: string;
+    expiresAt?: string;
+    scope?: string;
+    tokenType?: string;
+  }>(),
   lastSync: timestamp('last_sync'),
   recordCount: integer('record_count').default(0),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Excel Files table for storing uploaded files and their data
+export const excelFiles = pgTable('excel_files', {
+  id: text('id').primaryKey(),
+  dataSourceId: text('data_source_id').references(() => dataSources.id).notNull(),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size'),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+  status: text('status').notNull().default('processing'), // processing, completed, error
+  sheets: json('sheets').$type<Array<{
+    name: string;
+    rowCount: number;
+    columnCount: number;
+    hasHeaders: boolean;
+  }>>().default([]),
+  metadata: json('metadata').$type<{
+    author?: string;
+    lastModified?: string;
+    fileFormat?: string;
+  }>()
 });
 
 // Data Tables (schema information for each data source)
@@ -167,6 +197,7 @@ export const piDrillingOperations = pgTable('pi_drilling_operations', {
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
+export const insertExcelFileSchema = createInsertSchema(excelFiles);
 export const insertSapCustomerSchema = createInsertSchema(sapCustomers);
 export const insertSapOrderSchema = createInsertSchema(sapOrders);
 export const insertSalesforceAccountSchema = createInsertSchema(salesforceAccounts);
@@ -183,3 +214,5 @@ export type DataSource = typeof dataSources.$inferSelect;
 export type InsertDataSource = z.infer<typeof insertDataSourceSchema>;
 export type DataTable = typeof dataTables.$inferSelect;
 export type InsertDataTable = z.infer<typeof insertDataTableSchema>;
+export type ExcelFile = typeof excelFiles.$inferSelect;
+export type InsertExcelFile = z.infer<typeof insertExcelFileSchema>;

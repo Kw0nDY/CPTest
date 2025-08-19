@@ -22,7 +22,7 @@ const systemSources: SystemSource[] = [
   { id: 'salesforce', name: 'Salesforce', type: 'crm', icon: 'Users', color: 'blue', description: 'Customer Platform' },
   { id: 'hubspot', name: 'HubSpot', type: 'crm', icon: 'Handshake', color: 'orange', description: 'Customer Platform' },
   { id: 'mysql', name: 'MySQL', type: 'database', icon: 'Database', color: 'purple', description: 'Database' },
-  { id: 'excel', name: 'Excel/CSV', type: 'file', icon: 'FileSpreadsheet', color: 'red', description: 'File Import' },
+  { id: 'excel', name: 'Microsoft Excel', type: 'file', icon: 'FileSpreadsheet', color: 'green', description: 'OneDrive/SharePoint Excel Files' },
 ];
 
 export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
@@ -34,6 +34,9 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     clientId: '',
     clientSecret: '',
   });
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [excelFiles, setExcelFiles] = useState<any[]>([]);
+  const [showExcelFiles, setShowExcelFiles] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -80,17 +83,102 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const handleSaveConnection = async () => {
     if (!selectedSource) return;
 
-    const data = {
-      ...connectionForm,
-      type: selectedSource.id,
-      status: 'disconnected',
-      credentials: {
-        clientId: connectionForm.clientId,
-        clientSecret: connectionForm.clientSecret,
-      },
-    };
+    if (selectedSource.id === 'excel') {
+      // Handle Microsoft Excel OAuth connection
+      await handleExcelOAuthConnection();
+    } else {
+      const data = {
+        ...connectionForm,
+        type: selectedSource.id,
+        status: 'disconnected',
+        category: selectedSource.type,
+        config: {},
+        credentials: {
+          clientId: connectionForm.clientId,
+          clientSecret: connectionForm.clientSecret,
+        },
+      };
 
-    createDataSourceMutation.mutate(data);
+      createDataSourceMutation.mutate(data);
+    }
+  };
+
+  const handleExcelOAuthConnection = async () => {
+    setIsConnecting(true);
+    try {
+      // Create Excel data source first
+      const dataSourceData = {
+        name: connectionForm.name || 'Microsoft Excel',
+        type: 'excel',
+        category: 'file',
+        config: {},
+        credentials: null,
+        status: 'disconnected'
+      };
+
+      const response = await apiRequest('POST', '/api/data-sources', dataSourceData);
+      const dataSource = await response.json();
+
+      // Get OAuth authorization URL
+      const authResponse = await apiRequest('POST', `/api/data-sources/${dataSource.id}/oauth/authorize`, {
+        clientId: connectionForm.clientId
+      });
+      const authData = await authResponse.json();
+
+      if (authData.authUrl) {
+        // Open Microsoft OAuth popup
+        const popup = window.open(
+          authData.authUrl,
+          'microsoft-oauth',
+          'width=600,height=700,scrollbars=yes,resizable=yes'
+        );
+
+        // Monitor popup for completion
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            setIsConnecting(false);
+            // Refresh data sources to check connection status
+            queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+            toast({ 
+              title: "Microsoft Excel 연결 완료", 
+              description: "Excel 파일 목록을 불러오는 중입니다." 
+            });
+            // Auto-load Excel files after successful connection
+            setTimeout(() => loadExcelFiles(dataSource.id), 2000);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Excel OAuth error:', error);
+      toast({ 
+        title: "연결 실패", 
+        description: "Microsoft Excel 연결에 실패했습니다.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const loadExcelFiles = async (dataSourceId: string) => {
+    try {
+      const response = await apiRequest('GET', `/api/data-sources/${dataSourceId}/excel-files`);
+      const data = await response.json();
+      setExcelFiles(data.files || []);
+      setShowExcelFiles(true);
+      toast({ 
+        title: "Excel 파일 로드 완료", 
+        description: `${data.files?.length || 0}개의 Excel 파일을 찾았습니다.` 
+      });
+    } catch (error) {
+      console.error('Error loading Excel files:', error);
+      toast({ 
+        title: "파일 로드 실패", 
+        description: "Excel 파일을 불러오는데 실패했습니다.", 
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleTestConnection = (id: string) => {
@@ -252,31 +340,121 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="auth-method">Authentication Method</Label>
-                  <Select
-                    value={connectionForm.authMethod}
-                    onValueChange={(value) => setConnectionForm(prev => ({ ...prev, authMethod: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="oauth2">OAuth 2.0</SelectItem>
-                      <SelectItem value="api_token">API Token</SelectItem>
-                      <SelectItem value="basic_auth">Basic Auth</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                {selectedSource.id !== 'excel' && (
                   <div>
-                    <Label htmlFor="client-id">Client ID</Label>
-                    <Input
-                      id="client-id"
-                      value={connectionForm.clientId}
-                      onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
-                      placeholder="Enter client ID"
+                    <Label htmlFor="auth-method">Authentication Method</Label>
+                    <Select
+                      value={connectionForm.authMethod}
+                      onValueChange={(value) => setConnectionForm(prev => ({ ...prev, authMethod: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="oauth2">OAuth 2.0</SelectItem>
+                        <SelectItem value="api_token">API Token</SelectItem>
+                        <SelectItem value="basic_auth">Basic Auth</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedSource.id === 'excel' && (
+                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg border">
+                    <div className="flex items-center space-x-2">
+                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                      <h4 className="font-medium text-blue-900">Microsoft Excel 연결</h4>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Microsoft Graph API를 통해 OneDrive 또는 SharePoint의 Excel 파일에 접근합니다.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="excel-client-id">Microsoft Application Client ID (선택사항)</Label>
+                      <Input
+                        id="excel-client-id"
+                        value={connectionForm.clientId}
+                        onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
+                        placeholder="기본 설정 사용 (비어둘 수 있음)"
+                      />
+                      <p className="text-xs text-gray-600">
+                        사용자 정의 Microsoft 앱을 사용하려면 Client ID를 입력하세요. 비어두면 기본 설정을 사용합니다.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium text-blue-900">연결 후 가능한 작업:</h5>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        <li>• OneDrive의 Excel 파일 목록 조회</li>
+                        <li>• 워크시트 데이터 실시간 읽기</li>
+                        <li>• 셀 범위 데이터 추출</li>
+                        <li>• 자동 토큰 갱신 (Refresh Token)</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {selectedSource.id !== 'excel' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="client-id">Client ID</Label>
+                      <Input
+                        id="client-id"
+                        value={connectionForm.clientId}
+                        onChange={(e) => setConnectionForm(prev => ({ ...prev, clientId: e.target.value }))}
+                        placeholder="Enter client ID"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="client-secret">Client Secret</Label>
+                      <Input
+                        id="client-secret"
+                        type="password"
+                        value={connectionForm.clientSecret}
+                        onChange={(e) => setConnectionForm(prev => ({ ...prev, clientSecret: e.target.value }))}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-3">
+                  {selectedSource.id === 'excel' ? (
+                    <Button 
+                      onClick={handleSaveConnection}
+                      disabled={isConnecting || !connectionForm.name}
+                      className="w-full"
+                      data-testid="button-connect-excel"
+                    >
+                      {isConnecting ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>Microsoft 로그인 중...</span>
+                        </div>
+                      ) : (
+                        'Microsoft Excel 연결'
+                      )}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button 
+                        variant="outline"
+                        disabled={!connectionForm.name || !connectionForm.endpoint}
+                        onClick={() => {
+                          handleSaveConnection();
+                        }}
+                        data-testid="button-test-connection"
+                      >
+                        Test Connection
+                      </Button>
+                      <Button 
+                        onClick={handleSaveConnection}
+                        disabled={createDataSourceMutation.isPending || !connectionForm.name}
+                        data-testid="button-save-connection"
+                      >
+                        {createDataSourceMutation.isPending ? 'Saving...' : 'Save & Continue'}
+                      </Button>
+                    </>
+                  )}
+                </div>
                     />
                   </div>
                   <div>

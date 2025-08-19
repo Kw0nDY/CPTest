@@ -3,6 +3,140 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
 
+// Microsoft Graph API helper functions
+async function exchangeCodeForToken(code: string, dataSourceId: string, req: any) {
+  try {
+    const clientId = process.env.MICROSOFT_CLIENT_ID;
+    const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+    const redirectUri = `${req.protocol}://${req.get('host')}/api/data-sources/${dataSourceId}/oauth/callback`;
+
+    const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+    
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId || '',
+        client_secret: clientSecret || '',
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      return { success: false, error: data.error_description || data.error };
+    }
+
+    const expiresAt = new Date(Date.now() + (data.expires_in * 1000)).toISOString();
+
+    return {
+      success: true,
+      credentials: {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        tokenType: data.token_type,
+        scope: data.scope,
+        expiresAt
+      }
+    };
+  } catch (error) {
+    console.error('Token exchange error:', error);
+    return { success: false, error: 'Failed to exchange authorization code' };
+  }
+}
+
+async function getExcelFilesFromGraph(accessToken: string) {
+  try {
+    // Get files from OneDrive
+    const response = await fetch('https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=endsWith(name,\'.xlsx\') or endsWith(name,\'.xls\')', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Graph API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return data.value.map((file: any) => ({
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModifiedDateTime,
+      downloadUrl: file['@microsoft.graph.downloadUrl'],
+      webUrl: file.webUrl
+    }));
+  } catch (error) {
+    console.error('Error fetching Excel files from Graph:', error);
+    throw error;
+  }
+}
+
+async function getExcelFileData(accessToken: string, fileId: string) {
+  try {
+    // Get workbook metadata
+    const workbookResponse = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/workbook`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!workbookResponse.ok) {
+      throw new Error(`Failed to get workbook: ${workbookResponse.status}`);
+    }
+
+    // Get worksheets
+    const worksheetsResponse = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/workbook/worksheets`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const worksheetsData = await worksheetsResponse.json();
+    
+    const sheets = [];
+    for (const sheet of worksheetsData.value) {
+      // Get sheet data (first 100 rows for preview)
+      const rangeResponse = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/workbook/worksheets/${sheet.id}/range(address='A1:Z100')`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (rangeResponse.ok) {
+        const rangeData = await rangeResponse.json();
+        sheets.push({
+          id: sheet.id,
+          name: sheet.name,
+          data: rangeData.values || [],
+          rowCount: rangeData.rowCount || 0,
+          columnCount: rangeData.columnCount || 0
+        });
+      }
+    }
+
+    return {
+      fileId,
+      sheets,
+      message: `${sheets.length}개의 워크시트를 로드했습니다.`
+    };
+  } catch (error) {
+    console.error('Error fetching Excel file data:', error);
+    throw error;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Views API
   app.get("/api/views", async (req, res) => {
@@ -80,6 +214,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating data source:", error);
       res.status(400).json({ error: "Failed to create data source" });
+    }
+  });
+
+  // Microsoft Excel/OneDrive OAuth 2.0 Integration
+  app.post("/api/data-sources/:id/oauth/authorize", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      
+      if (!dataSource || dataSource.type !== 'excel') {
+        return res.status(404).json({ error: "Excel data source not found" });
+      }
+
+      // Microsoft Graph OAuth 2.0 authorization URL
+      const clientId = req.body.clientId || process.env.MICROSOFT_CLIENT_ID;
+      const redirectUri = req.body.redirectUri || `${req.protocol}://${req.get('host')}/api/data-sources/${id}/oauth/callback`;
+      const scope = 'Files.Read Files.Read.All Sites.Read.All User.Read offline_access';
+      
+      const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+        `client_id=${clientId}&` +
+        `response_type=code&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=${encodeURIComponent(scope)}&` +
+        `response_mode=query&` +
+        `state=${id}`;
+
+      res.json({ 
+        authUrl,
+        message: "Microsoft 계정으로 로그인하여 Excel 파일에 접근 권한을 부여하세요.",
+        clientId,
+        scope
+      });
+    } catch (error) {
+      console.error("Error generating OAuth URL:", error);
+      res.status(500).json({ error: "Failed to generate authorization URL" });
+    }
+  });
+
+  app.get("/api/data-sources/:id/oauth/callback", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { code, state, error } = req.query;
+
+      if (error) {
+        return res.status(400).json({ error: `OAuth error: ${error}` });
+      }
+
+      if (state !== id) {
+        return res.status(400).json({ error: "Invalid state parameter" });
+      }
+
+      const dataSource = await storage.getDataSource(id);
+      if (!dataSource) {
+        return res.status(404).json({ error: "Data source not found" });
+      }
+
+      // Exchange authorization code for access token
+      const tokenResponse = await exchangeCodeForToken(code as string, id, req);
+      
+      if (tokenResponse.success && tokenResponse.credentials) {
+        // Update data source with credentials
+        await storage.updateDataSource(id, {
+          status: 'connected',
+          credentials: tokenResponse.credentials,
+          lastSync: new Date()
+        });
+
+        res.json({
+          success: true,
+          message: "Microsoft Excel 연결이 성공적으로 완료되었습니다.",
+          expiresAt: tokenResponse.credentials.expiresAt
+        });
+      } else {
+        res.status(400).json({ error: tokenResponse.error });
+      }
+    } catch (error) {
+      console.error("Error in OAuth callback:", error);
+      res.status(500).json({ error: "Failed to complete OAuth flow" });
+    }
+  });
+
+  // Get Excel files from OneDrive/SharePoint
+  app.get("/api/data-sources/:id/excel-files", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      
+      if (!dataSource || dataSource.type !== 'excel') {
+        return res.status(404).json({ error: "Excel data source not found" });
+      }
+
+      if (dataSource.status !== 'connected' || !dataSource.credentials?.accessToken) {
+        return res.status(401).json({ error: "Data source not connected. Please authorize first." });
+      }
+
+      // Get files from Microsoft Graph API
+      const files = await getExcelFilesFromGraph(dataSource.credentials.accessToken!);
+      
+      res.json({
+        files,
+        message: `${files.length}개의 Excel 파일을 찾았습니다.`
+      });
+    } catch (error) {
+      console.error("Error fetching Excel files:", error);
+      res.status(500).json({ error: "Failed to fetch Excel files" });
+    }
+  });
+
+  // Get specific Excel file data
+  app.get("/api/data-sources/:id/excel-files/:fileId", async (req, res) => {
+    try {
+      const { id, fileId } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      
+      if (!dataSource || dataSource.status !== 'connected') {
+        return res.status(401).json({ error: "Data source not connected" });
+      }
+
+      const fileData = await getExcelFileData(dataSource.credentials?.accessToken!, fileId);
+      
+      res.json(fileData);
+    } catch (error) {
+      console.error("Error fetching Excel file data:", error);
+      res.status(500).json({ error: "Failed to fetch Excel file data" });
     }
   });
 

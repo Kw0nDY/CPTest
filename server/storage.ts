@@ -1,7 +1,7 @@
 import { 
-  users, views, dataSources, dataTables, sapCustomers, sapOrders, 
+  users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations,
-  type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource 
+  type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, type ExcelFile, type InsertExcelFile
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -23,8 +23,13 @@ export interface IStorage {
   getDataSources(): Promise<DataSource[]>;
   getDataSource(id: string): Promise<DataSource | undefined>;
   createDataSource(dataSource: any): Promise<DataSource>;
+  updateDataSource(id: string, updates: Partial<DataSource>): Promise<DataSource>;
   getDataSourceTables(dataSourceId: string): Promise<any[]>;
   getTableData(dataSourceId: string, tableName: string): Promise<any[]>;
+  
+  // Excel Files methods
+  getExcelFiles(dataSourceId: string): Promise<ExcelFile[]>;
+  createExcelFile(excelFile: InsertExcelFile): Promise<ExcelFile>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -60,7 +65,7 @@ export class DatabaseStorage implements IStorage {
   async createView(insertView: InsertView): Promise<View> {
     const [view] = await db
       .insert(views)
-      .values(insertView)
+      .values([insertView])
       .returning();
     return view;
   }
@@ -195,6 +200,30 @@ export class DatabaseStorage implements IStorage {
     };
 
     return tableSchemas[dataSourceId as keyof typeof tableSchemas] || [];
+  }
+
+  async updateDataSource(id: string, updates: Partial<DataSource>): Promise<DataSource> {
+    const [dataSource] = await db
+      .update(dataSources)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(dataSources.id, id))
+      .returning();
+    return dataSource;
+  }
+
+  async getExcelFiles(dataSourceId: string): Promise<ExcelFile[]> {
+    return await db.select().from(excelFiles).where(eq(excelFiles.dataSourceId, dataSourceId));
+  }
+
+  async createExcelFile(excelFile: InsertExcelFile): Promise<ExcelFile> {
+    const [created] = await db
+      .insert(excelFiles)
+      .values([excelFile])
+      .returning();
+    return created;
   }
 
   async getTableData(dataSourceId: string, tableName: string): Promise<any[]> {
