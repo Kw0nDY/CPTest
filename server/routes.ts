@@ -312,7 +312,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/google-sheets/auth", async (req, res) => {
     try {
       const clientId = process.env.GOOGLE_CLIENT_ID;
-      const redirectUri = `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`;
+      // Use environment variable if available, otherwise use dynamic URI
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`;
       const scope = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
       
       // Log the redirect URI for debugging
@@ -363,7 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: code as string,
           client_id: process.env.GOOGLE_CLIENT_ID!,
           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-          redirect_uri: `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`,
+          redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`,
           grant_type: 'authorization_code'
         })
       });
