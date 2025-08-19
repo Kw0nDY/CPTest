@@ -62,7 +62,7 @@ interface AvailableDataSource {
   id: string;
   name: string;
   type: string;
-  category: 'scm' | 'qms' | 'plm' | 'mes' | 'erp' | 'crm';
+  category: 'scm' | 'qms' | 'plm' | 'mes' | 'erp' | 'crm' | 'file';
   description: string;
   vendor: string;
   features: string[];
@@ -149,6 +149,15 @@ const availableDataSources: AvailableDataSource[] = [
     description: 'Industrial data historian for real-time process monitoring and asset performance tracking',
     vendor: 'AVEVA',
     features: ['Real-time data streaming', 'Time-series database', 'Asset Framework', 'Event monitoring', 'PI Vision dashboards']
+  },
+  {
+    id: 'microsoft-excel',
+    name: 'Microsoft Excel',
+    type: 'OAuth 2.0',
+    category: 'file',
+    description: 'OneDrive and SharePoint Excel files with real-time data access',
+    vendor: 'Microsoft',
+    features: ['OAuth 2.0 authentication', 'OneDrive integration', 'SharePoint access', 'Real-time data sync', 'Multiple worksheets']
   }
 ];
 
@@ -158,7 +167,8 @@ const categoryLabels = {
   plm: 'Product Lifecycle',
   mes: 'Manufacturing Execution',
   erp: 'Enterprise Resource Planning',
-  crm: 'Customer Relationship'
+  crm: 'Customer Relationship',
+  file: 'File Systems'
 };
 
 export default function DataIntegrationTab() {
@@ -427,27 +437,85 @@ export default function DataIntegrationTab() {
     });
   }, [searchTerm, selectedCategory]);
 
-  const handleConnect = (dataSource: AvailableDataSource) => {
-    setSelectedDataSource(dataSource);
-    // Set PI-specific default configuration
-    if (dataSource.id === 'aveva-pi') {
-      setConnectionConfig({
-        host: 'pi-server.company.com',
-        port: '443',
-        database: 'DFPIAF',
-        username: 'pi_service',
-        password: ''
-      });
+  const handleConnect = async (dataSource: AvailableDataSource) => {
+    if (dataSource.id === 'microsoft-excel') {
+      // Handle Microsoft Excel OAuth connection
+      await handleExcelOAuthConnection(dataSource);
     } else {
-      setConnectionConfig({
-        host: '',
-        port: '',
-        database: '',
-        username: '',
-        password: ''
+      // Handle regular database connections
+      setSelectedDataSource(dataSource);
+      // Set PI-specific default configuration
+      if (dataSource.id === 'aveva-pi') {
+        setConnectionConfig({
+          host: 'pi-server.company.com',
+          port: '443',
+          database: 'DFPIAF',
+          username: 'pi_service',
+          password: ''
+        });
+      } else {
+        setConnectionConfig({
+          host: '',
+          port: '',
+          database: '',
+          username: '',
+          password: ''
+        });
+      }
+      setShowConnectionDialog(true);
+    }
+  };
+
+  const handleExcelOAuthConnection = async (dataSource: AvailableDataSource) => {
+    try {
+      // Create Excel data source first
+      const dataSourceData = {
+        name: dataSource.name,
+        type: 'excel',
+        category: 'file',
+        config: {},
+        credentials: null,
+        status: 'disconnected'
+      };
+
+      const response = await apiRequest('/api/data-sources', 'POST', dataSourceData);
+      const createdDataSource = await response.json();
+
+      // Get OAuth authorization URL
+      const authResponse = await apiRequest(`/api/data-sources/${createdDataSource.id}/oauth/authorize`, 'POST', {
+        clientId: ''  // Use default client ID
+      });
+      const authData = await authResponse.json();
+
+      if (authData.authUrl) {
+        // Open Microsoft OAuth popup
+        const popup = window.open(
+          authData.authUrl,
+          'microsoft-oauth',
+          'width=600,height=700,scrollbars=yes,resizable=yes'
+        );
+
+        // Monitor popup for completion
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            // Refresh data sources to check connection status
+            queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+            toast({ 
+              title: "Microsoft Excel 연결 완료", 
+              description: "OneDrive Excel 파일에 성공적으로 연결되었습니다." 
+            });
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Excel OAuth error:', error);
+      toast({ 
+        title: "연결 실패", 
+        description: "Microsoft Excel 연결에 실패했습니다.", 
+        variant: "destructive" 
       });
     }
-    setShowConnectionDialog(true);
   };
 
   const handleSaveConnection = () => {
