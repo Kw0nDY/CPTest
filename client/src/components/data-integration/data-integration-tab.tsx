@@ -517,7 +517,7 @@ export default function DataIntegrationTab() {
         },
         credentials: null,
         status: 'connected',
-        recordCount: processedData ? Object.values(processedData.recordCounts).reduce((a: number, b: number) => a + b, 0) : 0
+        recordCount: processedData ? Object.values(processedData.recordCounts).reduce((a: number, b: any) => a + (Number(b) || 0), 0) : 0
       };
 
       const response = await apiRequest('POST', '/api/data-sources', dataSourceData);

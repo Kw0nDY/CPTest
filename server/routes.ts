@@ -295,25 +295,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add default dataSchema and sampleData for mock sources that don't have it
       const enhancedDataSources = dataSources.map(ds => {
-        let dataSchema = ds.dataSchema;
-        let sampleData = ds.sampleData;
+        let dataSchema = ds.dataSchema || [];
+        let sampleData = ds.sampleData || {};
         
-        // For Excel sources, try to get data from config
-        if (ds.type === 'Excel' && ds.config) {
+        // For Excel sources, ALWAYS use data from config first
+        if ((ds.type === 'Excel' || ds.type === 'excel') && ds.config) {
           const config = ds.config as any;
-          if (config.dataSchema) {
+          if (config.dataSchema && config.dataSchema.length > 0) {
             dataSchema = config.dataSchema;
           }
-          if (config.sampleData) {
+          if (config.sampleData && Object.keys(config.sampleData).length > 0) {
             sampleData = config.sampleData;
           }
         }
         
-        // Fallback to defaults if still not found
-        if (!dataSchema) {
+        // Fallback to defaults only if still empty AND not Excel type
+        if ((!dataSchema || dataSchema.length === 0) && ds.type !== 'Excel' && ds.type !== 'excel') {
           dataSchema = getDefaultDataSchema(ds.type, ds.id);
         }
-        if (!sampleData) {
+        if ((!sampleData || Object.keys(sampleData).length === 0) && ds.type !== 'Excel' && ds.type !== 'excel') {
           sampleData = getDefaultSampleData(ds.type, ds.id);
         }
         
