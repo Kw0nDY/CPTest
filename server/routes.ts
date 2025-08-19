@@ -461,6 +461,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // List Google Sheets
   app.get("/api/google-sheets/list", async (req, res) => {
     try {
+      // Prevent caching
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.set('Expires', '0');
+      
+      console.log('=== NEW GOOGLE SHEETS REQUEST ===');
+      console.log('Timestamp:', new Date().toISOString());
       console.log('Checking session for Google tokens...', {
         hasSession: !!req.session,
         hasTokens: !!req.session?.googleTokens
