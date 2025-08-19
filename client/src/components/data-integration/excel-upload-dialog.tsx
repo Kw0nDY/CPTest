@@ -282,8 +282,8 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
 
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Process actual Excel file
-      const processedData = await processExcelFile(file);
+      // Simulate Excel processing and data extraction
+      const processedData = await simulateExcelProcessing(file);
       
       setUploadedFiles(prev => 
         prev.map(f => f.name === file.name ? { 
