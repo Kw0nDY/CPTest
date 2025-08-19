@@ -1,5 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
+import session from "express-session";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
@@ -250,6 +251,17 @@ async function getExcelFileData(accessToken: string, fileId: string) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Session middleware
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-session-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+      secure: false, // Set to true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+
   // Views API
   app.get("/api/views", async (req, res) => {
     try {
@@ -382,6 +394,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Store tokens in session
+      console.log('Storing Google tokens in session...', {
+        hasAccessToken: !!tokenData.access_token,
+        expiresIn: tokenData.expires_in,
+        expiresAt: Date.now() + (tokenData.expires_in * 1000)
+      });
+      
       req.session = req.session || {};
       req.session.googleTokens = {
         access_token: tokenData.access_token,
@@ -389,6 +407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expires_in: tokenData.expires_in,
         expires_at: Date.now() + (tokenData.expires_in * 1000)
       };
+      
+      console.log('Session tokens stored successfully');
 
       // Get user account info
       const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -441,6 +461,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // List Google Sheets
   app.get("/api/google-sheets/list", async (req, res) => {
     try {
+      console.log('Checking session for Google tokens...', {
+        hasSession: !!req.session,
+        hasTokens: !!req.session?.googleTokens
+      });
+      
       if (!req.session?.googleTokens) {
         return res.status(401).json({ error: "Not authenticated with Google" });
       }
