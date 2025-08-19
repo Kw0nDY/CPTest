@@ -98,6 +98,25 @@ export class DatabaseStorage implements IStorage {
 
   async createDataSource(dataSource: any): Promise<DataSource> {
     const newId = `ds-${Date.now()}`;
+    
+    // Extract dataSchema and sampleData from config for Excel sources
+    let finalConfig = dataSource.config;
+    let dataSchema = undefined;
+    let sampleData = undefined;
+    
+    if (dataSource.type === 'Excel' && dataSource.config) {
+      dataSchema = dataSource.config.dataSchema;
+      sampleData = dataSource.config.sampleData;
+      // Remove from config to avoid duplication
+      finalConfig = {
+        ...dataSource.config,
+        dataSchema: undefined,
+        sampleData: undefined
+      };
+      delete finalConfig.dataSchema;
+      delete finalConfig.sampleData;
+    }
+    
     const [created] = await db
       .insert(dataSources)
       .values({
@@ -107,12 +126,22 @@ export class DatabaseStorage implements IStorage {
         category: dataSource.category,
         vendor: dataSource.vendor || null,
         status: 'connected',
-        config: dataSource.config,
+        config: finalConfig,
         connectionDetails: dataSource.connectionDetails || {},
         lastSync: new Date(),
         recordCount: dataSource.recordCount || 0
       })
       .returning();
+      
+    // Add dataSchema and sampleData as separate fields for Excel sources
+    if (dataSchema && sampleData) {
+      return {
+        ...created,
+        dataSchema,
+        sampleData
+      };
+    }
+      
     return created;
   }
 

@@ -61,6 +61,40 @@ function getDefaultDataSchema(type: string, id: string) {
   return defaultSchemas[id] || defaultSchemas[type] || [];
 }
 
+// Default sample data for mock data sources
+function getDefaultSampleData(type: string, id: string) {
+  const defaultSampleData: Record<string, any> = {
+    'sap-erp': {
+      'CUSTOMERS': [
+        { customer_id: 'CUST001', customer_name: 'Acme Manufacturing Co.', country: 'USA', credit_limit: 500000, created_date: '2023-03-15' },
+        { customer_id: 'CUST002', customer_name: 'Global Tech Solutions', country: 'Germany', credit_limit: 750000, created_date: '2023-01-08' },
+        { customer_id: 'CUST003', customer_name: 'Innovation Ltd.', country: 'UK', credit_limit: 300000, created_date: '2023-05-22' }
+      ],
+      'ORDERS': [
+        { order_id: 'ORD001', customer_id: 'CUST001', order_date: '2024-01-15', total_amount: 25000, status: 'Completed' },
+        { order_id: 'ORD002', customer_id: 'CUST002', order_date: '2024-01-16', total_amount: 42000, status: 'Processing' },
+        { order_id: 'ORD003', customer_id: 'CUST003', order_date: '2024-01-17', total_amount: 18000, status: 'Shipped' }
+      ]
+    },
+    'salesforce-crm': {
+      'ACCOUNTS': [
+        { sf_id: 'SF001', name: 'Enterprise Corp', industry: 'Technology', annual_revenue: 5000000, number_of_employees: 250 },
+        { sf_id: 'SF002', name: 'Global Manufacturing', industry: 'Manufacturing', annual_revenue: 12000000, number_of_employees: 800 },
+        { sf_id: 'SF003', name: 'Digital Solutions Inc', industry: 'Software', annual_revenue: 3500000, number_of_employees: 150 }
+      ]
+    },
+    'aveva-pi': {
+      'ASSET_HIERARCHY': [
+        { asset_name: 'Drilling Platform Alpha', asset_path: '/Oil_Gas/Offshore/Platform_Alpha', asset_type: 'Drilling Platform', location: 'North Sea', operational_status: 'Active' },
+        { asset_name: 'Production Unit Beta', asset_path: '/Oil_Gas/Onshore/Unit_Beta', asset_type: 'Production Unit', location: 'Texas', operational_status: 'Active' },
+        { asset_name: 'Refinery Gamma', asset_path: '/Oil_Gas/Refinery/Gamma', asset_type: 'Refinery', location: 'Louisiana', operational_status: 'Maintenance' }
+      ]
+    }
+  };
+
+  return defaultSampleData[id] || defaultSampleData[type] || {};
+}
+
 // Microsoft Graph API helper functions
 async function exchangeCodeForToken(code: string, dataSourceId: string, req: any) {
   try {
@@ -259,10 +293,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const dataSources = await storage.getDataSources();
       
-      // Add default dataSchema for mock sources that don't have it
+      // Add default dataSchema and sampleData for mock sources that don't have it
       const enhancedDataSources = dataSources.map(ds => ({
         ...ds,
-        dataSchema: ds.dataSchema || getDefaultDataSchema(ds.type, ds.id)
+        dataSchema: ds.dataSchema || getDefaultDataSchema(ds.type, ds.id),
+        sampleData: ds.sampleData || getDefaultSampleData(ds.type, ds.id)
       }));
       
       res.json(enhancedDataSources);

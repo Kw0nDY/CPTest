@@ -474,11 +474,25 @@ export default function DataIntegrationTab() {
       const firstFile = connectionData.files[0];
       const processedData = firstFile.processedData;
       
+      // Check if Excel data source with this name already exists
+      const existingDataSources = dataSources || [];
+      const fileName = firstFile.name.replace(/\.[^/.]+$/, '');
+      const existingExcel = existingDataSources.find(ds => 
+        ds.type === 'Excel' && ds.name === fileName
+      );
+      
+      if (existingExcel) {
+        toast({ 
+          title: "이미 연결됨", 
+          description: `${fileName}은 이미 연결된 파일입니다.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+      
       // Create comprehensive Excel data source with real data structure
       const dataSourceData = {
-        name: connectionData.files.length === 1 ? 
-          firstFile.name.replace(/\.[^/.]+$/, '') : 
-          `Excel Files (${connectionData.files.length} files)`,
+        name: connectionData.files.length === 1 ? fileName : `Excel Files (${connectionData.files.length} files)`,
         type: 'Excel',
         category: 'file',
         vendor: 'Microsoft',
@@ -487,7 +501,14 @@ export default function DataIntegrationTab() {
             name: file.name,
             worksheets: file.worksheets,
             url: file.url
-          }))
+          })),
+          dataSchema: processedData ? Object.entries(processedData.schema).map(([tableName, fields]) => ({
+            table: tableName,
+            fields: fields,
+            recordCount: processedData.recordCounts[tableName] || 0,
+            lastUpdated: new Date().toISOString()
+          })) : [],
+          sampleData: processedData ? processedData.sampleData : {}
         },
         connectionDetails: {
           server: 'Local Upload',
@@ -496,21 +517,7 @@ export default function DataIntegrationTab() {
         },
         credentials: null,
         status: 'connected',
-        recordCount: processedData ? Object.values(processedData.recordCounts).reduce((a: number, b: number) => a + b, 0) : 0,
-        dataSchema: processedData ? Object.entries(processedData.schema).map(([tableName, fields]) => ({
-          table: tableName,
-          fields: fields,
-          recordCount: processedData.recordCounts[tableName] || 0,
-          lastUpdated: new Date().toISOString()
-        })) : [],
-        sampleData: processedData ? processedData.sampleData : {}
-      };
-
-      // Update config to include the processed data for server storage
-      dataSourceData.config = {
-        ...dataSourceData.config,
-        dataSchema: dataSourceData.dataSchema,
-        sampleData: dataSourceData.sampleData
+        recordCount: processedData ? Object.values(processedData.recordCounts).reduce((a: number, b: number) => a + b, 0) : 0
       };
 
       const response = await apiRequest('POST', '/api/data-sources', dataSourceData);
@@ -522,6 +529,9 @@ export default function DataIntegrationTab() {
         title: "Excel 파일 연결 완료", 
         description: `${connectionData.files.length}개의 Excel 파일이 성공적으로 연결되었습니다.` 
       });
+      
+      // Close the dialog
+      setShowExcelUploadDialog(false);
     } catch (error) {
       console.error('Excel connection error:', error);
       toast({ 
@@ -966,9 +976,9 @@ export default function DataIntegrationTab() {
                           <SelectValue placeholder="Select a table" />
                         </SelectTrigger>
                         <SelectContent>
-                          {selectedDetailSource.dataSchema.map((schema) => (
+                          {(selectedDetailSource.dataSchema || []).map((schema) => (
                             <SelectItem key={schema.table} value={schema.table}>
-                              {schema.table} ({schema.recordCount.toLocaleString()} records)
+                              {schema.table} ({schema.recordCount?.toLocaleString() || 0} records)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -977,7 +987,7 @@ export default function DataIntegrationTab() {
 
                     {selectedTable && (() => {
                       const currentSchema = selectedDetailSource.dataSchema.find(s => s.table === selectedTable);
-                      const sampleData = selectedDetailSource.sampleData[selectedTable] || [];
+                      const sampleData = selectedDetailSource.sampleData?.[selectedTable] || [];
                       
                       return (
                         <div className="space-y-4">
