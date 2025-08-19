@@ -473,14 +473,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       if (!req.session?.googleTokens) {
-        return res.status(401).json({ error: "Not authenticated with Google" });
+        // Instead of returning error, return empty list with manual input option
+        return res.status(200).json({ 
+          success: true,
+          sheets: [],
+          error: "Google 계정이 연결되지 않았습니다.",
+          helpMessage: "직접 Google Sheets URL을 입력하여 연결할 수 있습니다.",
+          needsManualInput: true
+        });
       }
 
       const tokens = req.session.googleTokens;
       
       // Check if token is expired
       if (Date.now() > tokens.expires_at) {
-        return res.status(401).json({ error: "Token expired, please re-authenticate" });
+        return res.status(200).json({ 
+          success: true,
+          sheets: [],
+          error: "Google 토큰이 만료되었습니다.",
+          helpMessage: "직접 Google Sheets URL을 입력하여 연결할 수 있습니다.",
+          needsManualInput: true
+        });
       }
 
       // Try to use Google Drive API to list spreadsheets
@@ -504,11 +517,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (driveData.error) {
           console.error('Google Drive API Error:', driveData.error);
           
-          // Return helpful error message with instructions
-          return res.status(400).json({ 
-            error: "Google Drive API가 활성화되지 않았습니다. Google Cloud Console에서 Google Drive API를 활성화하거나, 직접 Google Sheets URL을 제공해주세요.",
-            helpMessage: "1. Google Cloud Console에서 Google Drive API 활성화\n2. 또는 '직접 URL 추가' 옵션 사용",
-            needsDriveApi: true
+          // Return helpful error message with fallback option
+          return res.status(200).json({ 
+            success: true,
+            sheets: [],
+            error: "Google Sheets API가 비활성화되어 있습니다.",
+            helpMessage: "직접 Google Sheets URL을 입력하여 연결할 수 있습니다.",
+            needsManualInput: true
           });
         }
 
@@ -599,6 +614,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error listing Google Sheets:", error);
       res.status(500).json({ error: "Failed to list Google Sheets" });
+    }
+  });
+
+  // Add manual Google Sheets URL
+  app.post("/api/google-sheets/add-manual", async (req, res) => {
+    try {
+      const { url, name } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      // Extract spreadsheet ID from URL
+      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (!match) {
+        return res.status(400).json({ error: "Invalid Google Sheets URL" });
+      }
+      
+      const spreadsheetId = match[1];
+      const sheetName = name || `Google Sheet (${spreadsheetId.substring(0, 8)}...)`;
+      
+      // Create a manual sheet entry
+      const manualSheet = {
+        id: spreadsheetId,
+        name: sheetName,
+        url: url,
+        sheets: ['Sheet1'], // Default sheet name
+        lastModified: new Date().toISOString(),
+        source: 'manual'
+      };
+      
+      res.json({
+        success: true,
+        sheet: manualSheet,
+        message: "Google Sheets URL이 성공적으로 추가되었습니다."
+      });
+    } catch (error) {
+      console.error("Error adding manual Google Sheets URL:", error);
+      res.status(500).json({ error: "Failed to add Google Sheets URL" });
     }
   });
 

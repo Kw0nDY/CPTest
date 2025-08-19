@@ -155,29 +155,40 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       const result = await response.json();
       
       if (result.success) {
-        setSheets(result.sheets);
+        setSheets(result.sheets || []);
+        
+        // If API has issues or no sheets found, enable manual input
+        if (result.needsManualInput || result.error || result.sheets.length === 0) {
+          setShowUrlInput(true);
+          toast({
+            title: "직접 URL 입력 가능",
+            description: result.helpMessage || "Google Sheets URL을 직접 입력하여 연결할 수 있습니다.",
+            variant: "default"
+          });
+        }
       } else if (result.needsDriveApi) {
-        // Show specific error for Drive API issue
+        setShowUrlInput(true);
         toast({
-          title: "Google Drive API 필요",
-          description: result.error + " " + (result.helpMessage || ""),
+          title: "API 제한",
+          description: "Google Sheets API가 제한되어 있습니다. 직접 URL을 입력해주세요.",
           variant: "destructive"
         });
       }
     } catch (error: any) {
       console.error('Failed to load sheets:', error);
+      setShowUrlInput(true);
       
-      let description = "Google Sheets 목록을 불러올 수 없습니다.";
+      let description = "Google Sheets API 연결이 실패했습니다. 직접 URL을 입력하여 연결할 수 있습니다.";
       
       // Handle specific API error responses
       if (error.error && error.needsDriveApi) {
-        description = error.error + "\n\n해결방법:\n1. Google Cloud Console에서 Google Drive API 활성화\n2. 또는 직접 Google Sheets URL 제공";
+        description = "Google Sheets API가 비활성화되어 있습니다. 직접 URL을 입력해주세요.";
       } else if (error.message) {
-        description = error.message;
+        description = `${error.message} 직접 URL을 입력하여 연결할 수 있습니다.`;
       }
       
       toast({
-        title: "시트 로딩 실패", 
+        title: "API 연결 실패", 
         description: description,
         variant: "destructive"
       });
@@ -240,15 +251,22 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
   };
 
   const handleManualUrlAdd = async () => {
-    if (!manualUrl.trim()) return;
+    if (!manualUrl.trim()) {
+      toast({
+        title: "URL 필요",
+        description: "Google Sheets URL을 입력해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     try {
-      // Extract spreadsheet ID from URL
+      // Check URL format first
       const match = manualUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       if (!match) {
         toast({
           title: "잘못된 URL",
-          description: "올바른 Google Sheets URL을 입력해주세요.",
+          description: "올바른 Google Sheets URL을 입력해주세요. 예: https://docs.google.com/spreadsheets/d/[ID]/edit",
           variant: "destructive"
         });
         return;
@@ -256,29 +274,43 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       
       const spreadsheetId = match[1];
       
-      // Add mock sheet for now (since we can't access actual sheet without Drive API)
+      // Check if already exists
+      const existingSheet = sheets.find(s => s.id === spreadsheetId);
+      if (existingSheet) {
+        toast({
+          title: "이미 추가됨",
+          description: "이 Google Sheets는 이미 목록에 있습니다.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Try to extract name from URL or use default
+      let sheetName = `Google Sheet (${spreadsheetId.substring(0, 8)}...)`;
+      
+      // Add the sheet to the list immediately
       const newSheet: GoogleSheet = {
         id: spreadsheetId,
-        name: "수동 추가 시트",
+        name: sheetName,
         url: manualUrl,
         sheets: ["Sheet1"], // Default sheet name
         lastModified: new Date().toISOString()
       };
       
       setSheets(prev => [...prev, newSheet]);
+      setSelectedSheets(prev => [...prev, spreadsheetId]); // Auto-select the new sheet
       setManualUrl("");
-      setShowUrlInput(false);
       
       toast({
         title: "시트 추가 완료",
-        description: "Google Sheets가 목록에 추가되었습니다.",
+        description: "Google Sheets가 목록에 추가되고 선택되었습니다.",
       });
       
     } catch (error) {
       console.error('Error adding manual URL:', error);
       toast({
         title: "시트 추가 실패",
-        description: "시트를 추가할 수 없습니다.",
+        description: "Google Sheets URL을 추가할 수 없습니다.",
         variant: "destructive"
       });
     }
