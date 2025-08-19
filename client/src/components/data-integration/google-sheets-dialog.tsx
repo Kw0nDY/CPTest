@@ -268,10 +268,15 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
     onToggle: () => void;
   }) => {
     const [showPreview, setShowPreview] = useState(false);
+    const [selectedWorksheet, setSelectedWorksheet] = useState(sheet.sheets[0] || '');
     
     const { data: previewData, isLoading: isLoadingPreview } = useQuery({
-      queryKey: ['/api/google-sheets', sheet.id, 'data'],
-      enabled: showPreview && authStatus === 'authorized',
+      queryKey: ['/api/google-sheets', sheet.id, 'data', selectedWorksheet],
+      queryFn: async () => {
+        const response = await apiRequest('GET', `/api/google-sheets/${sheet.id}/data?sheetName=${encodeURIComponent(selectedWorksheet)}`);
+        return response.json();
+      },
+      enabled: showPreview && authStatus === 'authorized' && selectedWorksheet.length > 0,
       retry: false
     });
     
@@ -293,7 +298,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{sheet.name}</p>
                 <p className="text-sm text-gray-600">
-                  수정일: {new Date(sheet.lastModified).toLocaleDateString()}
+                  {sheet.sheets.length}개 워크시트 • 수정일: {new Date(sheet.lastModified).toLocaleDateString()}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -323,7 +328,26 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
             
             {/* Data Preview */}
             {showPreview && (
-              <div className="border-t pt-3">
+              <div className="border-t pt-3 space-y-3">
+                {/* Worksheet Selection */}
+                {sheet.sheets.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">워크시트:</Label>
+                    <select 
+                      value={selectedWorksheet}
+                      onChange={(e) => setSelectedWorksheet(e.target.value)}
+                      className="text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+                    >
+                      {sheet.sheets.map((worksheetName) => (
+                        <option key={worksheetName} value={worksheetName}>
+                          {worksheetName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                {/* Preview Data */}
                 {isLoadingPreview ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -332,7 +356,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 ) : previewData?.success ? (
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-gray-700">
-                      데이터 미리보기 ({previewData.data.totalRows}행)
+                      "{selectedWorksheet}" 데이터 미리보기 ({previewData.data.totalRows}행)
                     </div>
                     <div className="bg-gray-50 rounded-md p-3 max-h-48 overflow-auto">
                       <table className="w-full text-xs">
@@ -378,7 +402,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                     <AlertCircle className="w-4 h-4 mx-auto mb-1" />
                     미리보기를 불러올 수 없습니다
                     <div className="text-xs text-gray-500 mt-1">
-                      Google Sheets API가 비활성화되어 있을 수 있습니다
+                      {previewData?.error || "데이터를 불러오는 중 오류가 발생했습니다"}
                     </div>
                   </div>
                 )}

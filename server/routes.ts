@@ -628,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/google-sheets/:sheetId/data", async (req, res) => {
     try {
       const { sheetId } = req.params;
-      const { sheetName = "Sheet1" } = req.query;
+      const { sheetName } = req.query;
       
       if (!req.session?.googleTokens) {
         return res.status(401).json({ error: "Not authenticated with Google" });
@@ -659,8 +659,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const sheets = google.sheets({ version: 'v4', auth });
         
-        // Get the data from the specified sheet
-        const range = `${sheetName}!A1:Z100`; // Get first 100 rows and columns A-Z
+        // First, get the spreadsheet metadata to find actual sheet names
+        const spreadsheetResponse = await sheets.spreadsheets.get({
+          spreadsheetId: sheetId
+        });
+        
+        const availableSheets = spreadsheetResponse.data.sheets?.map(s => s.properties?.title) || [];
+        console.log(`Available sheets in ${sheetId}:`, availableSheets);
+        
+        // Use the provided sheet name, or default to the first available sheet
+        const targetSheetName = sheetName || availableSheets[0];
+        
+        if (!targetSheetName) {
+          return res.json({
+            success: false,
+            error: "시트에 워크시트가 없습니다.",
+            availableSheets
+          });
+        }
+        
+        console.log(`Fetching data from sheet: "${targetSheetName}"`);
+        
+        // Get the data from the specified sheet with proper escaping for sheet names with special characters
+        const range = `'${targetSheetName}'!A1:Z100`; // Get first 100 rows and columns A-Z
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: sheetId,
           range: range,
