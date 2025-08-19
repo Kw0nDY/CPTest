@@ -514,49 +514,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Get sheet info for each spreadsheet
         console.log(`Processing ${driveData.files.length} spreadsheets...`);
-        const sheets = await Promise.all(
-          driveData.files.map(async (file: any) => {
-            try {
-              console.log(`Fetching worksheets for: ${file.name} (ID: ${file.id})`);
-              const sheetsResponse = await fetch(
-                `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${tokens.access_token}`
+        
+        let sheets: any[] = [];
+        try {
+          sheets = await Promise.all(
+            driveData.files.map(async (file: any) => {
+              try {
+                console.log(`Fetching worksheets for: ${file.name} (ID: ${file.id})`);
+                const sheetsResponse = await fetch(
+                  `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${tokens.access_token}`
+                    }
                   }
+                );
+                
+                console.log(`Sheets API response status for ${file.name}: ${sheetsResponse.status}`);
+                
+                if (!sheetsResponse.ok) {
+                  const errorText = await sheetsResponse.text();
+                  console.error(`Sheets API error for ${file.name}:`, errorText);
+                  throw new Error(`HTTP ${sheetsResponse.status}: ${errorText}`);
                 }
-              );
-              
-              console.log(`Sheets API response status for ${file.name}: ${sheetsResponse.status}`);
-              
-              const sheetsData = await sheetsResponse.json();
-              console.log(`Sheets data for ${file.name}:`, JSON.stringify(sheetsData, null, 2));
-              
-              const worksheetNames = sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [];
-              console.log(`Worksheets found in ${file.name}:`, worksheetNames);
-              
-              const result = {
-                id: file.id,
-                name: file.name,
-                url: file.webViewLink,
-                sheets: worksheetNames,
-                lastModified: file.modifiedTime
-              };
-              
-              console.log(`Final sheet object for ${file.name}:`, result);
-              return result;
-            } catch (error) {
-              console.error(`Error fetching sheets for ${file.name}:`, error);
-              return {
-                id: file.id,
-                name: file.name,
-                url: file.webViewLink,
-                sheets: [],
-                lastModified: file.modifiedTime
-              };
-            }
-          })
-        );
+                
+                const sheetsData = await sheetsResponse.json();
+                console.log(`Sheets data for ${file.name}:`, JSON.stringify(sheetsData, null, 2));
+                
+                const worksheetNames = sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [];
+                console.log(`Worksheets found in ${file.name}:`, worksheetNames);
+                
+                const result = {
+                  id: file.id,
+                  name: file.name,
+                  url: file.webViewLink,
+                  sheets: worksheetNames,
+                  lastModified: file.modifiedTime
+                };
+                
+                console.log(`Final sheet object for ${file.name}:`, result);
+                return result;
+              } catch (error) {
+                console.error(`Error fetching sheets for ${file.name}:`, error);
+                return {
+                  id: file.id,
+                  name: file.name,
+                  url: file.webViewLink,
+                  sheets: [],
+                  lastModified: file.modifiedTime
+                };
+              }
+            })
+          );
+        } catch (promiseAllError) {
+          console.error('Promise.all failed:', promiseAllError);
+          // Fallback: create basic sheet objects without worksheet info
+          sheets = driveData.files.map((file: any) => ({
+            id: file.id,
+            name: file.name,
+            url: file.webViewLink,
+            sheets: ['Sheet1'], // Default fallback
+            lastModified: file.modifiedTime
+          }));
+        }
 
         console.log(`Successfully loaded ${sheets.length} spreadsheets from Google Drive`);
         console.log('All sheets before filtering:', JSON.stringify(sheets, null, 2));
