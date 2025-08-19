@@ -25,6 +25,7 @@ import {
   Table
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
+import { GoogleSheetsDialog } from './google-sheets-dialog';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
@@ -159,6 +160,15 @@ const availableDataSources: AvailableDataSource[] = [
     description: 'OneDrive and SharePoint Excel files with real-time data access',
     vendor: 'Microsoft',
     features: ['OAuth 2.0 authentication', 'OneDrive integration', 'SharePoint access', 'Real-time data sync', 'Multiple worksheets']
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    type: 'Google Sheets API',
+    category: 'file',
+    description: 'Google Sheets cloud spreadsheet integration with real-time synchronization',
+    vendor: 'Google',
+    features: ['OAuth 2.0 authentication', 'Real-time sync', 'Multiple sheets support']
   }
 ];
 
@@ -190,6 +200,7 @@ export default function DataIntegrationTab() {
   const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
   const [showExcelUploadDialog, setShowExcelUploadDialog] = useState(false);
+  const [showGoogleSheetsDialog, setShowGoogleSheetsDialog] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -443,6 +454,10 @@ export default function DataIntegrationTab() {
       // Show Excel upload dialog
       setSelectedDataSource(dataSource);
       setShowExcelUploadDialog(true);
+    } else if (dataSource.id === 'google-sheets') {
+      // Show Google Sheets OAuth dialog
+      setSelectedDataSource(dataSource);
+      setShowGoogleSheetsDialog(true);
     } else {
       // Handle regular database connections
       setSelectedDataSource(dataSource);
@@ -539,6 +554,19 @@ export default function DataIntegrationTab() {
         description: "Excel 파일 연결에 실패했습니다.", 
         variant: "destructive" 
       });
+    }
+  };
+
+  const handleGoogleSheetsSuccess = async () => {
+    try {
+      // Refresh data sources to show the new Google Sheets connection
+      queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      
+      // Close the dialog
+      setShowGoogleSheetsDialog(false);
+      
+    } catch (error) {
+      console.error('Google Sheets success handler error:', error);
     }
   };
 
@@ -1072,6 +1100,13 @@ export default function DataIntegrationTab() {
         open={showExcelUploadDialog}
         onOpenChange={setShowExcelUploadDialog}
         onSuccess={handleExcelUploadSuccess}
+      />
+      
+      {/* Google Sheets Dialog */}
+      <GoogleSheetsDialog
+        open={showGoogleSheetsDialog}
+        onOpenChange={setShowGoogleSheetsDialog}
+        onSuccess={handleGoogleSheetsSuccess}
       />
     </div>
   );

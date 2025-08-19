@@ -1,8 +1,27 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
+
+// Extend Express Request type to include session
+declare module 'express-serve-static-core' {
+  interface Request {
+    session?: {
+      googleTokens?: {
+        access_token: string;
+        refresh_token: string;
+        expires_in: number;
+        expires_at: number;
+      };
+      googleAccount?: {
+        email: string;
+        name: string;
+        picture: string;
+      };
+    };
+  }
+}
 
 // Default data schemas for mock data sources
 function getDefaultDataSchema(type: string, id: string) {
@@ -286,6 +305,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting view:", error);
       res.status(500).json({ error: "Failed to delete view" });
+    }
+  });
+
+  // Google Sheets OAuth initialization endpoint
+  app.post("/api/google-sheets/auth", async (req, res) => {
+    try {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const redirectUri = `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`;
+      const scope = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+      
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${clientId}&` +
+        `response_type=code&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=${encodeURIComponent(scope)}&` +
+        `access_type=offline&` +
+        `prompt=consent`;
+
+      res.json({ 
+        authUrl,
+        message: "Google 계정으로 로그인하여 Google Sheets에 접근 권한을 부여하세요."
+      });
+    } catch (error) {
+      console.error("Error generating Google OAuth URL:", error);
+      res.status(500).json({ error: "Failed to generate authorization URL" });
+    }
+  });
+
+  // Google Sheets OAuth callback endpoint
+  app.get("/api/google-sheets/oauth/callback", async (req, res) => {
+    try {
+      const { code, error } = req.query;
+
+      if (error) {
+        return res.send(`
+          <script>
+            window.opener.postMessage({type: 'google-auth-error', error: '${error}'}, '*');
+            window.close();
+          </script>
+        `);
+      }
+
+      // Exchange authorization code for access token
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          code: code as string,
+          client_id: process.env.GOOGLE_CLIENT_ID!,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+          redirect_uri: `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`,
+          grant_type: 'authorization_code'
+        })
+      });
+
+      const tokenData = await tokenResponse.json();
+
+      if (tokenData.error) {
+        return res.send(`
+          <script>
+            window.opener.postMessage({type: 'google-auth-error', error: '${tokenData.error}'}, '*');
+            window.close();
+          </script>
+        `);
+      }
+
+      // Store tokens in session
+      req.session = req.session || {};
+      req.session.googleTokens = {
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_in: tokenData.expires_in,
+        expires_at: Date.now() + (tokenData.expires_in * 1000)
+      };
+
+      // Get user account info
+      const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`
+        }
+      });
+      
+      const userData = await userResponse.json();
+      req.session.googleAccount = {
+        email: userData.email,
+        name: userData.name,
+        picture: userData.picture
+      };
+
+      res.send(`
+        <script>
+          window.opener.postMessage({type: 'google-auth-success', account: ${JSON.stringify(req.session.googleAccount)}}, '*');
+          window.close();
+        </script>
+      `);
+    } catch (error) {
+      console.error("Error in Google OAuth callback:", error);
+      res.send(`
+        <script>
+          window.opener.postMessage({type: 'google-auth-error', error: 'oauth_failed'}, '*');
+          window.close();
+        </script>
+      `);
+    }
+  });
+
+  // Get Google account info
+  app.get("/api/google-sheets/account", async (req, res) => {
+    try {
+      if (!req.session?.googleTokens || !req.session?.googleAccount) {
+        return res.json({ success: false, message: "Not authenticated" });
+      }
+
+      res.json({
+        success: true,
+        account: req.session.googleAccount
+      });
+    } catch (error) {
+      console.error("Error getting Google account:", error);
+      res.status(500).json({ error: "Failed to get account info" });
+    }
+  });
+
+  // List Google Sheets
+  app.get("/api/google-sheets/list", async (req, res) => {
+    try {
+      if (!req.session?.googleTokens) {
+        return res.status(401).json({ error: "Not authenticated with Google" });
+      }
+
+      const tokens = req.session.googleTokens;
+      
+      // Check if token is expired
+      if (Date.now() > tokens.expires_at) {
+        return res.status(401).json({ error: "Token expired, please re-authenticate" });
+      }
+
+      // Get spreadsheets from Google Drive API
+      const driveResponse = await fetch(
+        'https://www.googleapis.com/drive/v3/files?q=mimeType="application/vnd.google-apps.spreadsheet"&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=20',
+        {
+          headers: {
+            'Authorization': `Bearer ${tokens.access_token}`
+          }
+        }
+      );
+
+      const driveData = await driveResponse.json();
+
+      if (driveData.error) {
+        return res.status(400).json({ error: driveData.error.message });
+      }
+
+      // Get sheet info for each spreadsheet
+      const sheets = await Promise.all(
+        driveData.files.map(async (file: any) => {
+          try {
+            const sheetsResponse = await fetch(
+              `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokens.access_token}`
+                }
+              }
+            );
+            
+            const sheetsData = await sheetsResponse.json();
+            
+            return {
+              id: file.id,
+              name: file.name,
+              url: file.webViewLink,
+              sheets: sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [],
+              lastModified: file.modifiedTime
+            };
+          } catch (error) {
+            console.error(`Error fetching sheets for ${file.name}:`, error);
+            return {
+              id: file.id,
+              name: file.name,
+              url: file.webViewLink,
+              sheets: [],
+              lastModified: file.modifiedTime
+            };
+          }
+        })
+      );
+
+      res.json({
+        success: true,
+        sheets: sheets.filter(sheet => sheet.sheets.length > 0)
+      });
+    } catch (error) {
+      console.error("Error listing Google Sheets:", error);
+      res.status(500).json({ error: "Failed to list Google Sheets" });
     }
   });
 
