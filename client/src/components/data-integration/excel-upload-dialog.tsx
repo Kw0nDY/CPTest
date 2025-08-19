@@ -495,19 +495,15 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
         });
 
         // Send to server for processing
-        const response = await apiRequest(`/api/excel/process`, {
-          method: 'POST',
-          body: JSON.stringify({
-            fileData: base64Data,
-            fileName: file.name
-          }),
-          headers: {
-            'Content-Type': 'application/json'
-          }
+        const response = await apiRequest('POST', `/api/excel/process`, {
+          fileData: base64Data,
+          fileName: file.name
         });
 
-        if (response.success) {
-          processedData = response.data;
+        const result = await response.json();
+        
+        if (result.success) {
+          processedData = result.data;
           console.log('Server processed Excel data:', processedData);
         } else {
           throw new Error('Server failed to process Excel file');
