@@ -315,6 +315,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redirectUri = `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`;
       const scope = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
       
+      // Log the redirect URI for debugging
+      console.log('Google OAuth Redirect URI:', redirectUri);
+      console.log('Full host header:', req.get('host'));
+      console.log('Protocol:', req.protocol);
+      
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${clientId}&` +
         `response_type=code&` +
@@ -325,6 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         authUrl,
+        redirectUri, // Include in response for debugging
         message: "Google 계정으로 로그인하여 Google Sheets에 접근 권한을 부여하세요."
       });
     } catch (error) {
