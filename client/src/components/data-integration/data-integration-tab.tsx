@@ -25,6 +25,7 @@ import {
   Table
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
+import { MicrosoftExcelConnector } from './microsoft-excel-connector';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
@@ -190,6 +191,7 @@ export default function DataIntegrationTab() {
   const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
   const [showExcelUploadDialog, setShowExcelUploadDialog] = useState(false);
+  const [showMicrosoftExcelConnector, setShowMicrosoftExcelConnector] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -440,7 +442,11 @@ export default function DataIntegrationTab() {
 
   const handleConnect = async (dataSource: AvailableDataSource) => {
     if (dataSource.id === 'microsoft-excel') {
-      // Show Excel upload dialog
+      // Show Microsoft Excel OAuth connector
+      setSelectedDataSource(dataSource);
+      setShowMicrosoftExcelConnector(true);
+    } else if (dataSource.id === 'excel-upload') {
+      // Show Excel upload dialog for file uploads
       setSelectedDataSource(dataSource);
       setShowExcelUploadDialog(true);
     } else {
@@ -1072,6 +1078,19 @@ export default function DataIntegrationTab() {
         open={showExcelUploadDialog}
         onOpenChange={setShowExcelUploadDialog}
         onSuccess={handleExcelUploadSuccess}
+      />
+
+      {/* Microsoft Excel OAuth Connector */}
+      <MicrosoftExcelConnector
+        open={showMicrosoftExcelConnector}
+        onOpenChange={setShowMicrosoftExcelConnector}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+          toast({ 
+            title: "Microsoft Excel Connected", 
+            description: "Excel files have been successfully connected via OAuth 2.0" 
+          });
+        }}
       />
     </div>
   );

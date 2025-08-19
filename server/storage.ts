@@ -65,7 +65,7 @@ export class DatabaseStorage implements IStorage {
   async createView(insertView: InsertView): Promise<View> {
     const [view] = await db
       .insert(views)
-      .values([insertView])
+      .values(insertView)
       .returning();
     return view;
   }
@@ -139,7 +139,7 @@ export class DatabaseStorage implements IStorage {
         ...created,
         dataSchema,
         sampleData
-      };
+      } as any;
     }
       
     return created;
@@ -295,7 +295,7 @@ export class DatabaseStorage implements IStorage {
   async createExcelFile(excelFile: InsertExcelFile): Promise<ExcelFile> {
     const [created] = await db
       .insert(excelFiles)
-      .values([excelFile])
+      .values(excelFile)
       .returning();
     return created;
   }
@@ -334,7 +334,7 @@ export class DatabaseStorage implements IStorage {
           { Name: 'Product C', Category: 'Books', Price: 19.99, Stock: 200, Supplier: 'Supplier 3' }
         ]
       };
-      return mockExcelData[tableName] || [];
+      return mockExcelData[tableName as keyof typeof mockExcelData] || [];
     }
 
     // Return mock data for testing - ensure authentic data is available
