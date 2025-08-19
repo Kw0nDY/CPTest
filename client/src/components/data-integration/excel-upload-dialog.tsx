@@ -160,12 +160,97 @@ const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> 
         }
       ]
     };
-  } else {
-    // Default generic data
+  } else if (fileName.includes('database') || fileName.includes('example') || fileName.includes('sample')) {
+    // Database example files with realistic worksheet names
     return {
-      worksheets: ['Sheet1', 'Data', 'Summary'],
+      worksheets: ['Customers', 'Orders', 'Products'],
       schema: {
-        'Sheet1': [
+        'Customers': [
+          { name: 'CustomerID', type: 'INTEGER', description: 'Unique customer identifier' },
+          { name: 'CompanyName', type: 'VARCHAR(100)', description: 'Company name' },
+          { name: 'ContactName', type: 'VARCHAR(100)', description: 'Contact person name' },
+          { name: 'Country', type: 'VARCHAR(50)', description: 'Customer country' },
+          { name: 'Phone', type: 'VARCHAR(20)', description: 'Contact phone number' }
+        ],
+        'Orders': [
+          { name: 'OrderID', type: 'INTEGER', description: 'Order identifier' },
+          { name: 'CustomerID', type: 'INTEGER', description: 'Customer reference' },
+          { name: 'OrderDate', type: 'DATE', description: 'Order date' },
+          { name: 'TotalAmount', type: 'DECIMAL(10,2)', description: 'Total order value' },
+          { name: 'Status', type: 'VARCHAR(20)', description: 'Order status' }
+        ],
+        'Products': [
+          { name: 'ProductID', type: 'INTEGER', description: 'Product identifier' },
+          { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product name' },
+          { name: 'Category', type: 'VARCHAR(50)', description: 'Product category' },
+          { name: 'UnitPrice', type: 'DECIMAL(10,2)', description: 'Price per unit' },
+          { name: 'UnitsInStock', type: 'INTEGER', description: 'Available stock' }
+        ]
+      },
+      sampleData: {
+        'Customers': [
+          { CustomerID: 1, CompanyName: 'TechCorp Solutions', ContactName: 'John Smith', Country: 'USA', Phone: '+1-555-0123' },
+          { CustomerID: 2, CompanyName: 'Global Industries', ContactName: 'Maria Garcia', Country: 'Spain', Phone: '+34-912-345-678' },
+          { CustomerID: 3, CompanyName: 'Innovation Ltd', ContactName: 'James Wilson', Country: 'UK', Phone: '+44-20-7946-0958' }
+        ],
+        'Orders': [
+          { OrderID: 1001, CustomerID: 1, OrderDate: '2025-01-15', TotalAmount: 2500.00, Status: 'Completed' },
+          { OrderID: 1002, CustomerID: 2, OrderDate: '2025-01-14', TotalAmount: 1750.50, Status: 'Processing' },
+          { OrderID: 1003, CustomerID: 3, OrderDate: '2025-01-13', TotalAmount: 3200.75, Status: 'Shipped' }
+        ],
+        'Products': [
+          { ProductID: 101, ProductName: 'Enterprise Software License', Category: 'Software', UnitPrice: 499.99, UnitsInStock: 25 },
+          { ProductID: 102, ProductName: 'Professional Workstation', Category: 'Hardware', UnitPrice: 1899.00, UnitsInStock: 8 },
+          { ProductID: 103, ProductName: 'Consulting Services', Category: 'Services', UnitPrice: 150.00, UnitsInStock: 999 }
+        ]
+      },
+      recordCounts: {
+        'Customers': 245,
+        'Orders': 1840,
+        'Products': 156
+      },
+      dataSchema: [
+        {
+          table: 'Customers',
+          fields: [
+            { name: 'CustomerID', type: 'INTEGER', description: 'Unique customer identifier' },
+            { name: 'CompanyName', type: 'VARCHAR(100)', description: 'Company name' },
+            { name: 'ContactName', type: 'VARCHAR(100)', description: 'Contact person name' },
+            { name: 'Country', type: 'VARCHAR(50)', description: 'Customer country' },
+            { name: 'Phone', type: 'VARCHAR(20)', description: 'Contact phone number' }
+          ],
+          recordCount: 245
+        },
+        {
+          table: 'Orders',
+          fields: [
+            { name: 'OrderID', type: 'INTEGER', description: 'Order identifier' },
+            { name: 'CustomerID', type: 'INTEGER', description: 'Customer reference' },
+            { name: 'OrderDate', type: 'DATE', description: 'Order date' },
+            { name: 'TotalAmount', type: 'DECIMAL(10,2)', description: 'Total order value' },
+            { name: 'Status', type: 'VARCHAR(20)', description: 'Order status' }
+          ],
+          recordCount: 1840
+        },
+        {
+          table: 'Products',
+          fields: [
+            { name: 'ProductID', type: 'INTEGER', description: 'Product identifier' },
+            { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product name' },
+            { name: 'Category', type: 'VARCHAR(50)', description: 'Product category' },
+            { name: 'UnitPrice', type: 'DECIMAL(10,2)', description: 'Price per unit' },
+            { name: 'UnitsInStock', type: 'INTEGER', description: 'Available stock' }
+          ],
+          recordCount: 156
+        }
+      ]
+    };
+  } else {
+    // Default generic data for unknown file types
+    return {
+      worksheets: ['MainData', 'Summary', 'Metadata'],
+      schema: {
+        'MainData': [
           { name: 'ID', type: 'INTEGER', description: 'Record identifier' },
           { name: 'Name', type: 'VARCHAR(100)', description: 'Item name' },
           { name: 'Value', type: 'DECIMAL(10,2)', description: 'Numeric value' },
@@ -173,17 +258,17 @@ const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> 
         ]
       },
       sampleData: {
-        'Sheet1': [
+        'MainData': [
           { ID: 1, Name: 'Item A', Value: 100.50, Date: '2025-01-15' },
           { ID: 2, Name: 'Item B', Value: 250.75, Date: '2025-01-14' }
         ]
       },
       recordCounts: {
-        'Sheet1': 156
+        'MainData': 156
       },
       dataSchema: [
         {
-          table: 'Sheet1',
+          table: 'MainData',
           fields: [
             { name: 'ID', type: 'INTEGER', description: 'Record identifier' },
             { name: 'Name', type: 'VARCHAR(100)', description: 'Item name' },
