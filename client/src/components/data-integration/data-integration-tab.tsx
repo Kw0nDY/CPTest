@@ -606,7 +606,7 @@ export default function DataIntegrationTab() {
 
   const handleViewDetails = (dataSource: DataSource) => {
     setSelectedDetailSource(dataSource);
-    setSelectedTable(dataSource.dataSchema[0]?.table || '');
+    setSelectedTable(dataSource?.dataSchema?.[0]?.table || '');
     setShowDetailDialog(true);
   };
 
@@ -680,7 +680,7 @@ export default function DataIntegrationTab() {
                             {getStatusIcon(ds.status)}
                             <div className="flex-1 min-w-0">
                               <h4 className="font-semibold text-gray-900 text-lg truncate">{ds.name}</h4>
-                              <p className="text-sm text-gray-500 truncate">{ds.connectionDetails.server}</p>
+                              <p className="text-sm text-gray-500 truncate">{ds.connectionDetails?.server}</p>
                             </div>
                           </div>
                           <Badge className={getStatusBadge(ds.status)} style={{ flexShrink: 0 }}>
@@ -704,7 +704,7 @@ export default function DataIntegrationTab() {
                           </div>
                           <div className="min-h-[20px]">
                             <span className="text-gray-600">Last Sync:</span>
-                            <p className="font-medium text-xs">{new Date(ds.lastSync!).toLocaleDateString()}</p>
+                            <p className="font-medium text-xs">{ds.lastSync ? new Date(ds.lastSync).toLocaleDateString() : 'N/A'}</p>
                           </div>
                         </div>
 
@@ -947,13 +947,13 @@ export default function DataIntegrationTab() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <Label className="text-sm text-gray-600">Server</Label>
-                      <p className="font-medium">{selectedDetailSource.connectionDetails.server}</p>
+                      <p className="font-medium">{selectedDetailSource?.connectionDetails?.server}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-gray-600">Database</Label>
-                      <p className="font-medium">{selectedDetailSource.connectionDetails.database}</p>
+                      <p className="font-medium">{selectedDetailSource?.connectionDetails?.database}</p>
                     </div>
-                    {selectedDetailSource.connectionDetails.port && (
+                    {selectedDetailSource?.connectionDetails?.port && (
                       <div>
                         <Label className="text-sm text-gray-600">Port</Label>
                         <p className="font-medium">{selectedDetailSource.connectionDetails.port}</p>
@@ -961,7 +961,7 @@ export default function DataIntegrationTab() {
                     )}
                     <div>
                       <Label className="text-sm text-gray-600">Protocol</Label>
-                      <p className="font-medium">{selectedDetailSource.connectionDetails.protocol}</p>
+                      <p className="font-medium">{selectedDetailSource?.connectionDetails?.protocol}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
@@ -980,7 +980,7 @@ export default function DataIntegrationTab() {
                     </div>
                     <div>
                       <Label className="text-sm text-gray-600">Last Sync</Label>
-                      <p className="font-medium">{new Date(selectedDetailSource.lastSync!).toLocaleString()}</p>
+                      <p className="font-medium">{selectedDetailSource?.lastSync ? new Date(selectedDetailSource.lastSync).toLocaleString() : 'N/A'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1004,7 +1004,7 @@ export default function DataIntegrationTab() {
                           <SelectValue placeholder="Select a table" />
                         </SelectTrigger>
                         <SelectContent>
-                          {(selectedDetailSource.dataSchema || []).map((schema) => (
+                          {(selectedDetailSource?.dataSchema || []).map((schema) => (
                             <SelectItem key={schema.table} value={schema.table}>
                               {schema.table} ({schema.recordCount?.toLocaleString() || 0} records)
                             </SelectItem>
@@ -1014,8 +1014,8 @@ export default function DataIntegrationTab() {
                     </div>
 
                     {selectedTable && (() => {
-                      const currentSchema = selectedDetailSource.dataSchema.find(s => s.table === selectedTable);
-                      const sampleData = selectedDetailSource.sampleData?.[selectedTable] || [];
+                      const currentSchema = selectedDetailSource?.dataSchema?.find(s => s.table === selectedTable);
+                      const sampleData = selectedDetailSource?.sampleData?.[selectedTable] || [];
                       
                       return (
                         <div className="space-y-4">
@@ -1045,8 +1045,8 @@ export default function DataIntegrationTab() {
                               </UITable>
                             </div>
                             <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
-                              <span>Total Records: {currentSchema?.recordCount.toLocaleString()}</span>
-                              <span>Last Updated: {new Date(currentSchema?.lastUpdated!).toLocaleString()}</span>
+                              <span>Total Records: {currentSchema?.recordCount?.toLocaleString() || 0}</span>
+                              <span>Last Updated: {currentSchema?.lastUpdated ? new Date(currentSchema.lastUpdated).toLocaleString() : 'N/A'}</span>
                             </div>
                           </div>
 
