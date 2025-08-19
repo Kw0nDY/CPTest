@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { 
   Upload, 
   File as FileIcon, 
@@ -44,6 +44,15 @@ interface ExcelProcessedData {
   }>>;
   sampleData: Record<string, any[]>;
   recordCounts: Record<string, number>;
+  dataSchema: Array<{
+    table: string;
+    fields: Array<{
+      name: string;
+      type: string;
+      description: string;
+    }>;
+    recordCount: number;
+  }>;
 }
 
 // Simulate Excel data processing
@@ -85,7 +94,32 @@ const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> 
       recordCounts: {
         'Sales Data': 1250,
         'Summary': 8
-      }
+      },
+      dataSchema: [
+        {
+          table: 'Sales Data',
+          fields: [
+            { name: 'OrderID', type: 'VARCHAR(20)', description: 'Unique order identifier' },
+            { name: 'CustomerName', type: 'VARCHAR(100)', description: 'Customer company name' },
+            { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product description' },
+            { name: 'Quantity', type: 'INTEGER', description: 'Units sold' },
+            { name: 'UnitPrice', type: 'DECIMAL(10,2)', description: 'Price per unit' },
+            { name: 'TotalAmount', type: 'DECIMAL(15,2)', description: 'Total order value' },
+            { name: 'OrderDate', type: 'DATE', description: 'Date of sale' }
+          ],
+          recordCount: 1250
+        },
+        {
+          table: 'Summary',
+          fields: [
+            { name: 'Period', type: 'VARCHAR(20)', description: 'Time period' },
+            { name: 'TotalSales', type: 'DECIMAL(15,2)', description: 'Total sales amount' },
+            { name: 'OrderCount', type: 'INTEGER', description: 'Number of orders' },
+            { name: 'AverageOrderValue', type: 'DECIMAL(10,2)', description: 'Average order value' }
+          ],
+          recordCount: 8
+        }
+      ]
     };
   } else if (fileName.includes('inventory') || fileName.includes('stock')) {
     return {
@@ -109,7 +143,22 @@ const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> 
       },
       recordCounts: {
         'Inventory': 890
-      }
+      },
+      dataSchema: [
+        {
+          table: 'Inventory',
+          fields: [
+            { name: 'SKU', type: 'VARCHAR(20)', description: 'Stock keeping unit' },
+            { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product name' },
+            { name: 'Category', type: 'VARCHAR(50)', description: 'Product category' },
+            { name: 'Supplier', type: 'VARCHAR(100)', description: 'Supplier name' },
+            { name: 'QuantityOnHand', type: 'INTEGER', description: 'Current stock level' },
+            { name: 'ReorderLevel', type: 'INTEGER', description: 'Minimum stock before reorder' },
+            { name: 'UnitCost', type: 'DECIMAL(10,2)', description: 'Cost per unit' }
+          ],
+          recordCount: 890
+        }
+      ]
     };
   } else {
     // Default generic data
@@ -131,7 +180,19 @@ const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> 
       },
       recordCounts: {
         'Sheet1': 156
-      }
+      },
+      dataSchema: [
+        {
+          table: 'Sheet1',
+          fields: [
+            { name: 'ID', type: 'INTEGER', description: 'Record identifier' },
+            { name: 'Name', type: 'VARCHAR(100)', description: 'Item name' },
+            { name: 'Value', type: 'DECIMAL(10,2)', description: 'Numeric value' },
+            { name: 'Date', type: 'DATE', description: 'Date field' }
+          ],
+          recordCount: 156
+        }
+      ]
     };
   }
 };
@@ -236,7 +297,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
 
       setSelectedWorksheets(prev => ({
         ...prev,
-        [file.name]: [mockWorksheets[0]] // Default to first worksheet
+        [file.name]: processedData.worksheets.length > 0 ? [processedData.worksheets[0]] : ['Sheet1'] // Default to first worksheet
       }));
 
       toast({
@@ -275,7 +336,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
     }));
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     const completedFiles = uploadedFiles.filter(f => f.status === 'complete');
     if (completedFiles.length === 0) {
       toast({
@@ -286,17 +347,76 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
       return;
     }
 
-    const connectionData = {
-      files: completedFiles.map(file => ({
+    try {
+      // Prepare comprehensive data for each uploaded file
+      const filesWithData = completedFiles.map(file => ({
         name: file.name,
-        url: file.url,
+        url: file.url || `/uploaded/${file.name}`,
         worksheets: selectedWorksheets[file.name] || [],
         processedData: file.processedData
-      }))
-    };
+      }));
 
-    onSuccess?.(connectionData);
-    onOpenChange(false);
+      // Extract all sample data and schema from processed files
+      let combinedSampleData: Record<string, any[]> = {};
+      let combinedDataSchema: any[] = [];
+
+      filesWithData.forEach(file => {
+        if (file.processedData) {
+          // Add sample data from this file
+          Object.assign(combinedSampleData, file.processedData.sampleData);
+          
+          // Add schema data from this file
+          if (file.processedData.dataSchema) {
+            combinedDataSchema.push(...file.processedData.dataSchema);
+          }
+        }
+      });
+
+      const config = {
+        files: filesWithData.map(file => ({
+          name: file.name,
+          url: file.url,
+          worksheets: file.worksheets
+        })),
+        sampleData: combinedSampleData,
+        dataSchema: combinedDataSchema
+      };
+
+      console.log('Creating data source with config:', config);
+
+      // Create data source with collected file information and data
+      const response = await fetch('/api/data-sources', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `Excel Files (${completedFiles.length} files)`,
+          type: 'excel',
+          category: 'file',
+          status: 'connected',
+          config: config,
+          lastSync: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Excel Files Connected",
+          description: `Successfully connected ${completedFiles.length} Excel file(s) with data to the system.`
+        });
+        
+        await queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+        onOpenChange(false);
+      }
+    } catch (error) {
+      console.error('Error creating data source:', error);
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect Excel files to the system.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
