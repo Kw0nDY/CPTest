@@ -209,35 +209,26 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
     setIsConnecting(true);
     
     try {
-      const response = await apiRequest('POST', '/api/data-sources', {
-        id: `google-sheets-${Date.now()}`,
-        name: 'Google Sheets',
-        type: 'google-sheets',
-        category: 'file',
-        vendor: 'Google',
-        status: 'connected',
-        config: {
-          account: account,
-          selectedSheets: selectedSheets,
-          sheets: sheets.filter(sheet => selectedSheets.includes(sheet.id))
-        },
-        connectionDetails: {
-          account: account?.email,
-          sheetsCount: selectedSheets.length,
-          authType: 'OAuth 2.0'
-        },
-        recordCount: 0
+      // Use the new Google Sheets connect endpoint that loads actual data
+      const response = await apiRequest('POST', '/api/google-sheets/connect', {
+        selectedSheets: selectedSheets
       });
 
-      await queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-      
-      toast({
-        title: "Google Sheets 연결 완료",
-        description: `${selectedSheets.length}개의 스프레드시트가 성공적으로 연결되었습니다.`
-      });
-      
-      onSuccess?.();
-      onOpenChange(false);
+      const result = await response.json();
+
+      if (result.success) {
+        await queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+        
+        toast({
+          title: "Google Sheets 연결 완료",
+          description: result.message || `${selectedSheets.length}개의 스프레드시트가 성공적으로 연결되었습니다.`
+        });
+        
+        onSuccess?.();
+        onOpenChange(false);
+      } else {
+        throw new Error(result.error || 'Connection failed');
+      }
       
     } catch (error) {
       console.error('Failed to connect sheets:', error);

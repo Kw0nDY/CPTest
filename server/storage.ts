@@ -97,22 +97,21 @@ export class DatabaseStorage implements IStorage {
     return dataSource || undefined;
   }
 
-  async createDataSource(dataSource: any): Promise<DataSource> {
+  async createDataSource(dataSource: any, dataSchema?: any, sampleData?: any): Promise<DataSource> {
     const newId = `ds-${Date.now()}`;
     
-    // Extract dataSchema and sampleData from config for Excel sources
+    // Extract dataSchema and sampleData from config for Excel and Google Sheets sources
     let finalConfig = dataSource.config;
-    let dataSchema = undefined;
-    let sampleData = undefined;
+    let extractedDataSchema = dataSchema;
+    let extractedSampleData = sampleData;
     
-    if (dataSource.type === 'Excel' && dataSource.config) {
-      dataSchema = dataSource.config.dataSchema;
-      sampleData = dataSource.config.sampleData;
-      // Remove from config to avoid duplication
+    if ((dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') && dataSource.config) {
+      if (!extractedDataSchema) extractedDataSchema = dataSource.config.dataSchema;
+      if (!extractedSampleData) extractedSampleData = dataSource.config.sampleData;
+      
+      // Remove from config to avoid duplication but keep other config data
       finalConfig = {
-        ...dataSource.config,
-        dataSchema: undefined,
-        sampleData: undefined
+        ...dataSource.config
       };
       delete finalConfig.dataSchema;
       delete finalConfig.sampleData;
@@ -134,12 +133,12 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
       
-    // Add dataSchema and sampleData as separate fields for Excel sources
-    if (dataSchema && sampleData) {
+    // Add dataSchema and sampleData as separate fields for file-based sources
+    if (extractedDataSchema && extractedSampleData) {
       return {
         ...created,
-        dataSchema: dataSchema as any,
-        sampleData: sampleData as any
+        dataSchema: extractedDataSchema as any,
+        sampleData: extractedSampleData as any
       };
     }
       
@@ -147,9 +146,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDataSourceTables(dataSourceId: string): Promise<any[]> {
-    // Check if this is an Excel data source and return its schema
+    // Check if this is a file-based data source (Excel or Google Sheets) and return its schema
     const dataSource = await this.getDataSource(dataSourceId);
-    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel')) {
+    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel' || dataSource.type === 'Google Sheets')) {
+      // First check if dataSchema is directly attached to the dataSource (from runtime)
+      if ((dataSource as any).dataSchema) {
+        return (dataSource as any).dataSchema.map((table: any) => ({
+          name: table.table,
+          fields: table.fields,
+          recordCount: table.recordCount
+        }));
+      }
+      
+      // Then check config
       const config = dataSource.config as any;
       if (config && config.dataSchema) {
         return config.dataSchema.map((table: any) => ({
@@ -307,17 +316,17 @@ export class DatabaseStorage implements IStorage {
     console.log('getTableData - dataSource:', JSON.stringify(dataSource, null, 2));
     console.log('getTableData - looking for table:', tableName);
     
-    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel')) {
+    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel' || dataSource.type === 'Google Sheets')) {
       // Check if data is stored in the enhanced field (from runtime)
       if ((dataSource as any).sampleData && (dataSource as any).sampleData[tableName]) {
-        console.log('Found Excel data in sampleData field');
+        console.log('Found file data in sampleData field');
         return (dataSource as any).sampleData[tableName];
       }
       
       // Check if data is stored in config
       const config = dataSource.config as any;
       if (config && config.sampleData && config.sampleData[tableName]) {
-        console.log('Found Excel data in config.sampleData');
+        console.log('Found file data in config.sampleData');
         return config.sampleData[tableName];
       }
       

@@ -745,8 +745,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let dataSchema: any[] = [];
         let sampleData: any = {};
         
-        // For Excel sources, ALWAYS use data from config first
-        if ((ds.type === 'Excel' || ds.type === 'excel') && ds.config) {
+        // For file-based sources (Excel, Google Sheets), ALWAYS use data from config first
+        if ((ds.type === 'Excel' || ds.type === 'excel' || ds.type === 'Google Sheets') && ds.config) {
           const config = ds.config as any;
           if (config.dataSchema && config.dataSchema.length > 0) {
             dataSchema = config.dataSchema;
@@ -756,11 +756,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Fallback to defaults only if still empty AND not Excel type
-        if ((!dataSchema || dataSchema.length === 0) && ds.type !== 'Excel' && ds.type !== 'excel') {
+        // Fallback to defaults only if still empty AND not file-based type
+        if ((!dataSchema || dataSchema.length === 0) && ds.type !== 'Excel' && ds.type !== 'excel' && ds.type !== 'Google Sheets') {
           dataSchema = getDefaultDataSchema(ds.type, ds.id);
         }
-        if ((!sampleData || Object.keys(sampleData).length === 0) && ds.type !== 'Excel' && ds.type !== 'excel') {
+        if ((!sampleData || Object.keys(sampleData).length === 0) && ds.type !== 'Excel' && ds.type !== 'excel' && ds.type !== 'Google Sheets') {
           sampleData = getDefaultSampleData(ds.type, ds.id);
         }
         
@@ -785,6 +785,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating data source:", error);
       res.status(400).json({ error: "Failed to create data source" });
+    }
+  });
+
+  // Google Sheets connection with data loading
+  app.post("/api/google-sheets/connect", async (req, res) => {
+    try {
+      const { selectedSheets } = req.body;
+      
+      if (!req.session?.googleTokens) {
+        return res.status(401).json({ error: "Not authenticated with Google" });
+      }
+
+      const tokens = req.session.googleTokens;
+      
+      // Check if token is expired
+      if (Date.now() > tokens.expires_at) {
+        return res.status(401).json({ error: "Token expired, please re-authenticate" });
+      }
+
+      const { google } = await import('googleapis');
+      
+      const auth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
+      );
+
+      auth.setCredentials({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        token_type: 'Bearer',
+        expiry_date: tokens.expires_at
+      });
+
+      const sheets = google.sheets({ version: 'v4', auth });
+      const dataSchema: any[] = [];
+      const sampleData: any = {};
+      let totalRecordCount = 0;
+
+      // Process each selected sheet
+      for (const sheetId of selectedSheets) {
+        try {
+          console.log(`Processing Google Sheet: ${sheetId}`);
+          
+          // Get spreadsheet metadata
+          const spreadsheetResponse = await sheets.spreadsheets.get({
+            spreadsheetId: sheetId
+          });
+          
+          const spreadsheetTitle = spreadsheetResponse.data.properties?.title || `Sheet_${sheetId}`;
+          const availableSheets = spreadsheetResponse.data.sheets?.map(s => s.properties?.title) || [];
+          
+          console.log(`Available worksheets in ${spreadsheetTitle}:`, availableSheets);
+          
+          // Process each worksheet
+          for (const worksheetName of availableSheets) {
+            try {
+              console.log(`Fetching data from worksheet: "${worksheetName}"`);
+              
+              // Get the data from the worksheet
+              const range = `'${worksheetName}'!A1:Z100`; // Get first 100 rows and columns A-Z
+              const response = await sheets.spreadsheets.values.get({
+                spreadsheetId: sheetId,
+                range: range,
+              });
+
+              const rows = response.data.values || [];
+              
+              if (rows.length > 0) {
+                // Format the data
+                const headers = rows[0] || [];
+                const dataRows = rows.slice(1).map((row: any[]) => {
+                  const rowData: any = {};
+                  headers.forEach((header: string, index: number) => {
+                    rowData[header || `Column_${index + 1}`] = row[index] || '';
+                  });
+                  return rowData;
+                });
+
+                // Create schema for this worksheet
+                const fields = headers.map((header: string, index: number) => ({
+                  name: header || `Column_${index + 1}`,
+                  type: 'VARCHAR(255)',
+                  description: `Column from ${worksheetName} in ${spreadsheetTitle}`
+                }));
+
+                dataSchema.push({
+                  table: `${spreadsheetTitle} - ${worksheetName}`,
+                  fields: fields,
+                  recordCount: dataRows.length,
+                  lastUpdated: new Date().toISOString()
+                });
+
+                sampleData[`${spreadsheetTitle} - ${worksheetName}`] = dataRows.slice(0, 5); // Store first 5 rows as sample
+                totalRecordCount += dataRows.length;
+
+                console.log(`Successfully processed ${worksheetName}: ${dataRows.length} records`);
+              }
+            } catch (worksheetError: any) {
+              console.error(`Error processing worksheet ${worksheetName}:`, worksheetError);
+            }
+          }
+        } catch (sheetError: any) {
+          console.error(`Error processing sheet ${sheetId}:`, sheetError);
+        }
+      }
+
+      // Create proper data source config for Google Sheets
+      const googleSheetsDataSource = {
+        name: 'Google Sheets',
+        type: 'Google Sheets',
+        category: 'file',
+        vendor: 'Google',
+        status: 'connected',
+        config: {
+          selectedSheets: selectedSheets,
+          account: req.session?.googleAccount,
+          dataSchema: dataSchema,
+          sampleData: sampleData
+        },
+        connectionDetails: {
+          service: 'Google Sheets API',
+          authenticated: true,
+          email: req.session?.googleAccount?.email
+        },
+        recordCount: totalRecordCount,
+        lastSync: new Date().toISOString()
+      };
+
+      const createdDataSource = await storage.createDataSource(googleSheetsDataSource, dataSchema, sampleData);
+      
+      res.json({
+        success: true,
+        dataSource: createdDataSource,
+        message: `Successfully connected ${selectedSheets.length} Google Sheets with ${totalRecordCount} total records`
+      });
+
+    } catch (error: any) {
+      console.error("Error connecting Google Sheets:", error);
+      res.status(500).json({ 
+        error: "Failed to connect Google Sheets",
+        details: error.message 
+      });
     }
   });
 
