@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
+import * as XLSX from 'xlsx';
 
 // Default data schemas for mock data sources
 function getDefaultDataSchema(type: string, id: string) {
@@ -295,8 +296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add default dataSchema and sampleData for mock sources that don't have it
       const enhancedDataSources = dataSources.map(ds => {
-        let dataSchema = ds.dataSchema || [];
-        let sampleData = ds.sampleData || {};
+        let dataSchema: any[] = [];
+        let sampleData: any = {};
         
         // For Excel sources, ALWAYS use data from config first
         if ((ds.type === 'Excel' || ds.type === 'excel') && ds.config) {
@@ -349,6 +350,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting data source:", error);
       res.status(500).json({ error: "Failed to delete data source" });
+    }
+  });
+
+  // Excel File Upload and Processing API
+  app.post("/api/excel/process", async (req, res) => {
+    try {
+      const { fileData, fileName } = req.body;
+      
+      if (!fileData || !fileName) {
+        return res.status(400).json({ error: "File data and name are required" });
+      }
+
+      // Decode base64 file data
+      const buffer = Buffer.from(fileData, 'base64');
+      
+      // Read Excel file using xlsx library
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      
+      const worksheets = workbook.SheetNames;
+      const schema: Record<string, Array<{ name: string; type: string; description: string; }>> = {};
+      const sampleData: Record<string, any[]> = {};
+      const recordCounts: Record<string, number> = {};
+      const dataSchema: Array<{
+        table: string;
+        fields: Array<{ name: string; type: string; description: string; }>;
+        recordCount: number;
+      }> = [];
+
+      worksheets.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (jsonData.length > 0) {
+          // Get header row (first row)
+          const headers = (jsonData[0] as any[]).filter(h => h !== null && h !== undefined && h !== '');
+          
+          // Get sample data (first 5 rows excluding header)
+          const rows = jsonData.slice(1, 6) as any[][];
+          
+          // Generate field definitions based on actual data
+          const fields = headers.map(header => {
+            // Infer type from first few data rows
+            let type = 'VARCHAR(255)';
+            let description = `${header} field`;
+            
+            // Check first few rows to infer data type
+            for (let i = 1; i < Math.min(jsonData.length, 6); i++) {
+              const row = jsonData[i] as any[];
+              const value = row[headers.indexOf(header)];
+              
+              if (value !== null && value !== undefined && value !== '') {
+                if (typeof value === 'number') {
+                  if (Number.isInteger(value)) {
+                    type = 'INTEGER';
+                    description = `Numeric ${header.toLowerCase()} value`;
+                  } else {
+                    type = 'DECIMAL(10,2)';
+                    description = `Decimal ${header.toLowerCase()} value`;
+                  }
+                } else if (typeof value === 'string') {
+                  // Check if it looks like a date
+                  if (value.match(/^\d{4}-\d{2}-\d{2}/) || value.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+                    type = 'DATE';
+                    description = `Date ${header.toLowerCase()} field`;
+                  } else {
+                    type = `VARCHAR(${Math.max(50, value.length * 2)})`;
+                    description = `Text ${header.toLowerCase()} field`;
+                  }
+                }
+                break;
+              }
+            }
+            
+            return {
+              name: header,
+              type,
+              description
+            };
+          });
+          
+          // Convert sample data to objects
+          const sampleRows = rows.map(row => {
+            const obj: any = {};
+            headers.forEach((header, index) => {
+              obj[header] = row[index];
+            });
+            return obj;
+          });
+          
+          schema[sheetName] = fields;
+          sampleData[sheetName] = sampleRows;
+          recordCounts[sheetName] = jsonData.length - 1; // Exclude header
+          
+          dataSchema.push({
+            table: sheetName,
+            fields,
+            recordCount: jsonData.length - 1
+          });
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          worksheets,
+          schema,
+          sampleData,
+          recordCounts,
+          dataSchema
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error processing Excel file:", error);
+      res.status(500).json({ error: "Failed to process Excel file" });
     }
   });
 

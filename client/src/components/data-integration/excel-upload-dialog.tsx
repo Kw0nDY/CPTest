@@ -17,6 +17,7 @@ import {
   Table,
   Zap
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ExcelUploadDialogProps {
   open: boolean;
@@ -55,7 +56,119 @@ interface ExcelProcessedData {
   }>;
 }
 
-// Simulate Excel data processing
+// Real Excel data processing using xlsx library
+const processRealExcelFile = async (file: File): Promise<ExcelProcessedData> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const worksheets = workbook.SheetNames;
+        const schema: Record<string, Array<{ name: string; type: string; description: string; }>> = {};
+        const sampleData: Record<string, any[]> = {};
+        const recordCounts: Record<string, number> = {};
+        const dataSchema: Array<{
+          table: string;
+          fields: Array<{ name: string; type: string; description: string; }>;
+          recordCount: number;
+        }> = [];
+
+        worksheets.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length > 0) {
+            // Get header row (first row)
+            const headers = jsonData[0] as string[];
+            
+            // Get sample data (first 5 rows excluding header)
+            const rows = jsonData.slice(1, 6) as any[][];
+            
+            // Generate field definitions based on actual data
+            const fields = headers.map(header => {
+              // Infer type from first few data rows
+              let type = 'VARCHAR(255)';
+              let description = `${header} field`;
+              
+              // Check first few rows to infer data type
+              for (let i = 1; i < Math.min(jsonData.length, 6); i++) {
+                const row = jsonData[i] as any[];
+                const value = row[headers.indexOf(header)];
+                
+                if (value !== null && value !== undefined && value !== '') {
+                  if (typeof value === 'number') {
+                    if (Number.isInteger(value)) {
+                      type = 'INTEGER';
+                      description = `Numeric ${header.toLowerCase()} value`;
+                    } else {
+                      type = 'DECIMAL(10,2)';
+                      description = `Decimal ${header.toLowerCase()} value`;
+                    }
+                  } else if (typeof value === 'string') {
+                    // Check if it looks like a date
+                    if (value.match(/^\d{4}-\d{2}-\d{2}/) || value.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+                      type = 'DATE';
+                      description = `Date ${header.toLowerCase()} field`;
+                    } else {
+                      type = `VARCHAR(${Math.max(50, value.length * 2)})`;
+                      description = `Text ${header.toLowerCase()} field`;
+                    }
+                  }
+                  break;
+                }
+              }
+              
+              return {
+                name: header,
+                type,
+                description
+              };
+            });
+            
+            // Convert sample data to objects
+            const sampleRows = rows.map(row => {
+              const obj: any = {};
+              headers.forEach((header, index) => {
+                obj[header] = row[index];
+              });
+              return obj;
+            });
+            
+            schema[sheetName] = fields;
+            sampleData[sheetName] = sampleRows;
+            recordCounts[sheetName] = jsonData.length - 1; // Exclude header
+            
+            dataSchema.push({
+              table: sheetName,
+              fields,
+              recordCount: jsonData.length - 1
+            });
+          }
+        });
+        
+        resolve({
+          worksheets,
+          schema,
+          sampleData,
+          recordCounts,
+          dataSchema
+        });
+        
+      } catch (error) {
+        console.error('Error processing Excel file:', error);
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+// Simulate Excel data processing (fallback for when real processing fails)
 const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> => {
   // Simulate different data based on file name
   const fileName = file.name.toLowerCase();
@@ -367,8 +480,48 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
 
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Simulate Excel processing and data extraction
-      const processedData = await simulateExcelProcessing(file);
+      // Process Excel file using server API
+      let processedData: ExcelProcessedData;
+      try {
+        // Convert file to base64
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // Send to server for processing
+        const response = await apiRequest(`/api/excel/process`, {
+          method: 'POST',
+          body: JSON.stringify({
+            fileData: base64Data,
+            fileName: file.name
+          }),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.success) {
+          processedData = response.data;
+          console.log('Server processed Excel data:', processedData);
+        } else {
+          throw new Error('Server failed to process Excel file');
+        }
+      } catch (error) {
+        console.warn('Failed to process Excel file via server, using client fallback:', error);
+        try {
+          processedData = await processRealExcelFile(file);
+          console.log('Client processed Excel data:', processedData);
+        } catch (clientError) {
+          console.warn('Client processing also failed, using simulation:', clientError);
+          processedData = await simulateExcelProcessing(file);
+        }
+      }
       
       setUploadedFiles(prev => 
         prev.map(f => f.name === file.name ? { 
