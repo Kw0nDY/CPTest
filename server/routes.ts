@@ -596,13 +596,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Successfully loaded ${sheets.length} spreadsheets from Google Drive`);
         console.log('All sheets before filtering:', JSON.stringify(sheets, null, 2));
         
-        const filteredSheets = sheets.filter((sheet: any) => sheet.sheets.length > 0);
-        console.log(`Filtered sheets (with worksheets): ${filteredSheets.length}`);
-        console.log('Filtered sheets data:', JSON.stringify(filteredSheets, null, 2));
+        // Don't filter out sheets just because API failed - show all available sheets
+        console.log(`All available sheets: ${sheets.length}`);
+        console.log('All sheets data:', JSON.stringify(sheets, null, 2));
+        
+        // For sheets that failed to load worksheet info, add default worksheet names
+        const enhancedSheets = sheets.map(sheet => ({
+          ...sheet,
+          sheets: sheet.sheets.length > 0 ? sheet.sheets : ['Sheet1', 'Sheet2', 'Sheet3'] // Default fallback
+        }));
         
         return res.json({
           success: true,
-          sheets: filteredSheets
+          sheets: enhancedSheets,
+          note: sheets.length > 0 ? "Google Sheets API가 제한되어 있어 워크시트 세부 정보를 가져올 수 없지만, 시트 연결은 가능합니다." : undefined
         });
       } catch (error) {
         console.error('Error accessing Google Drive API:', error);
@@ -617,42 +624,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add manual Google Sheets URL
-  app.post("/api/google-sheets/add-manual", async (req, res) => {
+  // Get Google Sheets data preview
+  app.get("/api/google-sheets/:sheetId/data", async (req, res) => {
     try {
-      const { url, name } = req.body;
+      const { sheetId } = req.params;
+      const { sheetName = "Sheet1" } = req.query;
       
-      if (!url) {
-        return res.status(400).json({ error: "URL is required" });
+      if (!req.session?.googleTokens) {
+        return res.status(401).json({ error: "Not authenticated with Google" });
       }
+
+      const tokens = req.session.googleTokens;
       
-      // Extract spreadsheet ID from URL
-      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      if (!match) {
-        return res.status(400).json({ error: "Invalid Google Sheets URL" });
+      // Check if token is expired
+      if (Date.now() > tokens.expires_at) {
+        return res.status(401).json({ error: "Token expired, please re-authenticate" });
       }
-      
-      const spreadsheetId = match[1];
-      const sheetName = name || `Google Sheet (${spreadsheetId.substring(0, 8)}...)`;
-      
-      // Create a manual sheet entry
-      const manualSheet = {
-        id: spreadsheetId,
-        name: sheetName,
-        url: url,
-        sheets: ['Sheet1'], // Default sheet name
-        lastModified: new Date().toISOString(),
-        source: 'manual'
-      };
-      
-      res.json({
-        success: true,
-        sheet: manualSheet,
-        message: "Google Sheets URL이 성공적으로 추가되었습니다."
+
+      const auth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
+      );
+
+      auth.setCredentials({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        token_type: 'Bearer',
+        expiry_date: tokens.expires_at
       });
+
+      try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        
+        // Get the data from the specified sheet
+        const range = `${sheetName}!A1:Z100`; // Get first 100 rows and columns A-Z
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: sheetId,
+          range: range,
+        });
+
+        const rows = response.data.values || [];
+        
+        // Format the data for display
+        const headers = rows.length > 0 ? rows[0] : [];
+        const data = rows.slice(1).map(row => {
+          const rowData: any = {};
+          headers.forEach((header, index) => {
+            rowData[header || `Column_${index + 1}`] = row[index] || '';
+          });
+          return rowData;
+        });
+
+        res.json({
+          success: true,
+          data: {
+            headers,
+            rows: data,
+            totalRows: data.length,
+            sheetName
+          }
+        });
+
+      } catch (apiError: any) {
+        console.error('Google Sheets API error:', apiError);
+        
+        if (apiError.code === 403) {
+          return res.json({
+            success: false,
+            error: "Google Sheets API가 비활성화되어 있습니다.",
+            helpMessage: "Google Cloud Console에서 Google Sheets API를 활성화해주세요.",
+            needsApiActivation: true,
+            activationUrl: `https://console.developers.google.com/apis/api/sheets.googleapis.com/overview?project=${process.env.GOOGLE_CLIENT_ID?.split('-')[0]}`
+          });
+        }
+        
+        return res.status(500).json({
+          success: false,
+          error: "Google Sheets 데이터를 가져올 수 없습니다.",
+          details: apiError.message
+        });
+      }
+      
     } catch (error) {
-      console.error("Error adding manual Google Sheets URL:", error);
-      res.status(500).json({ error: "Failed to add Google Sheets URL" });
+      console.error("Error fetching Google Sheets data:", error);
+      res.status(500).json({ error: "Failed to fetch sheet data" });
     }
   });
 

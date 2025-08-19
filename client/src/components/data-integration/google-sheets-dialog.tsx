@@ -14,8 +14,13 @@ import {
   RefreshCw,
   User,
   Plus,
-  Link
+  Link,
+  Eye,
+  Loader2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -45,8 +50,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
   const [sheets, setSheets] = useState<GoogleSheet[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState<boolean>(false);
-  const [manualUrl, setManualUrl] = useState<string>("");
+
   const { toast } = useToast();
 
   const handleGoogleAuth = async () => {
@@ -157,34 +161,31 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       if (result.success) {
         setSheets(result.sheets || []);
         
-        // If API has issues or no sheets found, enable manual input
-        if (result.needsManualInput || result.error || result.sheets.length === 0) {
-          setShowUrlInput(true);
+        // Show a note if sheets are available
+        if (result.sheets && result.sheets.length > 0) {
           toast({
-            title: "직접 URL 입력 가능",
-            description: result.helpMessage || "Google Sheets URL을 직접 입력하여 연결할 수 있습니다.",
+            title: "Google Sheets 로딩 완료",
+            description: `${result.sheets.length}개의 스프레드시트를 찾았습니다.`,
             variant: "default"
           });
         }
       } else if (result.needsDriveApi) {
-        setShowUrlInput(true);
         toast({
           title: "API 제한",
-          description: "Google Sheets API가 제한되어 있습니다. 직접 URL을 입력해주세요.",
+          description: "Google Drive API가 필요합니다. Google Cloud Console에서 활성화해주세요.",
           variant: "destructive"
         });
       }
     } catch (error: any) {
       console.error('Failed to load sheets:', error);
-      setShowUrlInput(true);
       
-      let description = "Google Sheets API 연결이 실패했습니다. 직접 URL을 입력하여 연결할 수 있습니다.";
+      let description = "Google Sheets API 연결에 실패했습니다.";
       
       // Handle specific API error responses
       if (error.error && error.needsDriveApi) {
-        description = "Google Sheets API가 비활성화되어 있습니다. 직접 URL을 입력해주세요.";
+        description = "Google Sheets API가 비활성화되어 있습니다. Google Cloud Console에서 활성화해주세요.";
       } else if (error.message) {
-        description = `${error.message} 직접 URL을 입력하여 연결할 수 있습니다.`;
+        description = error.message;
       }
       
       toast({
@@ -250,77 +251,142 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
     }
   };
 
-  const handleManualUrlAdd = async () => {
-    if (!manualUrl.trim()) {
-      toast({
-        title: "URL 필요",
-        description: "Google Sheets URL을 입력해주세요.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      // Check URL format first
-      const match = manualUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      if (!match) {
-        toast({
-          title: "잘못된 URL",
-          description: "올바른 Google Sheets URL을 입력해주세요. 예: https://docs.google.com/spreadsheets/d/[ID]/edit",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const spreadsheetId = match[1];
-      
-      // Check if already exists
-      const existingSheet = sheets.find(s => s.id === spreadsheetId);
-      if (existingSheet) {
-        toast({
-          title: "이미 추가됨",
-          description: "이 Google Sheets는 이미 목록에 있습니다.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      // Try to extract name from URL or use default
-      let sheetName = `Google Sheet (${spreadsheetId.substring(0, 8)}...)`;
-      
-      // Add the sheet to the list immediately
-      const newSheet: GoogleSheet = {
-        id: spreadsheetId,
-        name: sheetName,
-        url: manualUrl,
-        sheets: ["Sheet1"], // Default sheet name
-        lastModified: new Date().toISOString()
-      };
-      
-      setSheets(prev => [...prev, newSheet]);
-      setSelectedSheets(prev => [...prev, spreadsheetId]); // Auto-select the new sheet
-      setManualUrl("");
-      
-      toast({
-        title: "시트 추가 완료",
-        description: "Google Sheets가 목록에 추가되고 선택되었습니다.",
-      });
-      
-    } catch (error) {
-      console.error('Error adding manual URL:', error);
-      toast({
-        title: "시트 추가 실패",
-        description: "Google Sheets URL을 추가할 수 없습니다.",
-        variant: "destructive"
-      });
-    }
-  };
+
 
   const handleSheetToggle = (sheetId: string) => {
     setSelectedSheets(prev => 
       prev.includes(sheetId) 
         ? prev.filter(id => id !== sheetId)
         : [...prev, sheetId]
+    );
+  };
+
+  // Sheet Preview Component
+  const SheetPreviewCard = ({ sheet, isSelected, onToggle }: {
+    sheet: GoogleSheet;
+    isSelected: boolean;
+    onToggle: () => void;
+  }) => {
+    const [showPreview, setShowPreview] = useState(false);
+    
+    const { data: previewData, isLoading: isLoadingPreview } = useQuery({
+      queryKey: ['/api/google-sheets', sheet.id, 'data'],
+      enabled: showPreview && authStatus === 'authorized',
+      retry: false
+    });
+    
+    return (
+      <Card className={`transition-all duration-200 ${
+        isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+      }`}>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            {/* Sheet Header */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={onToggle}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <FileSpreadsheet className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{sheet.name}</p>
+                <p className="text-sm text-gray-600">
+                  수정일: {new Date(sheet.lastModified).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="h-8"
+                >
+                  <Eye className="w-3 h-3 mr-1" />
+                  미리보기
+                  {showPreview ? 
+                    <ChevronUp className="w-3 h-3 ml-1" /> : 
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  }
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => window.open(sheet.url, '_blank')}
+                  className="h-8"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Data Preview */}
+            {showPreview && (
+              <div className="border-t pt-3">
+                {isLoadingPreview ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-sm text-gray-600">데이터 로딩 중...</span>
+                  </div>
+                ) : previewData?.success ? (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-gray-700">
+                      데이터 미리보기 ({previewData.data.totalRows}행)
+                    </div>
+                    <div className="bg-gray-50 rounded-md p-3 max-h-48 overflow-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            {previewData.data.headers?.slice(0, 5).map((header: string, index: number) => (
+                              <th key={index} className="text-left p-1 font-medium text-gray-700">
+                                {header || `열${index + 1}`}
+                              </th>
+                            ))}
+                            {previewData.data.headers?.length > 5 && (
+                              <th className="text-left p-1 font-medium text-gray-500">...</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewData.data.rows?.slice(0, 3).map((row: any, index: number) => (
+                            <tr key={index} className="border-b border-gray-100">
+                              {previewData.data.headers?.slice(0, 5).map((header: string, colIndex: number) => (
+                                <td key={colIndex} className="p-1 text-gray-600 truncate max-w-20">
+                                  {row[header] || '-'}
+                                </td>
+                              ))}
+                              {previewData.data.headers?.length > 5 && (
+                                <td className="p-1 text-gray-400">...</td>
+                              )}
+                            </tr>
+                          ))}
+                          {previewData.data.rows?.length > 3 && (
+                            <tr>
+                              <td colSpan={Math.min(previewData.data.headers?.length || 0, 6)} 
+                                  className="p-1 text-center text-gray-400 text-xs">
+                                ... {previewData.data.rows.length - 3}개 행 더 있음
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-3 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4 mx-auto mb-1" />
+                    미리보기를 불러올 수 없습니다
+                    <div className="text-xs text-gray-500 mt-1">
+                      Google Sheets API가 비활성화되어 있을 수 있습니다
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -408,91 +474,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 </CardContent>
               </Card>
 
-              {/* API Help Card */}
-              <Card className="bg-amber-50 border-amber-200">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 space-y-3">
-                      <div>
-                        <h4 className="font-medium text-amber-800">Google Drive API 활성화 필요</h4>
-                        <p className="text-sm text-amber-700 mt-1">
-                          Google Sheets 목록을 자동으로 가져오려면 Google Drive API를 활성화해야 합니다.
-                        </p>
-                      </div>
-                      
-                      <div className="text-sm text-amber-700">
-                        <p className="font-medium mb-2">활성화 방법:</p>
-                        <ol className="list-decimal list-inside space-y-1 text-xs">
-                          <li>
-                            <a 
-                              href="https://console.cloud.google.com/apis/library/drive.googleapis.com" 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="text-blue-600 underline hover:text-blue-800"
-                            >
-                              Google Cloud Console
-                            </a>에서 Google Drive API 페이지로 이동
-                          </li>
-                          <li>프로젝트 선택 후 "사용 설정" 클릭</li>
-                          <li>페이지 새로고침 후 다시 시도</li>
-                        </ol>
-                      </div>
-                      
-                      <div className="pt-2 border-t border-amber-300">
-                        <p className="text-sm font-medium text-amber-800 mb-2">대안: 직접 URL 입력</p>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="border-amber-300 text-amber-800 hover:bg-amber-100"
-                          onClick={() => setShowUrlInput(!showUrlInput)}
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          {showUrlInput ? "URL 입력 취소" : "직접 URL 추가"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Manual URL Input */}
-              {showUrlInput && (
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Link className="w-4 h-4 text-blue-600" />
-                        <h4 className="font-medium">Google Sheets URL 직접 입력</h4>
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="manual-url" className="text-sm text-gray-700">Google Sheets URL</Label>
-                        <Input
-                          id="manual-url"
-                          placeholder="https://docs.google.com/spreadsheets/d/..."
-                          value={manualUrl}
-                          onChange={(e) => setManualUrl(e.target.value)}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          예: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
-                        </p>
-                      </div>
-                      
-                      <Button 
-                        size="sm" 
-                        onClick={handleManualUrlAdd}
-                        disabled={!manualUrl.trim()}
-                        className="w-full"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        시트 추가
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Sheets Selection */}
               <div>
@@ -505,36 +487,14 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 </div>
 
                 {sheets.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
                     {sheets.map((sheet) => (
-                      <Card 
-                        key={sheet.id} 
-                        className={`cursor-pointer transition-colors ${
-                          selectedSheets.includes(sheet.id) 
-                            ? 'ring-2 ring-blue-500 bg-blue-50' 
-                            : 'hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleSheetToggle(sheet.id)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedSheets.includes(sheet.id)}
-                              onChange={() => handleSheetToggle(sheet.id)}
-                              className="w-4 h-4"
-                            />
-                            <FileSpreadsheet className="w-5 h-5 text-green-600 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{sheet.name}</p>
-                              <p className="text-sm text-gray-600">
-                                {sheet.sheets.length} 워크시트 • 수정일: {new Date(sheet.lastModified).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <ExternalLink className="w-4 h-4 text-gray-400" />
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <SheetPreviewCard 
+                        key={sheet.id}
+                        sheet={sheet}
+                        isSelected={selectedSheets.includes(sheet.id)}
+                        onToggle={() => handleSheetToggle(sheet.id)}
+                      />
                     ))}
                   </div>
                 ) : (
