@@ -105,7 +105,7 @@ export class DatabaseStorage implements IStorage {
         name: dataSource.name,
         type: dataSource.type,
         category: dataSource.category,
-        vendor: dataSource.vendor,
+        vendor: dataSource.vendor || null,
         status: 'connected',
         config: dataSource.config,
         connectionDetails: dataSource.connectionDetails || {},
@@ -117,6 +117,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDataSourceTables(dataSourceId: string): Promise<any[]> {
+    // Check if this is an Excel data source and return its schema
+    const dataSource = await this.getDataSource(dataSourceId);
+    if (dataSource && dataSource.type === 'Excel') {
+      const config = dataSource.config as any;
+      if (config.dataSchema) {
+        return config.dataSchema.map((table: any) => ({
+          name: table.table,
+          fields: table.fields,
+          recordCount: table.recordCount
+        }));
+      }
+    }
+
     // Return tables based on data source type
     const tableSchemas = {
       'sap-erp': [
@@ -227,6 +240,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTableData(dataSourceId: string, tableName: string): Promise<any[]> {
+    // Check if this is an Excel data source and return its data
+    const dataSource = await this.getDataSource(dataSourceId);
+    if (dataSource && dataSource.type === 'Excel') {
+      const config = dataSource.config as any;
+      if (config.sampleData && config.sampleData[tableName]) {
+        return config.sampleData[tableName];
+      }
+    }
+
     // Return mock data for testing - ensure authentic data is available
     const mockData: Record<string, Record<string, any[]>> = {
       'SAP ERP': {

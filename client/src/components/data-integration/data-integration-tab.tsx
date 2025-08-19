@@ -409,9 +409,8 @@ export default function DataIntegrationTab() {
     }
   ];
 
-  const { data: dataSources = mockConnectedSources } = useQuery<DataSource[]>({
-    queryKey: ['/api/data-sources'],
-    queryFn: () => Promise.resolve(mockConnectedSources)
+  const { data: dataSources = [] } = useQuery<DataSource[]>({
+    queryKey: ['/api/data-sources']
   });
 
   const createDataSourceMutation = useMutation({
@@ -471,21 +470,52 @@ export default function DataIntegrationTab() {
 
   const handleExcelUploadSuccess = async (connectionData: any) => {
     try {
-      // Create Excel data source with uploaded files
+      // Process each Excel file and create detailed data source
+      const firstFile = connectionData.files[0];
+      const processedData = firstFile.processedData;
+      
+      // Create comprehensive Excel data source with real data structure
       const dataSourceData = {
-        name: `Excel Files (${connectionData.files.length} files)`,
-        type: 'excel',
+        name: connectionData.files.length === 1 ? 
+          firstFile.name.replace(/\.[^/.]+$/, '') : 
+          `Excel Files (${connectionData.files.length} files)`,
+        type: 'Excel',
         category: 'file',
+        vendor: 'Microsoft',
         config: {
-          files: connectionData.files
+          files: connectionData.files.map((file: any) => ({
+            name: file.name,
+            worksheets: file.worksheets,
+            url: file.url
+          }))
+        },
+        connectionDetails: {
+          server: 'Local Upload',
+          protocol: 'File System',
+          database: connectionData.files.length === 1 ? firstFile.name : 'Multiple Files'
         },
         credentials: null,
-        status: 'connected'
+        status: 'connected',
+        recordCount: processedData ? Object.values(processedData.recordCounts).reduce((a: number, b: number) => a + b, 0) : 0,
+        dataSchema: processedData ? Object.entries(processedData.schema).map(([tableName, fields]) => ({
+          table: tableName,
+          fields: fields,
+          recordCount: processedData.recordCounts[tableName] || 0,
+          lastUpdated: new Date().toISOString()
+        })) : [],
+        sampleData: processedData ? processedData.sampleData : {}
+      };
+
+      // Update config to include the processed data for server storage
+      dataSourceData.config = {
+        ...dataSourceData.config,
+        dataSchema: dataSourceData.dataSchema,
+        sampleData: dataSourceData.sampleData
       };
 
       const response = await apiRequest('POST', '/api/data-sources', dataSourceData);
       
-      // Refresh data sources
+      // Refresh data sources to show the new Excel connection
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
       
       toast({ 
@@ -632,7 +662,7 @@ export default function DataIntegrationTab() {
                           </div>
                           <div className="min-h-[20px]">
                             <span className="text-gray-600">Tables:</span>
-                            <p className="font-medium">{ds.dataSchema.length}</p>
+                            <p className="font-medium">{ds.dataSchema?.length || 0}</p>
                           </div>
                           <div className="min-h-[20px]">
                             <span className="text-gray-600">Last Sync:</span>
@@ -644,14 +674,14 @@ export default function DataIntegrationTab() {
                         <div className="p-3 bg-gray-50 rounded-lg mb-4 min-h-[80px] max-h-[80px] overflow-hidden">
                           <p className="text-sm text-gray-600 mb-2">Available Tables:</p>
                           <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[40px]">
-                            {ds.dataSchema.slice(0, 3).map((schema, index) => (
+                            {(ds.dataSchema || []).slice(0, 3).map((schema, index) => (
                               <Badge key={index} variant="secondary" className="text-xs whitespace-nowrap">
                                 {schema.table}
                               </Badge>
                             ))}
-                            {ds.dataSchema.length > 3 && (
+                            {(ds.dataSchema?.length || 0) > 3 && (
                               <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                +{ds.dataSchema.length - 3} more
+                                +{(ds.dataSchema?.length || 0) - 3} more
                               </Badge>
                             )}
                           </div>

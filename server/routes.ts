@@ -3,6 +3,64 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
 
+// Default data schemas for mock data sources
+function getDefaultDataSchema(type: string, id: string) {
+  const defaultSchemas: Record<string, any[]> = {
+    'sap-erp': [
+      {
+        table: 'CUSTOMERS',
+        fields: [
+          { name: 'customer_id', type: 'VARCHAR(50)', description: 'Customer ID' },
+          { name: 'customer_name', type: 'VARCHAR(255)', description: 'Customer name' },
+          { name: 'country', type: 'VARCHAR(50)', description: 'Country' },
+          { name: 'credit_limit', type: 'INTEGER', description: 'Credit limit' },
+          { name: 'created_date', type: 'DATE', description: 'Created date' }
+        ],
+        recordCount: 10
+      },
+      {
+        table: 'ORDERS',
+        fields: [
+          { name: 'order_id', type: 'VARCHAR(50)', description: 'Order ID' },
+          { name: 'customer_id', type: 'VARCHAR(50)', description: 'Customer ID' },
+          { name: 'order_date', type: 'DATE', description: 'Order date' },
+          { name: 'total_amount', type: 'INTEGER', description: 'Total amount' },
+          { name: 'status', type: 'VARCHAR(50)', description: 'Order status' }
+        ],
+        recordCount: 10
+      }
+    ],
+    'salesforce-crm': [
+      {
+        table: 'ACCOUNTS',
+        fields: [
+          { name: 'sf_id', type: 'VARCHAR(18)', description: 'Salesforce ID' },
+          { name: 'name', type: 'VARCHAR(255)', description: 'Account name' },
+          { name: 'industry', type: 'VARCHAR(100)', description: 'Industry' },
+          { name: 'annual_revenue', type: 'INTEGER', description: 'Annual revenue' },
+          { name: 'number_of_employees', type: 'INTEGER', description: 'Number of employees' }
+        ],
+        recordCount: 10
+      }
+    ],
+    'aveva-pi': [
+      {
+        table: 'ASSET_HIERARCHY',
+        fields: [
+          { name: 'asset_name', type: 'VARCHAR(255)', description: 'Asset name' },
+          { name: 'asset_path', type: 'VARCHAR(500)', description: 'Asset path' },
+          { name: 'asset_type', type: 'VARCHAR(100)', description: 'Asset type' },
+          { name: 'location', type: 'VARCHAR(255)', description: 'Location' },
+          { name: 'operational_status', type: 'VARCHAR(50)', description: 'Operational status' }
+        ],
+        recordCount: 10
+      }
+    ]
+  };
+
+  return defaultSchemas[id] || defaultSchemas[type] || [];
+}
+
 // Microsoft Graph API helper functions
 async function exchangeCodeForToken(code: string, dataSourceId: string, req: any) {
   try {
@@ -200,7 +258,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/data-sources", async (req, res) => {
     try {
       const dataSources = await storage.getDataSources();
-      res.json(dataSources);
+      
+      // Add default dataSchema for mock sources that don't have it
+      const enhancedDataSources = dataSources.map(ds => ({
+        ...ds,
+        dataSchema: ds.dataSchema || getDefaultDataSchema(ds.type, ds.id)
+      }));
+      
+      res.json(enhancedDataSources);
     } catch (error) {
       console.error("Error fetching data sources:", error);
       res.status(500).json({ error: "Failed to fetch data sources" });

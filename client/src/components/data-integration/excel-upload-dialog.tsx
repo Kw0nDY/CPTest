@@ -32,7 +32,109 @@ interface UploadedFile {
   worksheets?: string[];
   status: 'uploading' | 'processing' | 'complete' | 'error';
   progress: number;
+  processedData?: ExcelProcessedData;
 }
+
+interface ExcelProcessedData {
+  worksheets: string[];
+  schema: Record<string, Array<{
+    name: string;
+    type: string;
+    description: string;
+  }>>;
+  sampleData: Record<string, any[]>;
+  recordCounts: Record<string, number>;
+}
+
+// Simulate Excel data processing
+const simulateExcelProcessing = async (file: File): Promise<ExcelProcessedData> => {
+  // Simulate different data based on file name
+  const fileName = file.name.toLowerCase();
+  
+  if (fileName.includes('sales') || fileName.includes('revenue')) {
+    return {
+      worksheets: ['Sales Data', 'Summary', 'Charts'],
+      schema: {
+        'Sales Data': [
+          { name: 'OrderID', type: 'VARCHAR(20)', description: 'Unique order identifier' },
+          { name: 'CustomerName', type: 'VARCHAR(100)', description: 'Customer company name' },
+          { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product description' },
+          { name: 'Quantity', type: 'INTEGER', description: 'Units sold' },
+          { name: 'UnitPrice', type: 'DECIMAL(10,2)', description: 'Price per unit' },
+          { name: 'TotalAmount', type: 'DECIMAL(15,2)', description: 'Total order value' },
+          { name: 'OrderDate', type: 'DATE', description: 'Date of sale' }
+        ],
+        'Summary': [
+          { name: 'Period', type: 'VARCHAR(20)', description: 'Time period' },
+          { name: 'TotalSales', type: 'DECIMAL(15,2)', description: 'Total sales amount' },
+          { name: 'OrderCount', type: 'INTEGER', description: 'Number of orders' },
+          { name: 'AverageOrderValue', type: 'DECIMAL(10,2)', description: 'Average order value' }
+        ]
+      },
+      sampleData: {
+        'Sales Data': [
+          { OrderID: 'ORD001', CustomerName: 'Tech Solutions Inc.', ProductName: 'Software License', Quantity: 5, UnitPrice: 299.99, TotalAmount: 1499.95, OrderDate: '2025-01-15' },
+          { OrderID: 'ORD002', CustomerName: 'Global Manufacturing', ProductName: 'Hardware Kit', Quantity: 10, UnitPrice: 149.50, TotalAmount: 1495.00, OrderDate: '2025-01-14' },
+          { OrderID: 'ORD003', CustomerName: 'Smart Systems Ltd.', ProductName: 'Consulting Service', Quantity: 1, UnitPrice: 2500.00, TotalAmount: 2500.00, OrderDate: '2025-01-13' }
+        ],
+        'Summary': [
+          { Period: 'Q1 2025', TotalSales: 125000.00, OrderCount: 45, AverageOrderValue: 2777.78 },
+          { Period: 'Q4 2024', TotalSales: 98500.00, OrderCount: 38, AverageOrderValue: 2592.11 }
+        ]
+      },
+      recordCounts: {
+        'Sales Data': 1250,
+        'Summary': 8
+      }
+    };
+  } else if (fileName.includes('inventory') || fileName.includes('stock')) {
+    return {
+      worksheets: ['Inventory', 'Categories', 'Suppliers'],
+      schema: {
+        'Inventory': [
+          { name: 'SKU', type: 'VARCHAR(20)', description: 'Stock keeping unit' },
+          { name: 'ProductName', type: 'VARCHAR(100)', description: 'Product name' },
+          { name: 'Category', type: 'VARCHAR(50)', description: 'Product category' },
+          { name: 'Supplier', type: 'VARCHAR(100)', description: 'Supplier name' },
+          { name: 'QuantityOnHand', type: 'INTEGER', description: 'Current stock level' },
+          { name: 'ReorderLevel', type: 'INTEGER', description: 'Minimum stock before reorder' },
+          { name: 'UnitCost', type: 'DECIMAL(10,2)', description: 'Cost per unit' }
+        ]
+      },
+      sampleData: {
+        'Inventory': [
+          { SKU: 'PROD001', ProductName: 'Wireless Mouse', Category: 'Electronics', Supplier: 'Tech Supplies Co.', QuantityOnHand: 150, ReorderLevel: 25, UnitCost: 15.99 },
+          { SKU: 'PROD002', ProductName: 'Office Chair', Category: 'Furniture', Supplier: 'Office Solutions Ltd.', QuantityOnHand: 45, ReorderLevel: 10, UnitCost: 129.99 }
+        ]
+      },
+      recordCounts: {
+        'Inventory': 890
+      }
+    };
+  } else {
+    // Default generic data
+    return {
+      worksheets: ['Sheet1', 'Data', 'Summary'],
+      schema: {
+        'Sheet1': [
+          { name: 'ID', type: 'INTEGER', description: 'Record identifier' },
+          { name: 'Name', type: 'VARCHAR(100)', description: 'Item name' },
+          { name: 'Value', type: 'DECIMAL(10,2)', description: 'Numeric value' },
+          { name: 'Date', type: 'DATE', description: 'Date field' }
+        ]
+      },
+      sampleData: {
+        'Sheet1': [
+          { ID: 1, Name: 'Item A', Value: 100.50, Date: '2025-01-15' },
+          { ID: 2, Name: 'Item B', Value: 250.75, Date: '2025-01-14' }
+        ]
+      },
+      recordCounts: {
+        'Sheet1': 156
+      }
+    };
+  }
+};
 
 export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUploadDialogProps) {
   const [dragActive, setDragActive] = useState(false);
@@ -119,15 +221,16 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
 
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Mock worksheet detection
-      const mockWorksheets = ['Sheet1', 'Data', 'Summary', 'Charts'];
+      // Simulate Excel processing and data extraction
+      const processedData = await simulateExcelProcessing(file);
       
       setUploadedFiles(prev => 
         prev.map(f => f.name === file.name ? { 
           ...f, 
           status: 'complete',
-          worksheets: mockWorksheets,
-          url: `/uploaded/${file.name}`
+          worksheets: processedData.worksheets,
+          url: `/uploaded/${file.name}`,
+          processedData: processedData
         } : f)
       );
 
@@ -187,7 +290,8 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
       files: completedFiles.map(file => ({
         name: file.name,
         url: file.url,
-        worksheets: selectedWorksheets[file.name] || []
+        worksheets: selectedWorksheets[file.name] || [],
+        processedData: file.processedData
       }))
     };
 
