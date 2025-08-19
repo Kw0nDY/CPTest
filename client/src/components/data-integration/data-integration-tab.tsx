@@ -24,6 +24,7 @@ import {
   Server,
   Table
 } from 'lucide-react';
+import { ExcelUploadDialog } from './excel-upload-dialog';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
@@ -188,6 +189,7 @@ export default function DataIntegrationTab() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
+  const [showExcelUploadDialog, setShowExcelUploadDialog] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -439,8 +441,9 @@ export default function DataIntegrationTab() {
 
   const handleConnect = async (dataSource: AvailableDataSource) => {
     if (dataSource.id === 'microsoft-excel') {
-      // Handle Microsoft Excel OAuth connection
-      await handleExcelOAuthConnection(dataSource);
+      // Show Excel upload dialog
+      setSelectedDataSource(dataSource);
+      setShowExcelUploadDialog(true);
     } else {
       // Handle regular database connections
       setSelectedDataSource(dataSource);
@@ -466,53 +469,34 @@ export default function DataIntegrationTab() {
     }
   };
 
-  const handleExcelOAuthConnection = async (dataSource: AvailableDataSource) => {
+  const handleExcelUploadSuccess = async (connectionData: any) => {
     try {
-      // Create Excel data source first
+      // Create Excel data source with uploaded files
       const dataSourceData = {
-        name: dataSource.name,
+        name: `Excel Files (${connectionData.files.length} files)`,
         type: 'excel',
         category: 'file',
-        config: {},
+        config: {
+          files: connectionData.files
+        },
         credentials: null,
-        status: 'disconnected'
+        status: 'connected'
       };
 
       const response = await apiRequest('POST', '/api/data-sources', dataSourceData);
-      const createdDataSource = await response.json();
-
-      // Get OAuth authorization URL
-      const authResponse = await apiRequest('POST', `/api/data-sources/${createdDataSource.id}/oauth/authorize`, {
-        clientId: ''  // Use default client ID
+      
+      // Refresh data sources
+      queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      
+      toast({ 
+        title: "Excel 파일 연결 완료", 
+        description: `${connectionData.files.length}개의 Excel 파일이 성공적으로 연결되었습니다.` 
       });
-      const authData = await authResponse.json();
-
-      if (authData.authUrl) {
-        // Open Microsoft OAuth popup
-        const popup = window.open(
-          authData.authUrl,
-          'microsoft-oauth',
-          'width=600,height=700,scrollbars=yes,resizable=yes'
-        );
-
-        // Monitor popup for completion
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed);
-            // Refresh data sources to check connection status
-            queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-            toast({ 
-              title: "Microsoft Excel 연결 완료", 
-              description: "OneDrive Excel 파일에 성공적으로 연결되었습니다." 
-            });
-          }
-        }, 1000);
-      }
     } catch (error) {
-      console.error('Excel OAuth error:', error);
+      console.error('Excel connection error:', error);
       toast({ 
         title: "연결 실패", 
-        description: "Microsoft Excel 연결에 실패했습니다.", 
+        description: "Excel 파일 연결에 실패했습니다.", 
         variant: "destructive" 
       });
     }
@@ -1042,6 +1026,13 @@ export default function DataIntegrationTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Excel Upload Dialog */}
+      <ExcelUploadDialog
+        open={showExcelUploadDialog}
+        onOpenChange={setShowExcelUploadDialog}
+        onSuccess={handleExcelUploadSuccess}
+      />
     </div>
   );
 }
