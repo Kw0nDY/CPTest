@@ -341,6 +341,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/data-sources/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteDataSource(id);
+      res.status(200).json({ message: "Data source deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting data source:", error);
+      res.status(500).json({ error: "Failed to delete data source" });
+    }
+  });
+
   // Microsoft Excel/OneDrive OAuth 2.0 Integration
   app.post("/api/data-sources/:id/oauth/authorize", async (req, res) => {
     try {

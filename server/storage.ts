@@ -284,6 +284,10 @@ export class DatabaseStorage implements IStorage {
     return dataSource;
   }
 
+  async deleteDataSource(id: string): Promise<void> {
+    await db.delete(dataSources).where(eq(dataSources.id, id));
+  }
+
   async getExcelFiles(dataSourceId: string): Promise<ExcelFile[]> {
     return await db.select().from(excelFiles).where(eq(excelFiles.dataSourceId, dataSourceId));
   }
