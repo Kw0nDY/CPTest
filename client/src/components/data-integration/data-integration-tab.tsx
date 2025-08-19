@@ -478,11 +478,11 @@ export default function DataIntegrationTab() {
         status: 'disconnected'
       };
 
-      const response = await apiRequest('/api/data-sources', 'POST', dataSourceData);
+      const response = await apiRequest('POST', '/api/data-sources', dataSourceData);
       const createdDataSource = await response.json();
 
       // Get OAuth authorization URL
-      const authResponse = await apiRequest(`/api/data-sources/${createdDataSource.id}/oauth/authorize`, 'POST', {
+      const authResponse = await apiRequest('POST', `/api/data-sources/${createdDataSource.id}/oauth/authorize`, {
         clientId: ''  // Use default client ID
       });
       const authData = await authResponse.json();
