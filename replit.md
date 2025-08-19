@@ -50,6 +50,12 @@ The platform has been fully localized to English while maintaining Korean commun
 
 Preferred communication style: Korean language communication requested. Always respond in Korean while maintaining English for all service content and UI elements.
 
+**Excel Integration Requirements:**
+- Direct file upload approach preferred over OAuth 2.0 authentication
+- System must read actual Excel file content, not generate mock data based on filenames
+- Worksheet names, column names, data types, and sample data must match real file content exactly
+- Critical requirement: View Data functionality must display authentic Excel data, not simulated content
+
 ## System Architecture
 
 ### Frontend Architecture
