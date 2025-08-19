@@ -470,13 +470,17 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="title">데이터 소스 이름</Label>
+                      <Label htmlFor="title">데이터 소스 이름 *</Label>
                       <Input
                         id="title"
                         value={config.title}
                         onChange={(e) => setConfig(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="예: 회사 Google Sheets"
+                        placeholder="예: 회사 Google Sheets, 마케팅 데이터, 매출 관리 시트"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        이 Google Sheets 연결을 구별할 수 있는 이름을 입력하세요. 
+                        나중에 데이터 소스 목록에서 이 이름으로 표시됩니다.
+                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -485,8 +489,11 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                         id="description"
                         value={config.description}
                         onChange={(e) => setConfig(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="이 데이터 소스에 대한 설명을 입력하세요"
+                        placeholder="예: 2024년 매출 데이터, 고객 정보 관리, 재고 현황"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        이 데이터 소스에 대한 추가 설명을 입력하세요 (선택사항).
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
