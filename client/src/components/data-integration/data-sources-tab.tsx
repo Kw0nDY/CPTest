@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, CheckCircle } from 'lucide-react';
+import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, CheckCircle, Trash2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { GoogleSheetsDialog } from './google-sheets-dialog';
 
 interface SystemSource {
   id: string;
@@ -29,6 +30,7 @@ const systemSources: SystemSource[] = [
   { id: 'hubspot', name: 'HubSpot', type: 'crm', icon: 'Handshake', color: 'orange', description: 'Customer Platform' },
   { id: 'mysql', name: 'MySQL', type: 'database', icon: 'Database', color: 'purple', description: 'Database' },
   { id: 'excel', name: 'Microsoft Excel', type: 'file', icon: 'FileSpreadsheet', color: 'green', description: 'OneDrive/SharePoint Excel Files' },
+  { id: 'google-sheets', name: 'Google Sheets', type: 'file', icon: 'FileSpreadsheet', color: 'blue', description: 'Google Drive Spreadsheets' },
 ];
 
 export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
@@ -43,6 +45,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [excelFiles, setExcelFiles] = useState<any[]>([]);
   const [showExcelFiles, setShowExcelFiles] = useState(false);
+  const [showGoogleSheetsDialog, setShowGoogleSheetsDialog] = useState(false);
 
   const { toast } = useToast();
 
@@ -70,6 +73,21 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     onError: (error) => {
       console.error('Connection error:', error);
       toast({ title: "연결 실패", description: "Failed to connect data source", variant: "destructive" });
+    },
+  });
+
+  const deleteDataSourceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/data-sources/${id}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      toast({ title: "데이터 소스 삭제됨", description: "Data source has been successfully deleted" });
+    },
+    onError: (error) => {
+      console.error('Delete error:', error);
+      toast({ title: "삭제 실패", description: "Failed to delete data source", variant: "destructive" });
     },
   });
 
@@ -122,12 +140,21 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     testConnectionMutation.mutate(dataSourceId);
   };
 
+  const handleDeleteDataSource = async (dataSourceId: string, dataSourceName: string) => {
+    if (window.confirm(`정말로 "${dataSourceName}" 데이터 소스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      deleteDataSourceMutation.mutate(dataSourceId);
+    }
+  };
+
   const handleSaveConnection = async () => {
     if (!selectedSource) return;
 
     if (selectedSource.id === 'excel') {
       // Handle Microsoft Excel OAuth connection
       await handleExcelOAuthConnection();
+    } else if (selectedSource.id === 'google-sheets') {
+      // Handle Google Sheets OAuth connection
+      setShowGoogleSheetsDialog(true);
     } else {
       const data = {
         ...connectionForm,
@@ -413,7 +440,28 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                   </div>
                 )}
 
-                {selectedSource.id !== 'excel' && (
+                {selectedSource.id === 'google-sheets' && (
+                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg border">
+                    <div className="flex items-center space-x-2">
+                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                      <h4 className="font-medium text-blue-900">Google Sheets 연결</h4>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Google Drive API를 통해 Google Sheets 스프레드시트에 접근합니다.
+                    </p>
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium text-blue-900">연결 후 가능한 작업:</h5>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        <li>• Google Drive의 Sheets 파일 목록 조회</li>
+                        <li>• 워크시트 데이터 실시간 읽기</li>
+                        <li>• 시트별 데이터 추출</li>
+                        <li>• OAuth 2.0 보안 인증</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {selectedSource.id !== 'excel' && selectedSource.id !== 'google-sheets' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="client-id">Client ID</Label>
@@ -454,6 +502,22 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         </div>
                       ) : (
                         'Microsoft Excel 연결'
+                      )}
+                    </Button>
+                  ) : selectedSource.id === 'google-sheets' ? (
+                    <Button 
+                      onClick={handleSaveConnection}
+                      disabled={isConnecting || !connectionForm.name}
+                      className="w-full"
+                      data-testid="button-connect-google-sheets"
+                    >
+                      {isConnecting ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>Google 로그인 중...</span>
+                        </div>
+                      ) : (
+                        'Google Sheets 연결'
                       )}
                     </Button>
                   ) : (
@@ -579,6 +643,16 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                       >
                         Test
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteDataSource(dataSource.id, dataSource.name)}
+                        disabled={deleteDataSourceMutation.isPending}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        data-testid={`button-delete-${dataSource.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -593,6 +667,17 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
           Continue to Data Mapping
         </Button>
       </div>
+      
+      <GoogleSheetsDialog 
+        open={showGoogleSheetsDialog}
+        onOpenChange={setShowGoogleSheetsDialog}
+        onConnectionSuccess={() => {
+          setShowGoogleSheetsDialog(false);
+          setSelectedSource(null);
+          queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+          toast({ title: "Google Sheets 연결됨", description: "Google Sheets connection successful" });
+        }}
+      />
     </div>
   );
 }

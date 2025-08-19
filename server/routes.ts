@@ -327,7 +327,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=${encodeURIComponent(scope)}&` +
         `access_type=offline&` +
-        `prompt=consent`;
+        `prompt=select_account&` +
+        `include_granted_scopes=true`;
 
       res.json({ 
         authUrl,
