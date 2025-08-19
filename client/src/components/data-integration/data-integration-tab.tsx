@@ -424,6 +424,35 @@ export default function DataIntegrationTab() {
     queryKey: ['/api/data-sources']
   });
 
+  // Delete data source mutation
+  const deleteDataSourceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/data-sources/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      toast({
+        title: "데이터 소스가 삭제되었습니다",
+        description: "연결된 데이터 소스가 성공적으로 제거되었습니다."
+      });
+    },
+    onError: (error) => {
+      console.error('Delete data source error:', error);
+      toast({
+        title: "삭제 실패",
+        description: "데이터 소스 삭제 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleDeleteDataSource = (id: string, name: string) => {
+    if (confirm(`"${name}" 데이터 소스를 삭제하시겠습니까?`)) {
+      deleteDataSourceMutation.mutate(id);
+    }
+  };
+
   const createDataSourceMutation = useMutation({
     mutationFn: async (config: any) => {
       return apiRequest('/api/data-sources', 'POST', config);
@@ -743,10 +772,13 @@ export default function DataIntegrationTab() {
                             variant="outline" 
                             size="sm" 
                             className="flex-1"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDataSource(ds.id, ds.name);
+                            }}
                           >
                             <Settings className="w-4 h-4 mr-1" />
-                            Configure
+                            Delete
                           </Button>
                         </div>
                       </CardContent>

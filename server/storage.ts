@@ -24,6 +24,7 @@ export interface IStorage {
   getDataSource(id: string): Promise<DataSource | undefined>;
   createDataSource(dataSource: any): Promise<DataSource>;
   updateDataSource(id: string, updates: Partial<DataSource>): Promise<DataSource>;
+  deleteDataSource(id: string): Promise<void>;
   getDataSourceTables(dataSourceId: string): Promise<any[]>;
   getTableData(dataSourceId: string, tableName: string): Promise<any[]>;
   
