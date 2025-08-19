@@ -12,8 +12,12 @@ import {
   AlertCircle, 
   ExternalLink,
   RefreshCw,
-  User
+  User,
+  Plus,
+  Link
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface GoogleSheetsDialogProps {
   open: boolean;
@@ -41,6 +45,8 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
   const [sheets, setSheets] = useState<GoogleSheet[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState<boolean>(false);
+  const [manualUrl, setManualUrl] = useState<string>("");
   const { toast } = useToast();
 
   const handleGoogleAuth = async () => {
@@ -148,12 +154,29 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       
       if (result.success) {
         setSheets(result.sheets);
+      } else if (result.needsDriveApi) {
+        // Show specific error for Drive API issue
+        toast({
+          title: "Google Drive API 필요",
+          description: result.error + " " + (result.helpMessage || ""),
+          variant: "destructive"
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load sheets:', error);
+      
+      let description = "Google Sheets 목록을 불러올 수 없습니다.";
+      
+      // Handle specific API error responses
+      if (error.error && error.needsDriveApi) {
+        description = error.error + "\n\n해결방법:\n1. Google Cloud Console에서 Google Drive API 활성화\n2. 또는 직접 Google Sheets URL 제공";
+      } else if (error.message) {
+        description = error.message;
+      }
+      
       toast({
-        title: "시트 로딩 실패",
-        description: "Google Sheets 목록을 불러올 수 없습니다.",
+        title: "시트 로딩 실패", 
+        description: description,
         variant: "destructive"
       });
     }
@@ -211,6 +234,51 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       });
     } finally {
       setIsConnecting(false);
+    }
+  };
+
+  const handleManualUrlAdd = async () => {
+    if (!manualUrl.trim()) return;
+    
+    try {
+      // Extract spreadsheet ID from URL
+      const match = manualUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (!match) {
+        toast({
+          title: "잘못된 URL",
+          description: "올바른 Google Sheets URL을 입력해주세요.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const spreadsheetId = match[1];
+      
+      // Add mock sheet for now (since we can't access actual sheet without Drive API)
+      const newSheet: GoogleSheet = {
+        id: spreadsheetId,
+        name: "수동 추가 시트",
+        url: manualUrl,
+        sheets: ["Sheet1"], // Default sheet name
+        lastModified: new Date().toISOString()
+      };
+      
+      setSheets(prev => [...prev, newSheet]);
+      setManualUrl("");
+      setShowUrlInput(false);
+      
+      toast({
+        title: "시트 추가 완료",
+        description: "Google Sheets가 목록에 추가되었습니다.",
+      });
+      
+    } catch (error) {
+      console.error('Error adding manual URL:', error);
+      toast({
+        title: "시트 추가 실패",
+        description: "시트를 추가할 수 없습니다.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -305,6 +373,92 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                   </div>
                 </CardContent>
               </Card>
+
+              {/* API Help Card */}
+              <Card className="bg-amber-50 border-amber-200">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <h4 className="font-medium text-amber-800">Google Drive API 활성화 필요</h4>
+                        <p className="text-sm text-amber-700 mt-1">
+                          Google Sheets 목록을 자동으로 가져오려면 Google Drive API를 활성화해야 합니다.
+                        </p>
+                      </div>
+                      
+                      <div className="text-sm text-amber-700">
+                        <p className="font-medium mb-2">활성화 방법:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-xs">
+                          <li>
+                            <a 
+                              href="https://console.cloud.google.com/apis/library/drive.googleapis.com" 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-blue-600 underline hover:text-blue-800"
+                            >
+                              Google Cloud Console
+                            </a>에서 Google Drive API 페이지로 이동
+                          </li>
+                          <li>프로젝트 선택 후 "사용 설정" 클릭</li>
+                          <li>페이지 새로고침 후 다시 시도</li>
+                        </ol>
+                      </div>
+                      
+                      <div className="pt-2 border-t border-amber-300">
+                        <p className="text-sm font-medium text-amber-800 mb-2">대안: 직접 URL 입력</p>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                          onClick={() => setShowUrlInput(!showUrlInput)}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          {showUrlInput ? "URL 입력 취소" : "직접 URL 추가"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Manual URL Input */}
+              {showUrlInput && (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Link className="w-4 h-4 text-blue-600" />
+                        <h4 className="font-medium">Google Sheets URL 직접 입력</h4>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="manual-url" className="text-sm text-gray-700">Google Sheets URL</Label>
+                        <Input
+                          id="manual-url"
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          value={manualUrl}
+                          onChange={(e) => setManualUrl(e.target.value)}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          예: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+                        </p>
+                      </div>
+                      
+                      <Button 
+                        size="sm" 
+                        onClick={handleManualUrlAdd}
+                        disabled={!manualUrl.trim()}
+                        className="w-full"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        시트 추가
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Sheets Selection */}
               <div>

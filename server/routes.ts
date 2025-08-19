@@ -477,56 +477,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Token expired, please re-authenticate" });
       }
 
-      // Get spreadsheets from Google Drive API
-      const driveResponse = await fetch(
-        'https://www.googleapis.com/drive/v3/files?q=mimeType="application/vnd.google-apps.spreadsheet"&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=20',
-        {
-          headers: {
-            'Authorization': `Bearer ${tokens.access_token}`
+      // Try to use Google Drive API to list spreadsheets
+      console.log('Attempting to get Google Sheets using Drive API...');
+      
+      try {
+        const driveResponse = await fetch(
+          'https://www.googleapis.com/drive/v3/files?q=mimeType="application/vnd.google-apps.spreadsheet"&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=20',
+          {
+            headers: {
+              'Authorization': `Bearer ${tokens.access_token}`
+            }
           }
+        );
+
+        const driveData = await driveResponse.json();
+
+        if (driveData.error) {
+          console.error('Google Drive API Error:', driveData.error);
+          
+          // Return helpful error message with instructions
+          return res.status(400).json({ 
+            error: "Google Drive API가 활성화되지 않았습니다. Google Cloud Console에서 Google Drive API를 활성화하거나, 직접 Google Sheets URL을 제공해주세요.",
+            helpMessage: "1. Google Cloud Console에서 Google Drive API 활성화\n2. 또는 '직접 URL 추가' 옵션 사용",
+            needsDriveApi: true
+          });
         }
-      );
 
-      const driveData = await driveResponse.json();
-
-      if (driveData.error) {
-        return res.status(400).json({ error: driveData.error.message });
-      }
-
-      // Get sheet info for each spreadsheet
-      const sheets = await Promise.all(
-        driveData.files.map(async (file: any) => {
-          try {
-            const sheetsResponse = await fetch(
-              `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${tokens.access_token}`
+        // Get sheet info for each spreadsheet
+        const sheets = await Promise.all(
+          driveData.files.map(async (file: any) => {
+            try {
+              const sheetsResponse = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${tokens.access_token}`
+                  }
                 }
-              }
-            );
-            
-            const sheetsData = await sheetsResponse.json();
-            
-            return {
-              id: file.id,
-              name: file.name,
-              url: file.webViewLink,
-              sheets: sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [],
-              lastModified: file.modifiedTime
-            };
-          } catch (error) {
-            console.error(`Error fetching sheets for ${file.name}:`, error);
-            return {
-              id: file.id,
-              name: file.name,
-              url: file.webViewLink,
-              sheets: [],
-              lastModified: file.modifiedTime
-            };
-          }
-        })
-      );
+              );
+              
+              const sheetsData = await sheetsResponse.json();
+              
+              return {
+                id: file.id,
+                name: file.name,
+                url: file.webViewLink,
+                sheets: sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [],
+                lastModified: file.modifiedTime
+              };
+            } catch (error) {
+              console.error(`Error fetching sheets for ${file.name}:`, error);
+              return {
+                id: file.id,
+                name: file.name,
+                url: file.webViewLink,
+                sheets: [],
+                lastModified: file.modifiedTime
+              };
+            }
+          })
+        );
+
+        console.log(`Successfully loaded ${sheets.length} spreadsheets from Google Drive`);
+      } catch (error) {
+        console.error('Error accessing Google Drive API:', error);
+        return res.status(500).json({ 
+          error: "Google Drive API 접근 중 오류가 발생했습니다.",
+          helpMessage: "Google Cloud Console에서 Google Drive API가 활성화되어 있는지 확인해주세요."
+        });
+      }
 
       res.json({
         success: true,
