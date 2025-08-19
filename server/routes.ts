@@ -507,9 +507,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Get sheet info for each spreadsheet
+        console.log(`Processing ${driveData.files.length} spreadsheets...`);
         const sheets = await Promise.all(
           driveData.files.map(async (file: any) => {
             try {
+              console.log(`Fetching worksheets for: ${file.name} (ID: ${file.id})`);
               const sheetsResponse = await fetch(
                 `https://sheets.googleapis.com/v4/spreadsheets/${file.id}?fields=sheets.properties.title`,
                 {
@@ -519,15 +521,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               );
               
-              const sheetsData = await sheetsResponse.json();
+              console.log(`Sheets API response status for ${file.name}: ${sheetsResponse.status}`);
               
-              return {
+              const sheetsData = await sheetsResponse.json();
+              console.log(`Sheets data for ${file.name}:`, JSON.stringify(sheetsData, null, 2));
+              
+              const worksheetNames = sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [];
+              console.log(`Worksheets found in ${file.name}:`, worksheetNames);
+              
+              const result = {
                 id: file.id,
                 name: file.name,
                 url: file.webViewLink,
-                sheets: sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [],
+                sheets: worksheetNames,
                 lastModified: file.modifiedTime
               };
+              
+              console.log(`Final sheet object for ${file.name}:`, result);
+              return result;
             } catch (error) {
               console.error(`Error fetching sheets for ${file.name}:`, error);
               return {
@@ -542,8 +553,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         console.log(`Successfully loaded ${sheets.length} spreadsheets from Google Drive`);
+        console.log('All sheets before filtering:', JSON.stringify(sheets, null, 2));
         
         const filteredSheets = sheets.filter((sheet: any) => sheet.sheets.length > 0);
+        console.log(`Filtered sheets (with worksheets): ${filteredSheets.length}`);
+        console.log('Filtered sheets data:', JSON.stringify(filteredSheets, null, 2));
+        
         return res.json({
           success: true,
           sheets: filteredSheets
