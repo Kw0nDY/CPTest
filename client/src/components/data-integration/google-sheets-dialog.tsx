@@ -211,7 +211,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
     try {
       const response = await apiRequest('POST', '/api/data-sources', {
         id: `google-sheets-${Date.now()}`,
-        name: `Google Sheets - ${account?.email}`,
+        name: 'Google Sheets',
         type: 'google-sheets',
         category: 'file',
         vendor: 'Google',

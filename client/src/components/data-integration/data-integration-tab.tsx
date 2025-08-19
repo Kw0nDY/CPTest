@@ -22,7 +22,8 @@ import {
   Zap,
   Eye,
   Server,
-  Table
+  Table,
+  Trash2
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
 import { GoogleSheetsDialog } from './google-sheets-dialog';
@@ -777,7 +778,7 @@ export default function DataIntegrationTab() {
                               handleDeleteDataSource(ds.id, ds.name);
                             }}
                           >
-                            <Settings className="w-4 h-4 mr-1" />
+                            <Trash2 className="w-4 h-4 mr-1" />
                             Delete
                           </Button>
                         </div>

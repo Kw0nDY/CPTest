@@ -625,7 +625,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: `Excel Files (${completedFiles.length} files)`,
+          name: 'MS Excel',
           type: 'excel',
           category: 'file',
           status: 'connected',
