@@ -745,15 +745,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let dataSchema: any[] = [];
         let sampleData: any = {};
         
+        console.log(`Processing data source: ${ds.name} (type: ${ds.type})`);
+        console.log('Config:', JSON.stringify(ds.config, null, 2));
+        
         // For file-based sources (Excel, Google Sheets), ALWAYS use data from config first
         if ((ds.type === 'Excel' || ds.type === 'excel' || ds.type === 'Google Sheets') && ds.config) {
           const config = ds.config as any;
           if (config.dataSchema && config.dataSchema.length > 0) {
             dataSchema = config.dataSchema;
+            console.log(`Found dataSchema in config for ${ds.name}:`, dataSchema.length, 'tables');
           }
           if (config.sampleData && Object.keys(config.sampleData).length > 0) {
             sampleData = config.sampleData;
+            console.log(`Found sampleData in config for ${ds.name}:`, Object.keys(sampleData));
           }
+        }
+        
+        // Check if the data source itself has runtime dataSchema and sampleData (for Google Sheets)
+        if ((ds as any).dataSchema && (ds as any).dataSchema.length > 0) {
+          dataSchema = (ds as any).dataSchema;
+          console.log(`Found runtime dataSchema for ${ds.name}:`, dataSchema.length, 'tables');
+        }
+        if ((ds as any).sampleData && Object.keys((ds as any).sampleData).length > 0) {
+          sampleData = (ds as any).sampleData;
+          console.log(`Found runtime sampleData for ${ds.name}:`, Object.keys(sampleData));
         }
         
         // Fallback to defaults only if still empty AND not file-based type
@@ -763,6 +778,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if ((!sampleData || Object.keys(sampleData).length === 0) && ds.type !== 'Excel' && ds.type !== 'excel' && ds.type !== 'Google Sheets') {
           sampleData = getDefaultSampleData(ds.type, ds.id);
         }
+        
+        console.log(`Final result for ${ds.name}: dataSchema=${dataSchema.length} tables, sampleData=${Object.keys(sampleData).length} tables`);
         
         return {
           ...ds,
@@ -913,6 +930,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recordCount: totalRecordCount,
         lastSync: new Date().toISOString()
       };
+
+      console.log('Creating Google Sheets data source with:');
+      console.log('- DataSchema:', dataSchema.length, 'tables');
+      console.log('- SampleData keys:', Object.keys(sampleData));
+      console.log('- Record count:', totalRecordCount);
 
       const createdDataSource = await storage.createDataSource(googleSheetsDataSource, dataSchema, sampleData);
       

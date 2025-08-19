@@ -109,13 +109,22 @@ export class DatabaseStorage implements IStorage {
       if (!extractedDataSchema) extractedDataSchema = dataSource.config.dataSchema;
       if (!extractedSampleData) extractedSampleData = dataSource.config.sampleData;
       
-      // Remove from config to avoid duplication but keep other config data
-      finalConfig = {
-        ...dataSource.config
-      };
-      delete finalConfig.dataSchema;
-      delete finalConfig.sampleData;
+      // For Google Sheets, keep data in config; for Excel, remove to avoid duplication
+      if (dataSource.type === 'Excel') {
+        finalConfig = {
+          ...dataSource.config
+        };
+        delete finalConfig.dataSchema;
+        delete finalConfig.sampleData;
+      } else {
+        // Keep all config data for Google Sheets
+        finalConfig = dataSource.config;
+      }
     }
+    
+    console.log('createDataSource - Final config:', JSON.stringify(finalConfig, null, 2));
+    console.log('createDataSource - extractedDataSchema length:', extractedDataSchema?.length || 0);
+    console.log('createDataSource - extractedSampleData keys:', Object.keys(extractedSampleData || {}));
     
     const [created] = await db
       .insert(dataSources)
