@@ -22,6 +22,14 @@ The platform has been fully localized to English while maintaining Korean commun
 - Integration with model analysis workflow for streamlined configuration
 - Support for updating existing config files and creating new ones
 
+**Data Type Standardization (January 2025):**
+- Complete migration from VARCHAR to STRING data types across all data sources
+- Automatic data type detection for Google Sheets integration:
+  * Numeric values → INTEGER or DECIMAL
+  * Date values → DATE
+  * Text values → STRING (replacing VARCHAR)
+- Consistent data type schema for AI model connections and configuration
+
 **View Setting Features:**
 - Dynamic UI creation system for building custom dashboard views
 - Data source integration from connected systems (AVEVA PI, SAP ERP, Oracle, Salesforce)
