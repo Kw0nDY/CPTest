@@ -2131,10 +2131,10 @@ export default function ModelConfigurationTab() {
               }}
             />
 
-            {/* Enhanced Connection Lines with forced visibility */}
+            {/* Enhanced Connection Lines with proper layering */}
             <svg 
               className="absolute inset-0 w-full h-full" 
-              style={{ zIndex: 20, pointerEvents: 'auto' }}
+              style={{ zIndex: 1, pointerEvents: 'none' }}
               xmlns="http://www.w3.org/2000/svg"
             >
               <defs>
@@ -2243,7 +2243,7 @@ export default function ModelConfigurationTab() {
                       strokeWidth="20"
                       fill="none"
                       className="cursor-pointer"
-                      style={{ pointerEvents: 'all' }}
+                      style={{ pointerEvents: 'stroke' }}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm(`연결을 제거하시겠습니까? ${connection.sourceOutputName} → ${connection.targetInputName}`)) {
@@ -2352,7 +2352,7 @@ export default function ModelConfigurationTab() {
                   top: node.position.y,
                   width: node.width,
                   minHeight: node.height,
-                  zIndex: isDragging && draggedNode?.id === node.id ? 1000 : 10
+                  zIndex: isDragging && draggedNode?.id === node.id ? 1000 : 100
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
                 onDragStart={(e) => e.preventDefault()}
