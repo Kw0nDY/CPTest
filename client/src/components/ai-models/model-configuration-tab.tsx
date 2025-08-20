@@ -476,13 +476,69 @@ export default function ModelConfigurationTab() {
     return matchesSearch;
   });
 
+  // Sample data sources to combine with real ones
+  const sampleDataSources = [
+    {
+      id: 'sample-production',
+      name: 'Production Systems',
+      type: 'Manufacturing',
+      category: 'Manufacturing',
+      status: 'connected' as const,
+      recordCount: 15420,
+      lastSync: '2025-08-20T07:15:00Z',
+      fields: [
+        { name: 'production_line', type: 'string', description: 'Production line identifier', tableName: 'production_data' },
+        { name: 'output_volume', type: 'number', description: 'Daily production volume', tableName: 'production_data' },
+        { name: 'efficiency_rate', type: 'number', description: 'Production efficiency percentage', tableName: 'production_data' },
+        { name: 'defect_rate', type: 'number', description: 'Quality defect rate', tableName: 'production_data' }
+      ],
+      tables: [
+        {
+          table: 'production_data',
+          fields: [
+            { name: 'production_line', type: 'VARCHAR(50)', description: 'Production line identifier' },
+            { name: 'output_volume', type: 'INTEGER', description: 'Daily production volume' },
+            { name: 'efficiency_rate', type: 'DECIMAL(5,2)', description: 'Production efficiency percentage' },
+            { name: 'defect_rate', type: 'DECIMAL(5,2)', description: 'Quality defect rate' }
+          ],
+          recordCount: 15420,
+          lastUpdated: '2025-08-20T07:15:00Z'
+        }
+      ],
+      sampleData: {}
+    },
+    {
+      id: 'sample-quality',
+      name: 'Quality Control',
+      type: 'Quality Management',
+      category: 'Quality',
+      status: 'connected' as const,
+      recordCount: 8230,
+      lastSync: '2025-08-20T07:10:00Z',
+      fields: [
+        { name: 'batch_id', type: 'string', description: 'Product batch identifier', tableName: 'quality_metrics' },
+        { name: 'inspection_score', type: 'number', description: 'Quality inspection score', tableName: 'quality_metrics' },
+        { name: 'test_results', type: 'object', description: 'Detailed test results', tableName: 'quality_metrics' }
+      ],
+      tables: [
+        {
+          table: 'quality_metrics',
+          fields: [
+            { name: 'batch_id', type: 'VARCHAR(20)', description: 'Product batch identifier' },
+            { name: 'inspection_score', type: 'DECIMAL(3,1)', description: 'Quality inspection score' },
+            { name: 'test_results', type: 'JSON', description: 'Detailed test results' }
+          ],
+          recordCount: 8230,
+          lastUpdated: '2025-08-20T07:10:00Z'
+        }
+      ],
+      sampleData: {}
+    }
+  ];
+
   // Transform real data sources to match the expected format
   const transformedDataSources = useMemo(() => {
-    if (!realDataSources || realDataSources.length === 0) {
-      return [];
-    }
-
-    return (realDataSources as any[]).map(source => ({
+    const realSources = Array.isArray(realDataSources) ? (realDataSources as any[]).map(source => ({
       id: source.id,
       name: source.name,
       type: source.type || 'Database',
@@ -498,7 +554,10 @@ export default function ModelConfigurationTab() {
       ) : [],
       tables: source.dataSchema || [],
       sampleData: source.sampleData || {}
-    }));
+    })) : [];
+
+    // Combine real data sources with sample data sources
+    return [...realSources, ...sampleDataSources];
   }, [realDataSources]);
 
   const filteredDataSources = transformedDataSources.filter(source => {
@@ -561,8 +620,8 @@ export default function ModelConfigurationTab() {
     });
     
     // Data Integration sources
-    dataIntegrationSources.forEach(source => {
-      source.fields?.forEach(field => {
+    transformedDataSources.forEach((source: any) => {
+      source.fields?.forEach((field: any) => {
         if (field.type === inputType) {
           connections.push({
             type: 'data-integration',
@@ -1296,10 +1355,10 @@ export default function ModelConfigurationTab() {
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
       if ('sourceId' in node) {
-        const source = dataIntegrationSources.find(s => s.id === node.sourceId);
+        const source = transformedDataSources.find((s: any) => s.id === node.sourceId);
         if (source) {
           // All fields from data sources can be connected regardless of type
-          source.fields?.forEach(field => {
+          source.fields?.forEach((field: any) => {
             outputs.push({
               type: 'data-integration',
               nodeId: node.id,
@@ -1602,7 +1661,7 @@ export default function ModelConfigurationTab() {
     // Check if AI models have sufficient input connections
     aiModels.forEach(model => {
       const modelConnections = connections.filter(conn => conn.toNodeId === model.id);
-      const requiredInputs = model.inputs.filter(input => !input.optional);
+      const requiredInputs = model.inputs.filter((input: any) => !(input as any).optional);
       
       if (requiredInputs.length > 0 && modelConnections.length === 0) {
         errors.push(`AI model "${model.uniqueName}" requires input data connections`);
@@ -2025,7 +2084,7 @@ export default function ModelConfigurationTab() {
                     {/* Debug Information */}
                     {process.env.NODE_ENV === 'development' && (
                       <div className="mb-3 p-2 bg-gray-100 rounded text-xs">
-                        <div>Raw data sources: {realDataSources?.length || 0}</div>
+                        <div>Raw data sources: {Array.isArray(realDataSources) ? realDataSources.length : 0}</div>
                         <div>Transformed: {transformedDataSources.length}</div>
                         <div>Filtered: {filteredDataSources.length}</div>
                         <div>Loading: {isDataSourcesLoading ? 'Yes' : 'No'}</div>
@@ -2062,11 +2121,15 @@ export default function ModelConfigurationTab() {
                                       <div className="flex-1 min-w-0">
                                         <div className="text-sm text-gray-900 truncate">{source.name}</div>
                                         <div className="text-xs text-gray-500">
-                                          {source.tableName && <span className="font-mono bg-gray-100 px-1 rounded mr-1">{source.tableName}</span>}
+                                          {source.recordCount && <span className="mr-1">{source.recordCount.toLocaleString()} records</span>}
                                           {source.fields?.length || 0} fields
+                                          {source.tables?.length && <span className="ml-1">• {source.tables.length} tables</span>}
                                         </div>
-                                        {source.description && (
-                                          <div className="text-xs text-gray-400 truncate mt-1">{source.description}</div>
+                                        {/* Show actual table data for real sources */}
+                                        {source.sampleData && Object.keys(source.sampleData).length > 0 && (
+                                          <div className="text-xs text-blue-600 mt-1">
+                                            Real data: {Object.keys(source.sampleData).map(table => table.split(' - ')[1] || table).join(', ')}
+                                          </div>
                                         )}
                                       </div>
                                     </div>
@@ -2540,7 +2603,7 @@ export default function ModelConfigurationTab() {
                   <div className="mb-2">
                     <div className="text-xs text-gray-500 mb-1">Data Integration</div>
                     {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
-                      const sources = dataIntegrationSources.filter(s => s.category === category);
+                      const sources = transformedDataSources.filter((s: any) => s.category === category);
                       if (sources.length === 0) return null;
                       
                       return (
@@ -2697,7 +2760,7 @@ export default function ModelConfigurationTab() {
                         {selectedNodeForDetails.type === 'data-input' && selectedNodeForDetails.sourceId && (
                           <div>
                             <div className="mt-2 font-medium text-gray-700">Data Source:</div>
-                            <div>{dataIntegrationSources.find(s => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
+                            <div>{transformedDataSources.find((s: any) => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
                           </div>
                         )}
                         
