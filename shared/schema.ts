@@ -209,6 +209,82 @@ export const googleApiConfigs = pgTable('google_api_configs', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// AI Models table for uploaded model files
+export const aiModels = pgTable('ai_models', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size'),
+  modelType: text('model_type').notNull(), // 'pytorch', 'tensorflow', 'onnx', etc.
+  status: text('status').notNull().default('uploading'), // 'uploading', 'processing', 'completed', 'error'
+  filePath: text('file_path'), // Path to uploaded file in storage
+  analysisStatus: text('analysis_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'error'
+  inputSpecs: json('input_specs').$type<Array<{
+    name: string;
+    type: string;
+    shape?: number[];
+    description?: string;
+    dtype?: string;
+  }>>().default([]),
+  outputSpecs: json('output_specs').$type<Array<{
+    name: string;
+    type: string;
+    shape?: number[];
+    description?: string;
+    dtype?: string;
+  }>>().default([]),
+  metadata: json('metadata').$type<{
+    framework?: string;
+    version?: string;
+    modelSize?: string;
+    parameters?: number;
+    layers?: number;
+    architecture?: string;
+    description?: string;
+  }>(),
+  configuration: json('configuration').$type<{
+    preprocessing?: any;
+    postprocessing?: any;
+    hyperparameters?: any;
+    training_info?: any;
+  }>(),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+  analyzedAt: timestamp('analyzed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Model Configuration for AI Fac settings
+export const modelConfigurations = pgTable('model_configurations', {
+  id: text('id').primaryKey(),
+  modelId: text('model_id').references(() => aiModels.id).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  isActive: integer('is_active').notNull().default(0), // 0 = false, 1 = true
+  inputMappings: json('input_mappings').$type<Array<{
+    modelInput: string;
+    dataSource?: string;
+    fieldMapping?: string;
+    defaultValue?: any;
+    transformation?: string;
+  }>>().default([]),
+  outputMappings: json('output_mappings').$type<Array<{
+    modelOutput: string;
+    outputName: string;
+    description?: string;
+    postProcessing?: string;
+  }>>().default([]),
+  settings: json('settings').$type<{
+    batchSize?: number;
+    confidenceThreshold?: number;
+    maxInferenceTime?: number;
+    useGpu?: boolean;
+    scalingFactor?: number;
+  }>().default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -220,6 +296,17 @@ export const insertSalesforceOpportunitySchema = createInsertSchema(salesforceOp
 export const insertPiAssetHierarchySchema = createInsertSchema(piAssetHierarchy);
 export const insertPiDrillingOperationsSchema = createInsertSchema(piDrillingOperations);
 export const insertGoogleApiConfigSchema = createInsertSchema(googleApiConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export const insertAiModelSchema = createInsertSchema(aiModels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  analyzedAt: true
+});
+export const insertModelConfigurationSchema = createInsertSchema(modelConfigurations).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -238,3 +325,7 @@ export type ExcelFile = typeof excelFiles.$inferSelect;
 export type InsertExcelFile = z.infer<typeof insertExcelFileSchema>;
 export type GoogleApiConfig = typeof googleApiConfigs.$inferSelect;
 export type InsertGoogleApiConfig = z.infer<typeof insertGoogleApiConfigSchema>;
+export type AiModel = typeof aiModels.$inferSelect;
+export type InsertAiModel = z.infer<typeof insertAiModelSchema>;
+export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
+export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
