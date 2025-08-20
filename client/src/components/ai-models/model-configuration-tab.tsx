@@ -140,48 +140,30 @@ const sampleConfigurations: Configuration[] = [
 
 // AI model folders and models
 const modelFolders = [
+  { id: 'user-models', name: 'User Models', description: 'Your uploaded models' },
   { id: 'quality-models', name: 'Quality Control Models', description: 'Models for quality inspection and defect detection' },
   { id: 'maintenance-models', name: 'Maintenance Models', description: 'Predictive maintenance and failure detection models' },
   { id: 'production-models', name: 'Production Optimization', description: 'Models for production efficiency and optimization' }
 ];
 
 // Merge real AI models with sample models for demonstration
-const mergeAIModels = (realModels: any[], sampleModels: any[]) => {
-  const realModelMap = new Map(realModels.map(model => [model.id, model]));
+// Function to group models by category for organized display
+const groupModelsByCategory = (models: any[]) => {
+  const folders = new Map();
   
-  // Update sample models with real data if available
-  const updatedSampleModels = sampleModels.map(sampleModel => {
-    const realModel = realModelMap.get(sampleModel.id);
-    if (realModel) {
-      return {
-        ...sampleModel,
-        ...realModel,
-        // Keep original folder structure for now
-        folderId: sampleModel.folderId,
-        // Use real inputs/outputs if analysis is complete
-        inputs: realModel.inputSpecs && realModel.inputSpecs.length > 0 ? realModel.inputSpecs : sampleModel.inputs,
-        outputs: realModel.outputSpecs && realModel.outputSpecs.length > 0 ? realModel.outputSpecs : sampleModel.outputs,
-        // Add analysis status
-        analysisStatus: realModel.analysisStatus || 'unknown',
-        analysisProgress: realModel.analysisProgress || 0
-      };
+  models.forEach(model => {
+    const category = model.category || 'User Models';
+    if (!folders.has(category)) {
+      folders.set(category, []);
     }
-    return sampleModel;
+    folders.get(category).push(model);
   });
   
-  // Add real models not in sample data
-  const newRealModels = realModels
-    .filter(realModel => !sampleModels.some(sample => sample.id === realModel.id))
-    .map(realModel => ({
-      ...realModel,
-      folderId: realModel.folderId || 'quality-models', // Default folder
-      inputs: realModel.inputSpecs || [],
-      outputs: realModel.outputSpecs || [],
-      analysisStatus: realModel.analysisStatus || 'unknown',
-      analysisProgress: realModel.analysisProgress || 0
-    }));
-  
-  return [...updatedSampleModels, ...newRealModels];
+  return Array.from(folders.entries()).map(([name, models]) => ({
+    id: name.toLowerCase().replace(/\s+/g, '-'),
+    name,
+    models: models as any[]
+  }));
 };
 
 // Sample AI models with input/output schemas organized by folders
@@ -477,7 +459,7 @@ export default function ModelConfigurationTab() {
   const [selectedNodeForDetails, setSelectedNodeForDetails] = useState<ModelNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['quality-models']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['user-models', 'quality-models']));
   const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'views'>('models');
   const [connectionSearchQuery, setConnectionSearchQuery] = useState('');
   const [testResults, setTestResults] = useState<{
@@ -519,9 +501,37 @@ export default function ModelConfigurationTab() {
     staleTime: 1000, // Consider data fresh for only 1 second
   });
 
-  // Merge real AI models with sample models for comprehensive display
+  // Transform real AI models to match expected format and combine with samples
   const availableAIModels = useMemo(() => {
-    return mergeAIModels(realAIModels as any[], sampleAIModels);
+    const transformedRealModels = (realAIModels as any[]).map(model => ({
+      id: model.id,
+      name: model.name,
+      type: model.modelType || 'pytorch',
+      category: 'User Models',
+      folderId: 'user-models',
+      inputs: model.inputSpecs ? model.inputSpecs.map((spec: any) => ({
+        id: spec.name,
+        name: spec.name,
+        type: spec.dataType || 'tensor',
+        shape: spec.shape || [],
+        description: spec.description || ''
+      })) : [],
+      outputs: model.outputSpecs ? model.outputSpecs.map((spec: any) => ({
+        id: spec.name,
+        name: spec.name,
+        type: spec.dataType || 'tensor', 
+        shape: spec.shape || [],
+        description: spec.description || ''
+      })) : [],
+      analysisStatus: model.analysisStatus,
+      analysisProgress: model.analysisProgress || 0,
+      status: model.status,
+      fileName: model.fileName,
+      fileSize: model.fileSize
+    }));
+
+    // Combine real models with sample models
+    return [...transformedRealModels, ...sampleAIModels];
   }, [realAIModels]);
 
   // Filter models based on search and category
@@ -771,6 +781,10 @@ export default function ModelConfigurationTab() {
       x: e.clientX - rect.left - node.position.x,
       y: e.clientY - rect.top - node.position.y
     });
+
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
   };
 
   // Delete node
@@ -1329,18 +1343,28 @@ export default function ModelConfigurationTab() {
   }, [draggedNode, dragOffset]);
 
   // Handle mouse up
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setDraggedNode(null);
+    
+    // Restore text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
   }, []);
 
   // Add event listeners
   useEffect(() => {
     if (draggedNode) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousemove', handleMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleMouseUp, { passive: false });
+      
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        // Cleanup user selection styles
+        document.body.style.userSelect = '';
+        document.body.style.webkitUserSelect = '';
       };
     }
   }, [draggedNode, handleMouseMove, handleMouseUp]);
