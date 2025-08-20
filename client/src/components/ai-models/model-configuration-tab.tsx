@@ -829,10 +829,13 @@ export default function ModelConfigurationTab() {
 
   // Delete node
   const initiateDeleteNode = (nodeId: string) => {
+    console.log('🗑️ Delete initiated for node:', nodeId);
     const nodeToDelete = nodes.find(n => n.id === nodeId);
+    console.log('🗑️ Found node to delete:', nodeToDelete);
     
     // Don't allow deleting final goal if it's the only one
     if (nodeToDelete?.type === 'final-goal' && nodes.filter(n => n.type === 'final-goal').length === 1) {
+      console.log('🗑️ Cannot delete - final goal protection');
       toast({
         title: "Cannot Delete",
         description: "At least one final goal is required for the configuration.",
@@ -841,24 +844,31 @@ export default function ModelConfigurationTab() {
       return;
     }
     
+    console.log('🗑️ Setting delete dialog state...');
     setNodeToDelete(nodeToDelete || null);
     setShowDeleteDialog(true);
+    console.log('🗑️ Delete dialog should be visible now');
   };
 
   const deleteNode = () => {
+    console.log('🗑️ Delete confirmed, nodeToDelete:', nodeToDelete);
     if (!nodeToDelete) return;
     
+    console.log('🗑️ Removing node from nodes array...');
     setNodes(prev => prev.filter(node => node.id !== nodeToDelete.id));
+    console.log('🗑️ Removing connections...');
     setConnections(prev => prev.filter(conn => 
       conn.fromNodeId !== nodeToDelete.id && conn.toNodeId !== nodeToDelete.id
     ));
     
+    console.log('🗑️ Closing dialog...');
     setShowDeleteDialog(false);
     setNodeToDelete(null);
     toast({
       title: "Node Deleted",
       description: `${nodeToDelete.name} has been removed from the configuration.`,
     });
+    console.log('🗑️ Delete operation completed');
   };
 
   const cancelDeleteNode = () => {
