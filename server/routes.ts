@@ -2318,6 +2318,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Re-analyze AI model
+  app.post('/api/ai-models/:id/reanalyze', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'Model not found' });
+      }
+
+      if (!model.filePath) {
+        return res.status(400).json({ error: 'Model file path not available' });
+      }
+
+      // Check if file exists
+      if (!fs.existsSync(model.filePath)) {
+        return res.status(400).json({ error: 'Model file no longer exists' });
+      }
+
+      // Update status to processing
+      await storage.updateAiModel(id, {
+        analysisStatus: 'processing',
+        status: 'processing'
+      });
+
+      // Start analysis in background
+      setImmediate(async () => {
+        try {
+          console.log(`Re-analyzing model: ${model.name} (${model.fileName})`);
+          
+          // Analyze the model
+          const analysisResult = await modelAnalysisService.analyzeModel(model.filePath!, model.fileName);
+
+          if (analysisResult.success) {
+            console.log(`Analysis successful for model: ${model.name}`);
+            console.log(`Inputs: ${analysisResult.inputSpecs.length}, Outputs: ${analysisResult.outputSpecs.length}`);
+            
+            // Update model with analysis results
+            await storage.updateAiModel(id, {
+              status: 'completed',
+              analysisStatus: 'completed',
+              inputSpecs: analysisResult.inputSpecs,
+              outputSpecs: analysisResult.outputSpecs,
+              metadata: analysisResult.metadata,
+              analyzedAt: new Date()
+            });
+          } else {
+            console.error(`Analysis failed for model: ${model.name}`, analysisResult.error);
+            await storage.updateAiModel(id, {
+              status: 'error',
+              analysisStatus: 'error',
+              analyzedAt: new Date()
+            });
+          }
+        } catch (error) {
+          console.error(`Re-analysis error for model ${model.name}:`, error);
+          await storage.updateAiModel(id, {
+            status: 'error',
+            analysisStatus: 'error',
+            analyzedAt: new Date()
+          });
+        }
+      });
+
+      res.json({ message: 'Model re-analysis started' });
+    } catch (error) {
+      console.error('Error starting model re-analysis:', error);
+      res.status(500).json({ error: 'Failed to start model re-analysis' });
+    }
+  });
+
   app.post('/api/ai-models/upload', upload.single('model'), async (req, res) => {
     try {
       if (!req.file) {

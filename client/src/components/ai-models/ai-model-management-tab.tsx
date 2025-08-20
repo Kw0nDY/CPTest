@@ -30,7 +30,9 @@ import {
   Search,
   Filter,
   X,
-  Check
+  Check,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 interface AIModel {
@@ -92,6 +94,7 @@ interface PrebuiltModel {
 }
 
 const sampleFolders: ModelFolder[] = [
+  { id: 'user-models', name: 'User Models', description: 'Your uploaded AI models', createdAt: '2024-01-15', modelCount: 0 },
   { id: 'quality-control', name: 'Quality Control', description: 'Models for product quality prediction', createdAt: '2024-01-10', modelCount: 3 },
   { id: 'maintenance', name: 'Predictive Maintenance', description: 'Equipment maintenance forecasting models', createdAt: '2024-01-08', modelCount: 2 },
   { id: 'demand-forecasting', name: 'Demand Forecasting', description: 'Sales and inventory prediction models', createdAt: '2024-01-05', modelCount: 1 },
@@ -251,10 +254,27 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
       });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
       toast({ title: "Success", description: "Model deleted successfully." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete model.", variant: "destructive" });
+    },
+  });
+
+  const reanalyzeModelMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      return fetch(`/api/ai-models/${modelId}/reanalyze`, {
+        method: 'POST',
+      }).then(res => res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      toast({ title: "재분석 시작", description: "모델 재분석이 시작되었습니다. 몇 분 정도 소요될 수 있습니다." });
+    },
+    onError: (error) => {
+      console.error('Re-analysis error:', error);
+      toast({ title: "오류", description: "모델 재분석에 실패했습니다.", variant: "destructive" });
     },
   });
 
@@ -296,7 +316,16 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     }
   };
 
+  const handleReanalyzeModel = (modelId: string) => {
+    if (confirm('모델을 다시 분석하시겠습니까? 기존 분석 결과는 덮어씌워집니다.')) {
+      reanalyzeModelMutation.mutate(modelId);
+    }
+  };
+
   const getFilteredModels = (folderId: string) => {
+    if (folderId === 'user-models') {
+      return uploadedModels.filter(model => model.folderId === 'user-models');
+    }
     return sampleUploadedModels.filter(model => model.folderId === folderId);
   };
 
@@ -411,7 +440,12 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                         <Folder className="w-5 h-5 text-blue-600" />
                         <CardTitle className="text-lg">{folder.name}</CardTitle>
                       </div>
-                      <Badge variant="secondary">{folder.modelCount} models</Badge>
+                      <Badge variant="secondary">
+                        {folder.id === 'user-models' 
+                          ? `${uploadedModels.filter(m => m.folderId === 'user-models').length} models`
+                          : `${folder.modelCount} models`
+                        }
+                      </Badge>
                     </div>
                     <p className="text-sm text-gray-600">{folder.description}</p>
                   </CardHeader>
@@ -553,6 +587,21 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                             <Play className="w-4 h-4 mr-1" />
                             Test
                           </Button>
+                          {detailFolderId === 'user-models' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleReanalyzeModel(model.id)}
+                              disabled={reanalyzeModelMutation.isPending}
+                              title="Re-analyze model to extract input/output specs"
+                            >
+                              {reanalyzeModelMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                           <Button variant="outline" size="sm">
                             <Download className="w-4 h-4" />
                           </Button>
