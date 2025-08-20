@@ -1437,16 +1437,47 @@ export default function ModelConfigurationTab() {
   const handleConnectionEnd = (nodeId: string, inputId: string, inputType: string) => {
     if (!connecting) return;
     
-    // Check type compatibility
-    if (connecting.type !== inputType) {
+    // Check if this input is already connected
+    const targetNode = nodes.find(n => n.id === nodeId);
+    const targetInput = targetNode?.inputs.find(i => i.id === inputId);
+    
+    if (targetInput?.connected) {
       toast({
-        title: "Connection Error",
-        description: "Input and output types must match",
+        title: "Connection Failed",
+        description: "This input is already connected to another output",
         variant: "destructive"
       });
       setConnecting(null);
       return;
     }
+    
+    // Check type compatibility
+    if (connecting.type !== inputType) {
+      toast({
+        title: "Connection Failed",
+        description: `Type mismatch: Cannot connect ${connecting.type} output to ${inputType} input`,
+        variant: "destructive"
+      });
+      setConnecting(null);
+      return;
+    }
+
+    // Check if trying to connect to the same node
+    if (connecting.nodeId === nodeId) {
+      toast({
+        title: "Connection Failed", 
+        description: "Cannot connect a node to itself",
+        variant: "destructive"
+      });
+      setConnecting(null);
+      return;
+    }
+
+    // Get node and output names for success message
+    const fromNode = nodes.find(n => n.id === connecting.nodeId);
+    const fromOutput = fromNode?.outputs.find(o => o.id === connecting.outputId);
+    const toNode = nodes.find(n => n.id === nodeId);
+    const toInput = toNode?.inputs.find(i => i.id === inputId);
 
     const connectionId = `conn-${Date.now()}`;
     const newConnection: Connection = {
@@ -1455,10 +1486,18 @@ export default function ModelConfigurationTab() {
       fromOutputId: connecting.outputId,
       toNodeId: nodeId,
       toInputId: inputId,
-      type: connecting.type
+      type: connecting.type,
+      sourceOutputName: fromOutput?.name || 'Output',
+      targetInputName: toInput?.name || 'Input'
     };
 
-    setConnections(prev => [...prev, newConnection]);
+    // Add connection with detailed logging
+    console.log('Creating new connection:', newConnection);
+    setConnections(prev => {
+      const updated = [...prev, newConnection];
+      console.log('Updated connections:', updated);
+      return updated;
+    });
     
     // Mark input as connected
     setNodes(prev => prev.map(node => 
@@ -1472,7 +1511,19 @@ export default function ModelConfigurationTab() {
         : node
     ));
 
+    // Show success message
+    toast({
+      title: "Connection Successful",
+      description: `Connected ${fromOutput?.name} → ${toInput?.name}`,
+      variant: "default"
+    });
+
     setConnecting(null);
+    
+    // Force re-render of connections
+    setTimeout(() => {
+      console.log('Force re-render - Current connections:', connections.length);
+    }, 100);
   };
 
   // Validate configuration before test/save
@@ -2058,13 +2109,17 @@ export default function ModelConfigurationTab() {
                 </marker>
               </defs>
               
-              {connections.map(connection => {
+              {connections.map((connection, index) => {
+                console.log(`Rendering connection ${index}:`, connection);
                 const fromNode = nodes.find(n => n.id === connection.fromNodeId);
                 const toNode = nodes.find(n => n.id === connection.toNodeId);
                 const fromOutput = fromNode?.outputs.find(o => o.id === connection.fromOutputId);
                 const toInput = toNode?.inputs.find(i => i.id === connection.toInputId);
                 
-                if (!fromNode || !toNode || !fromOutput || !toInput) return null;
+                if (!fromNode || !toNode || !fromOutput || !toInput) {
+                  console.warn('Missing connection data:', { fromNode: !!fromNode, toNode: !!toNode, fromOutput: !!fromOutput, toInput: !!toInput });
+                  return null;
+                }
 
                 // Calculate precise connection positions based on actual node layout
                 const fromOutputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
@@ -2142,7 +2197,7 @@ export default function ModelConfigurationTab() {
                     <path
                       d={pathData}
                       stroke={connectionColor}
-                      strokeWidth="8"
+                      strokeWidth="6"
                       fill="none"
                       opacity="0.3"
                       className="pointer-events-none"
@@ -2156,7 +2211,7 @@ export default function ModelConfigurationTab() {
                     <path
                       d={pathData}
                       stroke={connectionColor}
-                      strokeWidth="5"
+                      strokeWidth="3"
                       fill="none"
                       opacity="1"
                       markerEnd="url(#arrowhead)"
@@ -2186,7 +2241,7 @@ export default function ModelConfigurationTab() {
                     <circle
                       cx={fromX}
                       cy={fromY}
-                      r="5"
+                      r="4"
                       fill={connectionColor}
                       opacity="1"
                       className="pointer-events-none"
@@ -2195,7 +2250,7 @@ export default function ModelConfigurationTab() {
                     <circle
                       cx={toX}
                       cy={toY}
-                      r="5"
+                      r="4"
                       fill={connectionColor}
                       opacity="1"
                       className="pointer-events-none"
@@ -2215,7 +2270,7 @@ export default function ModelConfigurationTab() {
                     x2={mousePosition.x}
                     y2={mousePosition.y}
                     stroke={getTypeColor(connecting.type)}
-                    strokeWidth="8"
+                    strokeWidth="6"
                     strokeDasharray="8,4"
                     opacity="0.3"
                     className="pointer-events-none"
@@ -2231,7 +2286,7 @@ export default function ModelConfigurationTab() {
                     x2={mousePosition.x}
                     y2={mousePosition.y}
                     stroke={getTypeColor(connecting.type)}
-                    strokeWidth="5"
+                    strokeWidth="3"
                     strokeDasharray="8,4"
                     opacity="1"
                     className="pointer-events-none"
@@ -2332,7 +2387,7 @@ export default function ModelConfigurationTab() {
                         node.type === 'ai-model' ? 
                           ((() => {
                             const model = availableAIModels.find(m => m.id === node.modelId);
-                            const status = model?.analysisStatus;
+                            const status = (model as any)?.analysisStatus;
                             return status === 'completed' ? 'text-green-400' :
                                    status === 'analyzing' ? 'text-blue-400 animate-pulse' :
                                    status === 'failed' ? 'text-red-400' :
