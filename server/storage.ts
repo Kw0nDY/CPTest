@@ -1,8 +1,10 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
+  aiModels, modelConfigurations,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
-  type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig
+  type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
+  type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -40,6 +42,21 @@ export interface IStorage {
   createGoogleApiConfig(config: InsertGoogleApiConfig): Promise<GoogleApiConfig>;
   updateGoogleApiConfig(id: string, updates: Partial<GoogleApiConfig>): Promise<GoogleApiConfig>;
   deleteGoogleApiConfig(id: string): Promise<void>;
+  
+  // AI Model methods
+  getAiModels(): Promise<AiModel[]>;
+  getAiModel(id: string): Promise<AiModel | undefined>;
+  createAiModel(model: InsertAiModel): Promise<AiModel>;
+  updateAiModel(id: string, updates: Partial<AiModel>): Promise<AiModel>;
+  deleteAiModel(id: string): Promise<void>;
+  
+  // Model Configuration methods
+  getModelConfigurations(): Promise<ModelConfiguration[]>;
+  getModelConfiguration(id: string): Promise<ModelConfiguration | undefined>;
+  getModelConfigurationsByModel(modelId: string): Promise<ModelConfiguration[]>;
+  createModelConfiguration(config: InsertModelConfiguration): Promise<ModelConfiguration>;
+  updateModelConfiguration(id: string, updates: Partial<ModelConfiguration>): Promise<ModelConfiguration>;
+  deleteModelConfiguration(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -500,6 +517,86 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGoogleApiConfig(id: string): Promise<void> {
     await db.delete(googleApiConfigs).where(eq(googleApiConfigs.id, id));
+  }
+
+  // AI Model methods
+  async getAiModels(): Promise<AiModel[]> {
+    return await db.select().from(aiModels);
+  }
+
+  async getAiModel(id: string): Promise<AiModel | undefined> {
+    const [model] = await db.select().from(aiModels).where(eq(aiModels.id, id));
+    return model || undefined;
+  }
+
+  async createAiModel(model: InsertAiModel): Promise<AiModel> {
+    const newId = `model-${Date.now()}`;
+    const [created] = await db
+      .insert(aiModels)
+      .values({
+        id: newId,
+        ...model
+      })
+      .returning();
+    return created;
+  }
+
+  async updateAiModel(id: string, updates: Partial<AiModel>): Promise<AiModel> {
+    const [updated] = await db
+      .update(aiModels)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(aiModels.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiModel(id: string): Promise<void> {
+    await db.delete(aiModels).where(eq(aiModels.id, id));
+  }
+
+  // Model Configuration methods
+  async getModelConfigurations(): Promise<ModelConfiguration[]> {
+    return await db.select().from(modelConfigurations);
+  }
+
+  async getModelConfiguration(id: string): Promise<ModelConfiguration | undefined> {
+    const [config] = await db.select().from(modelConfigurations).where(eq(modelConfigurations.id, id));
+    return config || undefined;
+  }
+
+  async getModelConfigurationsByModel(modelId: string): Promise<ModelConfiguration[]> {
+    return await db.select().from(modelConfigurations).where(eq(modelConfigurations.modelId, modelId));
+  }
+
+  async createModelConfiguration(config: InsertModelConfiguration): Promise<ModelConfiguration> {
+    const newId = `config-${Date.now()}`;
+    const [created] = await db
+      .insert(modelConfigurations)
+      .values({
+        id: newId,
+        ...config
+      })
+      .returning();
+    return created;
+  }
+
+  async updateModelConfiguration(id: string, updates: Partial<ModelConfiguration>): Promise<ModelConfiguration> {
+    const [updated] = await db
+      .update(modelConfigurations)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(modelConfigurations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteModelConfiguration(id: string): Promise<void> {
+    await db.delete(modelConfigurations).where(eq(modelConfigurations.id, id));
   }
 }
 
