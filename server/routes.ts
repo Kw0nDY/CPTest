@@ -527,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       try {
         const driveResponse = await fetch(
-          'https://www.googleapis.com/drive/v3/files?q=mimeType="application/vnd.google-apps.spreadsheet"&fields=files(id,name,modifiedTime,webViewLink)&orderBy=modifiedTime desc&pageSize=20',
+          'https://www.googleapis.com/drive/v3/files?q=mimeType="application/vnd.google-apps.spreadsheet"&fields=files(id,name,modifiedTime,webViewLink,createdTime)&orderBy=modifiedTime desc&pageSize=50',
           {
             headers: {
               'Authorization': `Bearer ${tokens.access_token}`
@@ -576,10 +576,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (!sheetsResponse.ok) {
                   const errorText = await sheetsResponse.text();
                   console.error(`Sheets API error for ${file.name}:`, errorText);
-                  throw new Error(`HTTP ${sheetsResponse.status}: ${errorText}`);
+                  // Don't throw error, just return basic sheet info
+                  return {
+                    id: file.id,
+                    name: file.name,
+                    url: file.webViewLink,
+                    sheets: ['Sheet1'], // Default fallback
+                    lastModified: file.modifiedTime,
+                    error: `API error: ${sheetsResponse.status}`
+                  };
                 }
                 
-                const sheetsData = await sheetsResponse.json();
+                let sheetsData;
+                try {
+                  const responseText = await sheetsResponse.text();
+                  console.log(`Raw response for ${file.name}:`, responseText.substring(0, 200));
+                  sheetsData = JSON.parse(responseText);
+                } catch (parseError) {
+                  console.error(`JSON parsing error for ${file.name}:`, parseError);
+                  return {
+                    id: file.id,
+                    name: file.name,
+                    url: file.webViewLink,
+                    sheets: ['Sheet1'], // Default fallback
+                    lastModified: file.modifiedTime,
+                    error: 'JSON parsing failed'
+                  };
+                }
                 console.log(`Sheets data for ${file.name}:`, JSON.stringify(sheetsData, null, 2));
                 
                 const worksheetNames = sheetsData.sheets?.map((sheet: any) => sheet.properties.title) || [];
