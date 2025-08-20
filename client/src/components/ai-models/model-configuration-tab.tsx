@@ -1510,54 +1510,39 @@ export default function ModelConfigurationTab() {
     });
   };
 
-  // Handle connection end
+  // Enhanced connection end handler
   const handleConnectionEnd = (nodeId: string, inputId: string, inputType: string) => {
     if (!connecting) return;
     
-    // Check if this input is already connected
     const targetNode = nodes.find(n => n.id === nodeId);
     const targetInput = targetNode?.inputs.find(i => i.id === inputId);
-    
-    if (targetInput?.connected) {
-      toast({
-        title: "Connection Failed",
-        description: "This input is already connected to another output",
-        variant: "destructive"
-      });
-      setConnecting(null);
-      return;
-    }
-    
-    // Check type compatibility
-    if (connecting.type !== inputType) {
-      toast({
-        title: "Connection Failed",
-        description: `Type mismatch: Cannot connect ${connecting.type} output to ${inputType} input`,
-        variant: "destructive"
-      });
-      setConnecting(null);
-      return;
-    }
-
-    // Check if trying to connect to the same node
-    if (connecting.nodeId === nodeId) {
-      toast({
-        title: "Connection Failed", 
-        description: "Cannot connect a node to itself",
-        variant: "destructive"
-      });
-      setConnecting(null);
-      return;
-    }
-
-    // Get node and output names for success message
     const fromNode = nodes.find(n => n.id === connecting.nodeId);
     const fromOutput = fromNode?.outputs.find(o => o.id === connecting.outputId);
-    const toNode = nodes.find(n => n.id === nodeId);
-    const toInput = toNode?.inputs.find(i => i.id === inputId);
+    
+    // Validation checks
+    if (targetInput?.connected) {
+      toast({
+        title: "연결 실패",
+        description: "이 입력은 이미 다른 출력에 연결되어 있습니다",
+        variant: "destructive"
+      });
+      setConnecting(null);
+      return;
+    }
+    
+    if (connecting.nodeId === nodeId) {
+      toast({
+        title: "연결 실패", 
+        description: "같은 노드끼리는 연결할 수 없습니다",
+        variant: "destructive"
+      });
+      setConnecting(null);
+      return;
+    }
 
+    // Create new connection
     const connectionId = `conn-${Date.now()}`;
-    const newConnection: Connection = {
+    const newConnection = {
       id: connectionId,
       fromNodeId: connecting.nodeId,
       fromOutputId: connecting.outputId,
@@ -1565,18 +1550,11 @@ export default function ModelConfigurationTab() {
       toInputId: inputId,
       type: connecting.type,
       sourceOutputName: fromOutput?.name || 'Output',
-      targetInputName: toInput?.name || 'Input'
+      targetInputName: targetInput?.name || 'Input'
     };
 
-    // Add connection with detailed logging
-    console.log('Creating new connection:', newConnection);
-    setConnections(prev => {
-      const updated = [...prev, newConnection];
-      console.log('Updated connections:', updated);
-      return updated;
-    });
-    
-    // Mark input as connected
+    // Update state immediately
+    setConnections(prev => [...prev, newConnection]);
     setNodes(prev => prev.map(node => 
       node.id === nodeId 
         ? {
@@ -1588,19 +1566,13 @@ export default function ModelConfigurationTab() {
         : node
     ));
 
-    // Show success message
+    // Success notification
     toast({
-      title: "Connection Successful",
-      description: `Connected ${fromOutput?.name} → ${toInput?.name}`,
-      variant: "default"
+      title: "연결 성공",
+      description: `${fromOutput?.name} → ${targetInput?.name} 연결 완료`,
     });
 
     setConnecting(null);
-    
-    // Force re-render of connections
-    setTimeout(() => {
-      console.log('Force re-render - Current connections:', connections.length);
-    }, 100);
   };
 
   // Validate configuration before test/save
@@ -2159,32 +2131,33 @@ export default function ModelConfigurationTab() {
               }}
             />
 
-            {/* Connections */}
+            {/* Enhanced Connection Lines with forced visibility */}
             <svg 
-              className="absolute inset-0 w-full h-full pointer-events-auto" 
-              style={{ zIndex: 1 }}
+              className="absolute inset-0 w-full h-full" 
+              style={{ zIndex: 20, pointerEvents: 'auto' }}
+              xmlns="http://www.w3.org/2000/svg"
             >
               <defs>
-                {/* Enhanced arrow marker for connection lines */}
                 <marker
                   id="arrowhead"
-                  markerWidth="14"
-                  markerHeight="10"
-                  refX="13"
-                  refY="5"
+                  markerWidth="12"
+                  markerHeight="8"
+                  refX="11"
+                  refY="4"
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
                   <polygon
-                    points="0 0, 14 5, 0 10"
-                    fill="currentColor"
-                    opacity="1"
-                    stroke="currentColor"
+                    points="0 0, 12 4, 0 8"
+                    fill="#3b82f6"
+                    stroke="#3b82f6"
                     strokeWidth="1"
-                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
                   />
                 </marker>
               </defs>
+              
+              {/* Force render debug */}
+              {console.log('SVG Layer - Connections count:', connections.length)}
               
               {connections.map((connection, index) => {
                 console.log(`Rendering connection ${index}:`, connection);
@@ -2232,107 +2205,84 @@ export default function ModelConfigurationTab() {
                 const pathData = `M ${fromX} ${fromY} C ${fromX + controlPointOffset} ${fromY}, ${toX - controlPointOffset} ${toY}, ${toX} ${toY}`;
                 const connectionColor = getTypeColor(fromOutput.type);
                 
+                console.log(`Rendering connection ${index}: from ${fromX},${fromY} to ${toX},${toY}`);
+                
                 return (
                   <g key={connection.id}>
-                    {/* Connection line with enhanced visibility */}
+                    {/* High-visibility connection line */}
+                    <path
+                      d={pathData}
+                      stroke="#3b82f6"
+                      strokeWidth="4"
+                      fill="none"
+                      opacity="1"
+                      markerEnd="url(#arrowhead)"
+                      style={{ 
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round'
+                      }}
+                    />
                     
-                    {/* Invisible thick path for easier clicking */}
+                    {/* Glow effect */}
+                    <path
+                      d={pathData}
+                      stroke="#3b82f6"
+                      strokeWidth="8"
+                      fill="none"
+                      opacity="0.3"
+                      style={{ 
+                        strokeLinecap: 'round',
+                        filter: 'blur(3px)'
+                      }}
+                    />
+                    
+                    {/* Click area for connection removal */}
                     <path
                       d={pathData}
                       stroke="transparent"
-                      strokeWidth="12"
+                      strokeWidth="20"
                       fill="none"
                       className="cursor-pointer"
+                      style={{ pointerEvents: 'all' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Remove connection between ${connection.sourceOutputName} and ${connection.targetInputName}?`)) {
+                        if (window.confirm(`연결을 제거하시겠습니까? ${connection.sourceOutputName} → ${connection.targetInputName}`)) {
                           setConnections(prev => prev.filter(c => c.id !== connection.id));
-                          // Update target node input as disconnected
                           setNodes(prev => prev.map(node => {
                             if (node.id === connection.toNodeId) {
                               return {
                                 ...node,
-                                inputs: node.inputs.map(input => {
-                                  if (input.id === connection.toInputId) {
-                                    return { ...input, connected: false };
-                                  }
-                                  return input;
-                                })
+                                inputs: node.inputs.map(input => 
+                                  input.id === connection.toInputId ? { ...input, connected: false } : input
+                                )
                               };
                             }
                             return node;
                           }));
                           toast({
-                            title: "Connection Removed",
-                            description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+                            title: "연결 제거됨",
+                            description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 제거되었습니다`,
                           });
                         }
                       }}
                     />
                     
-                    {/* Background glow effect */}
-                    <path
-                      d={pathData}
-                      stroke={connectionColor}
-                      strokeWidth="6"
-                      fill="none"
-                      opacity="0.3"
-                      className="pointer-events-none"
-                      style={{ 
-                        strokeLinecap: 'round',
-                        filter: 'blur(2px)'
-                      }}
-                    />
-                    
-                    {/* Main visible connection line */}
-                    <path
-                      d={pathData}
-                      stroke={connectionColor}
-                      strokeWidth="3"
-                      fill="none"
-                      opacity="1"
-                      markerEnd="url(#arrowhead)"
-                      className="pointer-events-none"
-                      style={{ 
-                        strokeLinecap: 'round',
-                        strokeLinejoin: 'round',
-                        filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))'
-                      }}
-                    />
-                    
-                    {/* Animated flow indicator */}
-                    <circle
-                      r="3"
-                      fill={connectionColor}
-                      opacity="0.8"
-                      className="pointer-events-none"
-                    >
-                      <animateMotion
-                        dur="2s"
-                        repeatCount="indefinite"
-                        path={pathData}
-                      />
-                    </circle>
-                    
-                    {/* Enhanced connection endpoint indicators */}
+                    {/* Connection endpoints */}
                     <circle
                       cx={fromX}
                       cy={fromY}
-                      r="4"
-                      fill={connectionColor}
+                      r="5"
+                      fill="#3b82f6"
                       opacity="1"
-                      className="pointer-events-none"
-                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
                     />
                     <circle
                       cx={toX}
                       cy={toY}
-                      r="4"
-                      fill={connectionColor}
+                      r="5"
+                      fill="#3b82f6"
                       opacity="1"
-                      className="pointer-events-none"
-                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
                     />
+
                   </g>
                 );
               })}
@@ -2511,24 +2461,8 @@ export default function ModelConfigurationTab() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (connecting) {
-                              // Create connection regardless of type - allow flexibility
-                              createConnection(connecting.nodeId, connecting.outputId, node.id, input.id);
-                              setConnecting(null);
-                            } else {
-                              // Show available connections for this input
-                              const availableConnections = getAvailableOutputNodes(input.type);
-                              if (availableConnections.length === 0) {
-                                toast({
-                                  title: "No Available Connections",
-                                  description: `No outputs of type "${input.type}" are available. Add nodes with matching outputs first.`,
-                                  variant: "destructive"
-                                });
-                              } else {
-                                toast({
-                                  title: "Available Connections",
-                                  description: `${availableConnections.length} compatible outputs found. Click on an output node to connect.`,
-                                });
-                              }
+                              // Use the enhanced connection handler
+                              handleConnectionEnd(node.id, input.id, input.type);
                             }
                           }}
                           title={`${input.name} (${input.type}) - Click to connect`}
@@ -2555,10 +2489,11 @@ export default function ModelConfigurationTab() {
                           style={{ backgroundColor: getTypeColor(output.type) }}
                           onClick={(e) => {
                             e.stopPropagation();
+                            setConnecting(null); // Clear any existing connection
                             handleConnectionStart(node.id, output.id, output.type);
                             toast({
-                              title: "Connection Started",
-                              description: `Click on an input to connect "${output.name}"`,
+                              title: "연결 시작",
+                              description: `"${output.name}" 출력을 연결할 입력을 클릭하세요`,
                             });
                           }}
                           title={`${output.name} (${output.type}) - Click to start connection`}
