@@ -92,7 +92,7 @@ export class DatabaseStorage implements IStorage {
   async createView(insertView: InsertView): Promise<View> {
     const [view] = await db
       .insert(views)
-      .values(insertView)
+      .values([insertView])
       .returning();
     return view;
   }
@@ -154,7 +154,7 @@ export class DatabaseStorage implements IStorage {
     
     const [created] = await db
       .insert(dataSources)
-      .values({
+      .values([{
         id: newId,
         name: dataSource.name,
         type: dataSource.type,
@@ -165,7 +165,7 @@ export class DatabaseStorage implements IStorage {
         connectionDetails: dataSource.connectionDetails || {},
         lastSync: new Date(),
         recordCount: dataSource.recordCount || 0
-      })
+      }])
       .returning();
       
     // Add dataSchema and sampleData as separate fields for file-based sources
@@ -356,7 +356,7 @@ export class DatabaseStorage implements IStorage {
   async createExcelFile(excelFile: InsertExcelFile): Promise<ExcelFile> {
     const [created] = await db
       .insert(excelFiles)
-      .values(excelFile)
+      .values([excelFile])
       .returning();
     return created;
   }
@@ -495,10 +495,10 @@ export class DatabaseStorage implements IStorage {
     const newId = `gapi-${Date.now()}`;
     const [created] = await db
       .insert(googleApiConfigs)
-      .values({
+      .values([{
         id: newId,
         ...config
-      })
+      }])
       .returning();
     return created;
   }
@@ -533,10 +533,10 @@ export class DatabaseStorage implements IStorage {
     const newId = `model-${Date.now()}`;
     const [created] = await db
       .insert(aiModels)
-      .values({
+      .values([{
         id: newId,
         ...model
-      })
+      }])
       .returning();
     return created;
   }
@@ -575,10 +575,10 @@ export class DatabaseStorage implements IStorage {
     const newId = `config-${Date.now()}`;
     const [created] = await db
       .insert(modelConfigurations)
-      .values({
+      .values([{
         id: newId,
         ...config
-      })
+      }])
       .returning();
     return created;
   }

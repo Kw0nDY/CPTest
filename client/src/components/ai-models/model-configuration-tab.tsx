@@ -467,7 +467,8 @@ export default function ModelConfigurationTab() {
   const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string } | null>(null);
+  const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; startX: number; startY: number } | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
   const [addNodePosition, setAddNodePosition] = useState({ x: 0, y: 0 });
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
@@ -520,7 +521,7 @@ export default function ModelConfigurationTab() {
 
   // Merge real AI models with sample models for comprehensive display
   const availableAIModels = useMemo(() => {
-    return mergeAIModels(realAIModels, sampleAIModels);
+    return mergeAIModels(realAIModels as any[], sampleAIModels);
   }, [realAIModels]);
 
   // Filter models based on search and category
@@ -1369,7 +1370,28 @@ export default function ModelConfigurationTab() {
 
   // Handle connection start
   const handleConnectionStart = (nodeId: string, outputId: string, type: string) => {
-    setConnecting({ nodeId, outputId, type });
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    const output = node.outputs.find(o => o.id === outputId);
+    if (!output) return;
+    
+    // Calculate output position
+    const outputIndex = node.outputs.findIndex(o => o.id === outputId);
+    const nodeHeaderHeight = 40;
+    const inputItemHeight = 20;
+    const separatorHeight = (node.inputs.length > 0 && node.outputs.length > 0) ? 15 : 0;
+    
+    const startX = node.position.x + node.width;
+    const startY = node.position.y + nodeHeaderHeight + (node.inputs.length * inputItemHeight) + separatorHeight + (outputIndex * inputItemHeight) + 10;
+    
+    setConnecting({ 
+      nodeId, 
+      outputId, 
+      type,
+      startX,
+      startY
+    });
   };
 
   // Handle connection end
@@ -1450,7 +1472,11 @@ export default function ModelConfigurationTab() {
   // Test configuration
   const testConfiguration = () => {
     const validation = validateConfiguration();
-    setTestResults(validation);
+    setTestResults({
+      status: validation.isValid ? 'success' : 'error',
+      message: validation.isValid ? 'Configuration is valid' : 'Configuration has errors',
+      details: validation
+    });
     
     if (validation.isValid) {
       toast({
@@ -1901,6 +1927,18 @@ export default function ModelConfigurationTab() {
             className="w-full h-full relative cursor-crosshair"
             onContextMenu={handleCanvasRightClick}
             onClick={() => setShowAddNodeMenu(false)}
+            onMouseMove={(e) => {
+              if (canvasRef.current) {
+                const rect = canvasRef.current.getBoundingClientRect();
+                setMousePosition({
+                  x: e.clientX - rect.left,
+                  y: e.clientY - rect.top
+                });
+              }
+            }}
+            onMouseUp={() => {
+              setConnecting(null);
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'copy';
@@ -2490,8 +2528,8 @@ export default function ModelConfigurationTab() {
                       Outputs
                     </h5>
                     <div className="space-y-3">
-                      {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any) => (
-                        <div key={output.id} className="p-3 bg-gray-50 rounded-lg">
+                      {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any, index: number) => (
+                        <div key={output.id || index} className="p-3 bg-gray-50 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-gray-900">{output.name}</span>
                             <span 
@@ -2610,8 +2648,8 @@ export default function ModelConfigurationTab() {
                       Inputs
                     </h5>
                     <div className="space-y-3">
-                      {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any) => (
-                      <div key={input.id} className="p-3 bg-gray-50 rounded-lg">
+                      {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any, index: number) => (
+                      <div key={input.id || index} className="p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-gray-900">{input.name}</span>
                           <div className="flex items-center gap-2">
