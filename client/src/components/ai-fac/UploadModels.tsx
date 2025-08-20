@@ -9,17 +9,31 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, Clock, Trash2, Eye, Plus, FolderOpen } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import type { AiModel } from '@shared/schema';
 
-// Upload Form Component
+// Upload Form Component (팝업용)
 function UploadModelForm({ onSuccess }: { onSuccess: () => void }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  // 폼 데이터
+  const [modelName, setModelName] = useState('');
+  const [modelType, setModelType] = useState('');
+  const [description, setDescription] = useState('');
+  const [framework, setFramework] = useState('');
+  const [version, setVersion] = useState('');
+  const [dataFormat, setDataFormat] = useState('');
+  const [inputSignature, setInputSignature] = useState('');
+  const [outputSignature, setOutputSignature] = useState('');
+  const [yamlConfig, setYamlConfig] = useState('');
+  
   const { toast } = useToast();
 
   const uploadMutation = useMutation({
@@ -40,8 +54,7 @@ function UploadModelForm({ onSuccess }: { onSuccess: () => void }) {
         title: "모델 업로드 성공",
         description: "AI 모델이 성공적으로 업로드되고 분석되었습니다.",
       });
-      setSelectedFile(null);
-      setUploadProgress(0);
+      resetForm();
       onSuccess();
     },
     onError: (error) => {
@@ -53,10 +66,50 @@ function UploadModelForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  const resetForm = () => {
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setModelName('');
+    setModelType('');
+    setDescription('');
+    setFramework('');
+    setVersion('');
+    setDataFormat('');
+    setInputSignature('');
+    setOutputSignature('');
+    setYamlConfig('');
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      if (!modelName) {
+        setModelName(file.name.split('.')[0]);
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      setSelectedFile(file);
+      if (!modelName) {
+        setModelName(file.name.split('.')[0]);
+      }
     }
   };
 
@@ -86,61 +139,233 @@ function UploadModelForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* File Upload Area */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Drag & Drop Model Files</h3>
-        <p className="text-gray-600 mb-4">
-          Supported formats: .pkl, .joblib, .h5, .onnx, .pb, .pt, .pth
-        </p>
-        <p className="text-sm text-gray-500 mb-4">Maximum file size: 500MB</p>
+    <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+      {/* 1. 모델 파일 업로드 */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+          <Label className="text-lg font-semibold">모델 파일 업로드</Label>
+          <span className="text-sm text-gray-500">(*.pth/*.pickle/*.h5/*.onnx/*.pkl)</span>
+        </div>
         
-        <input
-          type="file"
-          accept=".pkl,.joblib,.h5,.onnx,.pb,.pt,.pth"
-          onChange={handleFileSelect}
-          className="hidden"
-          id="model-file-input"
-          data-testid="input-model-file"
-        />
-        <label htmlFor="model-file-input">
-          <Button variant="outline" className="cursor-pointer" data-testid="button-browse-files">
-            <FileText className="h-4 w-4 mr-2" />
-            Browse Files
-          </Button>
-        </label>
+        <div 
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 mb-3">
+            모델을 여기 영역에 끌어다 놓거나 클릭하세요.
+          </p>
+          <p className="text-sm text-gray-500 mb-3">
+            PTH / Pickle / TensorFlow / ONNX 등을 지원 합니다.
+          </p>
+          
+          <input
+            type="file"
+            accept=".pkl,.joblib,.h5,.onnx,.pb,.pt,.pth,.pickle"
+            onChange={handleFileSelect}
+            className="hidden"
+            id="model-file-input"
+            data-testid="input-model-file"
+          />
+          <label htmlFor="model-file-input">
+            <Button variant="outline" className="cursor-pointer" data-testid="button-browse-files">
+              <FileText className="h-4 w-4 mr-2" />
+              파일 선택
+            </Button>
+          </label>
+        </div>
+        
+        {selectedFile && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="font-medium">{selectedFile.name}</span>
+              <span className="text-sm text-gray-600">
+                ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Selected File Info */}
-      {selectedFile && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{selectedFile.name}</p>
-                <p className="text-sm text-gray-600">
-                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                </p>
-              </div>
-              <Button 
-                onClick={handleUpload} 
-                disabled={uploading}
-                data-testid="button-upload-model"
-              >
-                {uploading ? 'Uploading...' : 'Upload Model'}
-              </Button>
-            </div>
-            
-            {uploading && (
-              <div className="mt-4">
-                <Progress value={uploadProgress} className="w-full" />
-                <p className="text-sm text-gray-600 mt-2">{uploadProgress}% complete</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* 2. 모델 시스템 설정 */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+          <Label className="text-lg font-semibold">모델 시스템 설정</Label>
+          <span className="text-sm text-gray-500">사용할 모델의 기본 설정을 수행합니다.</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="model-name">모델 명</Label>
+            <Input
+              id="model-name"
+              value={modelName}
+              onChange={(e) => setModelName(e.target.value)}
+              placeholder="ex) stgcn_model"
+              data-testid="input-model-name"
+            />
+          </div>
+          <div>
+            <Label htmlFor="model-type">모델 타입</Label>
+            <Select value={modelType} onValueChange={setModelType}>
+              <SelectTrigger data-testid="select-model-type">
+                <SelectValue placeholder="모델타입" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="classification">Classification</SelectItem>
+                <SelectItem value="regression">Regression</SelectItem>
+                <SelectItem value="forecasting">Forecasting</SelectItem>
+                <SelectItem value="detection">Detection</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. 데이터 시그니처 및 타입 설정 */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+          <Label className="text-lg font-semibold">데이터 시그니처 및 타입 설정</Label>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <Label htmlFor="framework">프레임워크</Label>
+            <Input
+              id="framework"
+              value={framework}
+              onChange={(e) => setFramework(e.target.value)}
+              placeholder="ex) pytorch"
+              data-testid="input-framework"
+            />
+          </div>
+          <div>
+            <Label htmlFor="version">버전</Label>
+            <Input
+              id="version"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              placeholder="ex) 1.0"
+              data-testid="input-version"
+            />
+          </div>
+          <div>
+            <Label htmlFor="data-format">데이터 포맷</Label>
+            <Select value={dataFormat} onValueChange={setDataFormat}>
+              <SelectTrigger data-testid="select-data-format">
+                <SelectValue placeholder="데이터포맷" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="json">JSON</SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>
+                <SelectItem value="xml">XML</SelectItem>
+                <SelectItem value="binary">Binary</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        <div>
+          <Label htmlFor="description">설명</Label>
+          <Input
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="모델에 대한 설명을 입력하세요"
+            data-testid="input-description"
+          />
+        </div>
+      </div>
+
+      {/* 4. 입출력 시그니처 및 타입 설정(선택) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
+          <Label className="text-lg font-semibold">입출력 시그니처 및 타입 설정(선택)</Label>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="input-signature">입력(INPUT)</Label>
+            <Textarea
+              id="input-signature"
+              value={inputSignature}
+              onChange={(e) => setInputSignature(e.target.value)}
+              placeholder="[Type='numerical_sequence', Columns=[4]]"
+              className="min-h-[100px]"
+              data-testid="textarea-input-signature"
+            />
+          </div>
+          <div>
+            <Label htmlFor="output-signature">출력(OUTPUT)</Label>
+            <Textarea
+              id="output-signature"
+              value={outputSignature}
+              onChange={(e) => setOutputSignature(e.target.value)}
+              placeholder="[Type='anomaly_scores', Columns=['Temperature', 'FP1']]"
+              className="min-h-[100px]"
+              data-testid="textarea-output-signature"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 5. 메타데이터 업로드(YAML) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">5</div>
+          <Label className="text-lg font-semibold">메타데이터 업로드(YAML)</Label>
+        </div>
+        
+        <Textarea
+          value={yamlConfig}
+          onChange={(e) => setYamlConfig(e.target.value)}
+          placeholder={`model:
+  name: stgcn_model
+  framework: pytorch
+  version: 1.0
+  type: [type]
+  epochs: []
+  parameters: []
+  optimizer: []
+  loss_function: []
+preprocessing: []
+postprocessing: []`}
+          className="min-h-[150px] font-mono text-sm"
+          data-testid="textarea-yaml-config"
+        />
+      </div>
+
+      {/* Upload Progress */}
+      {uploading && (
+        <div className="space-y-2">
+          <Progress value={uploadProgress} className="w-full" />
+          <p className="text-sm text-gray-600 text-center">{uploadProgress}% 업로드 중...</p>
+        </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={resetForm} data-testid="button-reset">
+          초기화
+        </Button>
+        <Button 
+          onClick={handleUpload} 
+          disabled={!selectedFile || uploading}
+          className="bg-blue-600 hover:bg-blue-700"
+          data-testid="button-upload-model"
+        >
+          {uploading ? '업로드 중...' : '모델 업로드'}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -215,7 +440,7 @@ export default function UploadModels() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: models = [], isLoading } = useQuery({
+  const { data: models = [], isLoading } = useQuery<AiModel[]>({
     queryKey: ['/api/ai-models'],
     refetchInterval: 5000,
   });
@@ -251,11 +476,11 @@ export default function UploadModels() {
               Upload Model
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle>Upload AI Models</DialogTitle>
+              <DialogTitle className="text-xl">AI 모델 업로드 - 시즌 1D 주축 - 구성 분석기</DialogTitle>
               <DialogDescription>
-                Upload trained AI models in various formats
+                AI 모델 파일을 업로드하고 시스템 설정을 구성하세요
               </DialogDescription>
             </DialogHeader>
             <UploadModelForm onSuccess={handleUploadSuccess} />
@@ -292,22 +517,13 @@ export default function UploadModels() {
                   </p>
                   <p className="text-sm text-gray-500 mb-4">Maximum file size: 500MB</p>
                   
-                  <Dialog>
+                  <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" data-testid="button-browse-files-main">
                         <FileText className="h-4 w-4 mr-2" />
                         Browse Files
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Upload AI Model</DialogTitle>
-                        <DialogDescription>
-                          Select and upload your AI model file
-                        </DialogDescription>
-                      </DialogHeader>
-                      <UploadModelForm onSuccess={handleUploadSuccess} />
-                    </DialogContent>
                   </Dialog>
                 </div>
               </CardContent>
