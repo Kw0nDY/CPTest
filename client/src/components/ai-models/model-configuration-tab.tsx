@@ -594,7 +594,7 @@ export default function ModelConfigurationTab() {
     
     // AI Model outputs
     availableAIModels.forEach(model => {
-      model.outputs.forEach(output => {
+      model.outputs.forEach((output: any) => {
         if (output.type === inputType) {
           connections.push({
             type: 'ai-model',
@@ -652,13 +652,13 @@ export default function ModelConfigurationTab() {
           name: data?.name || 'AI Model',
           uniqueName,
           position: addNodePosition,
-          inputs: modelData?.inputs.map(input => ({
+          inputs: modelData?.inputs.map((input: any) => ({
             id: `${id}-input-${input.id}`,
             name: input.name,
             type: input.type,
             connected: false
           })) || [],
-          outputs: modelData?.outputs.map(output => ({
+          outputs: modelData?.outputs.map((output: any) => ({
             id: `${id}-output-${output.id}`,
             name: output.name,
             type: output.type
@@ -1311,7 +1311,7 @@ export default function ModelConfigurationTab() {
       const model = availableAIModels.find(m => m.id === node.modelId);
       if (model) {
         // All AI model outputs can be connected regardless of type
-        model.outputs.forEach(output => {
+        model.outputs.forEach((output: any) => {
           outputs.push({
             type: 'ai-model',
             nodeId: node.id,
@@ -1730,29 +1730,29 @@ export default function ModelConfigurationTab() {
                                         </div>
                                         
                                         {/* Analysis Status Display */}
-                                        {model.analysisStatus && (
+                                        {(model as any).analysisStatus && (
                                           <div className="mt-2">
-                                            {model.analysisStatus === 'analyzing' && (
+                                            {(model as any).analysisStatus === 'analyzing' && (
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                                                 <span className="text-xs text-blue-600 font-medium">
-                                                  AI Analysis: {Math.round(model.analysisProgress || 0)}%
+                                                  AI Analysis: {Math.round((model as any).analysisProgress || 0)}%
                                                 </span>
                                               </div>
                                             )}
-                                            {model.analysisStatus === 'completed' && (
+                                            {(model as any).analysisStatus === 'completed' && (
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                                 <span className="text-xs text-green-600 font-medium">Analysis Complete</span>
                                               </div>
                                             )}
-                                            {model.analysisStatus === 'failed' && (
+                                            {(model as any).analysisStatus === 'failed' && (
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                                                 <span className="text-xs text-red-600 font-medium">Analysis Failed</span>
                                               </div>
                                             )}
-                                            {model.analysisStatus === 'pending' && (
+                                            {(model as any).analysisStatus === 'pending' && (
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                                                 <span className="text-xs text-yellow-600 font-medium">Pending Analysis</span>
@@ -1761,7 +1761,7 @@ export default function ModelConfigurationTab() {
                                           </div>
                                         )}
                                         <div className="flex flex-wrap gap-1 mt-2">
-                                          {model.inputs.slice(0, 2).map((input) => (
+                                          {model.inputs.slice(0, 2).map((input: any) => (
                                             <span
                                               key={input.id}
                                               className="inline-block px-1.5 py-0.5 text-xs rounded"
@@ -2023,24 +2023,30 @@ export default function ModelConfigurationTab() {
             />
 
             {/* Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-auto" style={{ zIndex: 1 }}>
+            <svg 
+              className="absolute inset-0 w-full h-full pointer-events-auto" 
+              style={{ zIndex: 1 }}
+              viewBox="0 0 2000 2000"
+              preserveAspectRatio="none"
+            >
               <defs>
-                {/* Arrow marker for connection lines */}
+                {/* Enhanced arrow marker for connection lines */}
                 <marker
                   id="arrowhead"
-                  markerWidth="12"
-                  markerHeight="8"
-                  refX="11"
-                  refY="4"
+                  markerWidth="14"
+                  markerHeight="10"
+                  refX="13"
+                  refY="5"
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
                   <polygon
-                    points="0 0, 12 4, 0 8"
+                    points="0 0, 14 5, 0 10"
                     fill="currentColor"
                     opacity="1"
                     stroke="currentColor"
-                    strokeWidth="0.5"
+                    strokeWidth="1"
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
                   />
                 </marker>
               </defs>
@@ -2075,13 +2081,7 @@ export default function ModelConfigurationTab() {
                 
                 return (
                   <g key={connection.id}>
-                    {/* Gradient definition for this connection */}
-                    <defs>
-                      <linearGradient id={`grad-${connection.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style={{ stopColor: connectionColor, stopOpacity: 0.9 }} />
-                        <stop offset="100%" style={{ stopColor: connectionColor, stopOpacity: 0.7 }} />
-                      </linearGradient>
-                    </defs>
+                    {/* Connection line with enhanced visibility */}
                     
                     {/* Invisible thick path for easier clicking */}
                     <path
@@ -2117,19 +2117,33 @@ export default function ModelConfigurationTab() {
                       }}
                     />
                     
-                    {/* Visible connection line */}
+                    {/* Background glow effect */}
                     <path
                       d={pathData}
                       stroke={connectionColor}
-                      strokeWidth="4"
+                      strokeWidth="8"
+                      fill="none"
+                      opacity="0.3"
+                      className="pointer-events-none"
+                      style={{ 
+                        strokeLinecap: 'round',
+                        filter: 'blur(2px)'
+                      }}
+                    />
+                    
+                    {/* Main visible connection line */}
+                    <path
+                      d={pathData}
+                      stroke={connectionColor}
+                      strokeWidth="5"
                       fill="none"
                       opacity="1"
                       markerEnd="url(#arrowhead)"
-                      className="pointer-events-none drop-shadow-lg"
+                      className="pointer-events-none"
                       style={{ 
-                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
                         strokeLinecap: 'round',
-                        strokeLinejoin: 'round'
+                        strokeLinejoin: 'round',
+                        filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))'
                       }}
                     />
                     
@@ -2147,22 +2161,24 @@ export default function ModelConfigurationTab() {
                       />
                     </circle>
                     
-                    {/* Connection endpoint indicators */}
+                    {/* Enhanced connection endpoint indicators */}
                     <circle
                       cx={fromX}
                       cy={fromY}
-                      r="4"
+                      r="5"
                       fill={connectionColor}
-                      opacity="0.9"
+                      opacity="1"
                       className="pointer-events-none"
+                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
                     />
                     <circle
                       cx={toX}
                       cy={toY}
-                      r="4"
+                      r="5"
                       fill={connectionColor}
-                      opacity="0.9"
+                      opacity="1"
                       className="pointer-events-none"
+                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
                     />
                   </g>
                 );
@@ -2495,7 +2511,8 @@ export default function ModelConfigurationTab() {
                       const name = selectedModelForDetails?.name || selectedNodeForDetails?.uniqueName;
                       if (window.confirm(`Delete "${name}"?`)) {
                         if (selectedNodeForDetails) {
-                          deleteNode(selectedNodeForDetails.id);
+                          setNodeToDelete(selectedNodeForDetails);
+                          deleteNode();
                         }
                         toast({
                           title: "Node Deleted",
