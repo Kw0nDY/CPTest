@@ -5,8 +5,8 @@ import DataIntegrationTab from "@/components/data-integration/data-integration-t
 import ViewListTab from "@/components/view/view-list-tab";
 import ViewSettingTab from "@/components/view/view-setting-tab";
 import AutomationListTab from "@/components/automation/automation-list-tab";
-import UploadModels from "@/components/ai-fac/UploadModels";
-import { ModelConfiguration } from "@/components/ai-fac/ModelConfiguration";
+import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
+import ModelConfigurationTab from "@/components/ai-models/model-configuration-tab";
 import BOIOverviewTab from "@/components/boi/boi-overview-tab";
 import SettingPage from "@/pages/setting";
 import ManagementPage from "@/pages/management";
@@ -96,9 +96,9 @@ export default function Dashboard() {
       case "automation":
         return <AutomationListTab />;
       case "model-upload":
-        return <UploadModels />;
+        return <AIModelManagementTab activeTab={activeView} />;
       case "model-configuration":
-        return <ModelConfiguration />;
+        return <ModelConfigurationTab />;
       case "boi-overview":
       case "boi-input-setting":
       case "boi-insights":
