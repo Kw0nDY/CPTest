@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -145,8 +145,47 @@ const modelFolders = [
   { id: 'production-models', name: 'Production Optimization', description: 'Models for production efficiency and optimization' }
 ];
 
+// Merge real AI models with sample models for demonstration
+const mergeAIModels = (realModels: any[], sampleModels: any[]) => {
+  const realModelMap = new Map(realModels.map(model => [model.id, model]));
+  
+  // Update sample models with real data if available
+  const updatedSampleModels = sampleModels.map(sampleModel => {
+    const realModel = realModelMap.get(sampleModel.id);
+    if (realModel) {
+      return {
+        ...sampleModel,
+        ...realModel,
+        // Keep original folder structure for now
+        folderId: sampleModel.folderId,
+        // Use real inputs/outputs if analysis is complete
+        inputs: realModel.inputs && realModel.inputs.length > 0 ? realModel.inputs : sampleModel.inputs,
+        outputs: realModel.outputs && realModel.outputs.length > 0 ? realModel.outputs : sampleModel.outputs,
+        // Add analysis status
+        analysisStatus: realModel.analysisStatus || 'unknown',
+        analysisProgress: realModel.analysisProgress || 0
+      };
+    }
+    return sampleModel;
+  });
+  
+  // Add real models not in sample data
+  const newRealModels = realModels
+    .filter(realModel => !sampleModels.some(sample => sample.id === realModel.id))
+    .map(realModel => ({
+      ...realModel,
+      folderId: realModel.folderId || 'quality-models', // Default folder
+      inputs: realModel.inputs || [],
+      outputs: realModel.outputs || [],
+      analysisStatus: realModel.analysisStatus || 'unknown',
+      analysisProgress: realModel.analysisProgress || 0
+    }));
+  
+  return [...updatedSampleModels, ...newRealModels];
+};
+
 // Sample AI models with input/output schemas organized by folders
-const availableAIModels = [
+const sampleAIModels = [
   {
     id: '1',
     name: 'Assembly Line Quality Classifier',
@@ -489,6 +528,18 @@ export default function ModelConfigurationTab() {
     queryKey: ['/api/views'],
     staleTime: 60000
   });
+
+  // Fetch actual AI models from the server with real-time updates
+  const { data: realAIModels = [], refetch: refetchModels } = useQuery({
+    queryKey: ['/api/ai-models'],
+    refetchInterval: 3000, // Refetch every 3 seconds for real-time analysis status updates
+    staleTime: 1000, // Consider data fresh for only 1 second
+  });
+
+  // Merge real AI models with sample models for comprehensive display
+  const availableAIModels = useMemo(() => {
+    return mergeAIModels(realAIModels, sampleAIModels);
+  }, [realAIModels]);
 
   // Calculate dynamic node width based on text content
   const calculateNodeWidth = (text: string, hasButtons: boolean = false): number => {
@@ -1621,6 +1672,38 @@ export default function ModelConfigurationTab() {
                                         <div className="text-xs text-gray-500 mt-1">
                                           Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
                                         </div>
+                                        
+                                        {/* Analysis Status Display */}
+                                        {model.analysisStatus && (
+                                          <div className="mt-2">
+                                            {model.analysisStatus === 'analyzing' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                                <span className="text-xs text-blue-600 font-medium">
+                                                  AI Analysis: {Math.round(model.analysisProgress || 0)}%
+                                                </span>
+                                              </div>
+                                            )}
+                                            {model.analysisStatus === 'completed' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                <span className="text-xs text-green-600 font-medium">Analysis Complete</span>
+                                              </div>
+                                            )}
+                                            {model.analysisStatus === 'failed' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                                <span className="text-xs text-red-600 font-medium">Analysis Failed</span>
+                                              </div>
+                                            )}
+                                            {model.analysisStatus === 'pending' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                                <span className="text-xs text-yellow-600 font-medium">Pending Analysis</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                         <div className="flex flex-wrap gap-1 mt-2">
                                           {model.inputs.slice(0, 2).map((input) => (
                                             <span
@@ -1872,7 +1955,25 @@ export default function ModelConfigurationTab() {
             />
 
             {/* Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-auto">
+            <svg className="absolute inset-0 w-full h-full pointer-events-auto" style={{ zIndex: 1 }}>
+              <defs>
+                {/* Arrow marker for connection lines */}
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="7"
+                  refX="9"
+                  refY="3.5"
+                  orient="auto"
+                >
+                  <polygon
+                    points="0 0, 10 3.5, 0 7"
+                    fill="currentColor"
+                    opacity="0.8"
+                  />
+                </marker>
+              </defs>
+              
               {connections.map(connection => {
                 const fromNode = nodes.find(n => n.id === connection.fromNodeId);
                 const toNode = nodes.find(n => n.id === connection.toNodeId);
@@ -1881,20 +1982,41 @@ export default function ModelConfigurationTab() {
                 
                 if (!fromNode || !toNode || !fromOutput || !toInput) return null;
 
+                // Calculate precise positions
+                const fromOutputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
+                const toInputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
+                
+                // Node structure: header(40px) + inputs(20px each) + separator(15px if both exist) + outputs(20px each)
+                const nodeHeaderHeight = 40;
+                const inputItemHeight = 20;
+                const separatorHeight = (fromNode.inputs.length > 0 && fromNode.outputs.length > 0) ? 15 : 0;
+                
                 const fromX = fromNode.position.x + fromNode.width;
-                const fromY = fromNode.position.y + 60 + fromNode.outputs.indexOf(fromOutput) * 20 + 10;
+                const fromY = fromNode.position.y + nodeHeaderHeight + (fromNode.inputs.length * inputItemHeight) + separatorHeight + (fromOutputIndex * inputItemHeight) + 10;
+                
                 const toX = toNode.position.x;
-                const toY = toNode.position.y + 60 + toNode.inputs.indexOf(toInput) * 20 + 10;
+                const toY = toNode.position.y + nodeHeaderHeight + (toInputIndex * inputItemHeight) + 10;
 
-                const midX = (fromX + toX) / 2;
+                // Create smooth bezier curve
+                const controlPointOffset = Math.max(60, Math.abs(fromX - toX) * 0.3);
+                const pathData = `M ${fromX} ${fromY} C ${fromX + controlPointOffset} ${fromY}, ${toX - controlPointOffset} ${toY}, ${toX} ${toY}`;
+                const connectionColor = getTypeColor(fromOutput.type);
                 
                 return (
                   <g key={connection.id}>
+                    {/* Gradient definition for this connection */}
+                    <defs>
+                      <linearGradient id={`grad-${connection.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{ stopColor: connectionColor, stopOpacity: 0.9 }} />
+                        <stop offset="100%" style={{ stopColor: connectionColor, stopOpacity: 0.7 }} />
+                      </linearGradient>
+                    </defs>
+                    
                     {/* Invisible thick path for easier clicking */}
                     <path
-                      d={`M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`}
+                      d={pathData}
                       stroke="transparent"
-                      strokeWidth="10"
+                      strokeWidth="12"
                       fill="none"
                       className="cursor-pointer"
                       onClick={(e) => {
@@ -1923,17 +2045,68 @@ export default function ModelConfigurationTab() {
                         }
                       }}
                     />
+                    
                     {/* Visible connection line */}
                     <path
-                      d={`M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`}
-                      stroke={getTypeColor(connection.type)}
+                      d={pathData}
+                      stroke={`url(#grad-${connection.id})`}
                       strokeWidth="3"
                       fill="none"
-                      className="drop-shadow-sm pointer-events-none"
+                      opacity="0.9"
+                      markerEnd="url(#arrowhead)"
+                      style={{ color: connectionColor }}
+                      className="pointer-events-none"
+                    />
+                    
+                    {/* Animated flow indicator */}
+                    <circle
+                      r="3"
+                      fill={connectionColor}
+                      opacity="0.8"
+                      className="pointer-events-none"
+                    >
+                      <animateMotion
+                        dur="2s"
+                        repeatCount="indefinite"
+                        path={pathData}
+                      />
+                    </circle>
+                    
+                    {/* Connection endpoint indicators */}
+                    <circle
+                      cx={fromX}
+                      cy={fromY}
+                      r="4"
+                      fill={connectionColor}
+                      opacity="0.9"
+                      className="pointer-events-none"
+                    />
+                    <circle
+                      cx={toX}
+                      cy={toY}
+                      r="4"
+                      fill={connectionColor}
+                      opacity="0.9"
+                      className="pointer-events-none"
                     />
                   </g>
                 );
               })}
+              
+              {/* Temporary connection line while dragging */}
+              {connecting && (
+                <line
+                  x1={connecting.startX}
+                  y1={connecting.startY}
+                  x2={mousePosition.x}
+                  y2={mousePosition.y}
+                  stroke={getTypeColor(connecting.type)}
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  opacity="0.7"
+                  className="pointer-events-none"
+                />
+              )}
             </svg>
 
             {/* Nodes */}
@@ -2009,9 +2182,19 @@ export default function ModelConfigurationTab() {
                         <Trash2 className="w-3 h-3" />
                       </Button>
                       <Circle className={`w-3 h-3 ${
-                        node.status === 'ready' ? 'text-green-400' :
-                        node.status === 'running' ? 'text-yellow-400' :
-                        'text-red-400'
+                        node.type === 'ai-model' ? 
+                          ((() => {
+                            const model = availableAIModels.find(m => m.id === node.modelId);
+                            const status = model?.analysisStatus;
+                            return status === 'completed' ? 'text-green-400' :
+                                   status === 'analyzing' ? 'text-blue-400 animate-pulse' :
+                                   status === 'failed' ? 'text-red-400' :
+                                   status === 'pending' ? 'text-yellow-400' :
+                                   'text-gray-400';
+                          })()) :
+                          node.status === 'ready' ? 'text-green-400' :
+                          node.status === 'running' ? 'text-yellow-400' :
+                          'text-red-400'
                       }`} />
                     </div>
                   </div>

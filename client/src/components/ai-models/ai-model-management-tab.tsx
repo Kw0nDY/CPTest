@@ -29,7 +29,8 @@ import {
   Download,
   Search,
   Filter,
-  X
+  X,
+  Check
 } from 'lucide-react';
 
 interface AIModel {
@@ -719,81 +720,154 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
 
       {/* Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload AI Model</DialogTitle>
+            <DialogTitle className="text-xl font-bold">AI 모델 업로드 - 자동 IO 추출 · 구성 분석기</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="model-name">Model Name</Label>
-              <Input
-                id="model-name"
-                value={uploadConfig.name}
-                onChange={(e) => setUploadConfig(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Enter model name"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="model-folder">Folder</Label>
-              <select
-                id="model-folder"
-                value={uploadConfig.folderId}
-                onChange={(e) => setUploadConfig(prev => ({ ...prev, folderId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select a folder</option>
-                {sampleFolders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>{folder.name}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <Label htmlFor="model-type">Model Type</Label>
-              <select
-                id="model-type"
-                value={uploadConfig.type}
-                onChange={(e) => setUploadConfig(prev => ({ ...prev, type: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="classification">Classification</option>
-                <option value="regression">Regression</option>
-                <option value="clustering">Clustering</option>
-                <option value="nlp">NLP</option>
-                <option value="computer_vision">Computer Vision</option>
-                <option value="time_series">Time Series</option>
-                <option value="deep_learning">Deep Learning</option>
-              </select>
-            </div>
-            
-            <div>
-              <Label htmlFor="model-file">Model File</Label>
-              <Input
-                id="model-file"
-                type="file"
-                onChange={handleFileChange}
-                accept=".pkl,.joblib,.h5,.onnx,.pb,.pt,.pth"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Supported formats: .pkl, .joblib, .h5, .onnx, .pb, .pt, .pth
-              </p>
-            </div>
-            
+          <div className="space-y-6">
+            {/* Step 1: File Upload */}
+            <Card className="border-blue-500/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">1</div>
+                  <CardTitle className="text-sm">모델 파일 업로드</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div 
+                  className="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-blue-50/30 transition-all cursor-pointer"
+                  onClick={() => document.getElementById('model-file-input')?.click()}
+                >
+                  <Upload className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    모델을 여기로 드래그 하거나 클릭하여 업로드하세요
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {uploadConfig.file ? uploadConfig.file.name : 'PyTorch (.pth/.pt), TensorFlow (.h5), ONNX (.onnx), Scikit-learn (.pkl) 등'}
+                  </p>
+                  <input
+                    id="model-file-input"
+                    type="file"
+                    onChange={handleFileChange}
+                    accept=".pkl,.joblib,.h5,.onnx,.pb,.pt,.pth"
+                    className="hidden"
+                  />
+                </div>
+                {uploadConfig.file && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-2 text-sm text-green-800">
+                      <Check className="w-4 h-4" />
+                      {uploadConfig.file.name} ({(uploadConfig.file.size / (1024 * 1024)).toFixed(2)} MB)
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 2: AI Analysis Configuration */}
+            {uploadConfig.file && (
+              <Card className="border-green-500/20">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">2</div>
+                    <CardTitle className="text-sm">AI 모델 시스템적 분석 설정</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="model-name" className="text-sm font-medium">모델명</Label>
+                      <Input
+                        id="model-name"
+                        value={uploadConfig.name}
+                        onChange={(e) => setUploadConfig(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="모델 이름을 입력하세요"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="model-folder" className="text-sm font-medium">프레임워크</Label>
+                      <select
+                        id="model-folder"
+                        value={uploadConfig.folderId}
+                        onChange={(e) => setUploadConfig(prev => ({ ...prev, folderId: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                      >
+                        <option value="">자동감지</option>
+                        {sampleFolders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>{folder.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">GPU / CPU</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="pytorch@2.3.0" disabled className="text-xs" />
+                      <Input placeholder="CUDA 11.8" disabled className="text-xs" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">데이터 파이프 트레인 요약</Label>
+                    <div className="text-xs text-gray-600 mb-2">이 모델은 업로드된 모델 파일을 기반으로 분석이 진행됩니다</div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="text-xs">자동 추출</Button>
+                      <Button size="sm" variant="outline" className="text-xs">모델 목적</Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 3: Preview Analysis */}
+            {uploadConfig.file && (
+              <Card className="border-purple-500/20">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">3</div>
+                    <CardTitle className="text-sm">데이터의 차원 및 타입 예측(분석)</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <Label className="font-medium">입력(INPUT)</Label>
+                      <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
+                        <div className="text-gray-600">모델 분석 중...</div>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="font-medium">출력(OUTPUT)</Label>
+                      <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
+                        <div className="text-gray-600">모델 분석 중...</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="flex gap-3 pt-4">
               <Button 
                 onClick={handleUpload}
-                disabled={uploadModelMutation.isPending || !uploadConfig.file || !uploadConfig.name || !uploadConfig.folderId}
-                className="flex-1"
+                disabled={uploadModelMutation.isPending || !uploadConfig.file || !uploadConfig.name}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
-                {uploadModelMutation.isPending ? 'Uploading...' : 'Upload'}
+                {uploadModelMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    업로드 중...
+                  </div>
+                ) : '자동 추출'}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => setShowUploadDialog(false)}
                 className="flex-1"
               >
-                Cancel
+                취소
               </Button>
             </div>
           </div>
