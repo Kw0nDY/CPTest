@@ -218,6 +218,7 @@ export const aiModels = pgTable('ai_models', {
   modelType: text('model_type').notNull(), // 'pytorch', 'tensorflow', 'onnx', etc.
   status: text('status').notNull().default('uploading'), // 'uploading', 'processing', 'completed', 'error'
   filePath: text('file_path'), // Path to uploaded file in storage
+  configFilePath: text('config_file_path'), // Path to YAML/JSON config file
   analysisStatus: text('analysis_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'error'
   inputSpecs: json('input_specs').$type<Array<{
     name: string;
@@ -277,7 +278,6 @@ export const aiModels = pgTable('ai_models', {
       config?: Record<string, any>;
     }>;
   }>(),
-  configFilePath: text('config_file_path'), // Path to YAML/JSON config file
   uploadedAt: timestamp('uploaded_at').defaultNow(),
   analyzedAt: timestamp('analyzed_at'),
   createdAt: timestamp('created_at').defaultNow(),

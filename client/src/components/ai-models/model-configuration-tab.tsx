@@ -1398,6 +1398,83 @@ export default function ModelConfigurationTab() {
     setShowAddNodeMenu(true);
   };
 
+  // Enhanced connection creation with visual feedback
+  const createConnection = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
+    const fromNode = nodes.find(n => n.id === fromNodeId);
+    const toNode = nodes.find(n => n.id === toNodeId);
+    
+    if (!fromNode || !toNode) {
+      toast({
+        title: "Connection Failed",
+        description: "Could not find source or target nodes",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    const fromOutput = fromNode.outputs.find(o => o.id === fromOutputId);
+    const toInput = toNode.inputs.find(i => i.id === toInputId);
+    
+    if (!fromOutput || !toInput) {
+      toast({
+        title: "Connection Failed", 
+        description: "Invalid output or input connection points",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Check if input is already connected
+    const existingConnection = connections.find(c => 
+      c.toNodeId === toNodeId && c.toInputId === toInputId
+    );
+    
+    if (existingConnection) {
+      toast({
+        title: "Connection Failed",
+        description: `Input "${toInput.name}" is already connected`,
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Create new connection
+    const newConnection = {
+      id: `conn-${Date.now()}`,
+      fromNodeId,
+      fromOutputId,
+      toNodeId,
+      toInputId,
+      type: fromOutput.type,
+      sourceOutputName: fromOutput.name,
+      targetInputName: toInput.name
+    };
+
+    // Update connections state
+    setConnections(prev => [...prev, newConnection]);
+    
+    // Update input connected status
+    setNodes(prev => prev.map(node => {
+      if (node.id === toNodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === toInputId ? { ...input, connected: true } : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    // Show success popup
+    toast({
+      title: "Connection Successful",
+      description: `Connected "${fromOutput.name}" to "${toInput.name}"`,
+    });
+
+    return true;
+  };
+
   // Handle connection start
   const handleConnectionStart = (nodeId: string, outputId: string, type: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -2431,12 +2508,30 @@ export default function ModelConfigurationTab() {
                             backgroundColor: input.connected ? getTypeColor(input.type) : 'transparent',
                             borderColor: getTypeColor(input.type)
                           }}
-                          onClick={() => {
-                            if (connecting && connecting.type === input.type) {
-                              handleConnectionEnd(node.id, input.id, input.type);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (connecting) {
+                              // Create connection regardless of type - allow flexibility
+                              createConnection(connecting.nodeId, connecting.outputId, node.id, input.id);
+                              setConnecting(null);
+                            } else {
+                              // Show available connections for this input
+                              const availableConnections = getAvailableOutputNodes(input.type);
+                              if (availableConnections.length === 0) {
+                                toast({
+                                  title: "No Available Connections",
+                                  description: `No outputs of type "${input.type}" are available. Add nodes with matching outputs first.`,
+                                  variant: "destructive"
+                                });
+                              } else {
+                                toast({
+                                  title: "Available Connections",
+                                  description: `${availableConnections.length} compatible outputs found. Click on an output node to connect.`,
+                                });
+                              }
                             }
                           }}
-                          title={`${input.name} (${input.type})`}
+                          title={`${input.name} (${input.type}) - Click to connect`}
                         />
                         <span className="text-gray-300 truncate max-w-28">{input.name}</span>
                       </div>
@@ -2458,8 +2553,15 @@ export default function ModelConfigurationTab() {
                         <div
                           className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
                           style={{ backgroundColor: getTypeColor(output.type) }}
-                          onClick={() => handleConnectionStart(node.id, output.id, output.type)}
-                          title={`${output.name} (${output.type})`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConnectionStart(node.id, output.id, output.type);
+                            toast({
+                              title: "Connection Started",
+                              description: `Click on an input to connect "${output.name}"`,
+                            });
+                          }}
+                          title={`${output.name} (${output.type}) - Click to start connection`}
                         />
                       </div>
                     </div>
