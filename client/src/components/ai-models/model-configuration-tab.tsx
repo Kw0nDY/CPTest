@@ -229,144 +229,52 @@ const sampleAIModels = [
   }
 ];
 
-// Real data sources from actual database schema
-const dataIntegrationSources = [
-  // SAP ERP Data Sources (from schema.ts)
-  { 
-    id: 'sap-customers', 
-    name: 'SAP Customer Master', 
-    type: 'table',
-    category: 'ERP',
-    tableName: 'sap_customers',
-    description: 'Customer master data from SAP ERP system',
-    fields: [
-      { name: 'customer_id', type: 'string', description: 'Customer ID' },
-      { name: 'customer_name', type: 'string', description: 'Customer Name' },
-      { name: 'country', type: 'string', description: 'Country' },
-      { name: 'credit_limit', type: 'number', description: 'Credit Limit' },
-      { name: 'created_date', type: 'string', description: 'Created Date' }
-    ]
-  },
-  { 
-    id: 'sap-orders', 
-    name: 'SAP Sales Orders', 
-    type: 'table',
-    category: 'ERP',
-    tableName: 'sap_orders',
-    description: 'Sales orders from SAP ERP system',
-    fields: [
-      { name: 'order_id', type: 'string', description: 'Order ID' },
-      { name: 'customer_id', type: 'string', description: 'Customer ID' },
-      { name: 'order_date', type: 'string', description: 'Order Date' },
-      { name: 'total_amount', type: 'number', description: 'Total Amount' },
-      { name: 'status', type: 'string', description: 'Order Status' }
-    ]
-  },
-  // Salesforce CRM Data Sources (from schema.ts)
-  { 
-    id: 'salesforce-accounts', 
-    name: 'Salesforce Accounts', 
-    type: 'table',
-    category: 'CRM',
-    tableName: 'salesforce_accounts',
-    description: 'Account data from Salesforce CRM',
-    fields: [
-      { name: 'sf_id', type: 'string', description: 'Salesforce ID' },
-      { name: 'name', type: 'string', description: 'Account Name' },
-      { name: 'industry', type: 'string', description: 'Industry' },
-      { name: 'annual_revenue', type: 'number', description: 'Annual Revenue' },
-      { name: 'number_of_employees', type: 'number', description: 'Number of Employees' }
-    ]
-  },
-  { 
-    id: 'salesforce-opportunities', 
-    name: 'Salesforce Opportunities', 
-    type: 'table',
-    category: 'CRM',
-    tableName: 'salesforce_opportunities',
-    description: 'Sales opportunities from Salesforce',
-    fields: [
-      { name: 'sf_id', type: 'string', description: 'Opportunity Salesforce ID' },
-      { name: 'name', type: 'string', description: 'Opportunity Name' },
-      { name: 'account_id', type: 'string', description: 'Account ID' },
-      { name: 'amount', type: 'number', description: 'Opportunity Amount' },
-      { name: 'stage_name', type: 'string', description: 'Sales Stage' },
-      { name: 'close_date', type: 'string', description: 'Expected Close Date' }
-    ]
-  },
-  // AVEVA PI Industrial Data Sources (from schema.ts)
-  { 
-    id: 'pi-asset-hierarchy', 
-    name: 'AVEVA PI Asset Hierarchy', 
-    type: 'table',
-    category: 'Industrial',
-    tableName: 'pi_asset_hierarchy',
-    description: 'Asset hierarchy from AVEVA PI System',
-    fields: [
-      { name: 'asset_name', type: 'string', description: 'Asset Name' },
-      { name: 'asset_path', type: 'string', description: 'Asset Path' },
-      { name: 'asset_type', type: 'string', description: 'Asset Type' },
-      { name: 'location', type: 'string', description: 'Location' },
-      { name: 'operational_status', type: 'string', description: 'Operational Status' }
-    ]
-  },
-  { 
-    id: 'pi-drilling-operations', 
-    name: 'AVEVA PI Drilling Operations', 
-    type: 'table',
-    category: 'Industrial',
-    tableName: 'pi_drilling_operations',
-    description: 'Real-time drilling operations data',
-    fields: [
-      { name: 'well_pad_id', type: 'string', description: 'Well Pad ID' },
-      { name: 'bit_weight', type: 'number', description: 'Bit Weight' },
-      { name: 'block_height', type: 'number', description: 'Block Height' },
-      { name: 'diff_press', type: 'number', description: 'Differential Pressure' },
-      { name: 'flow_in_rate', type: 'number', description: 'Flow In Rate' },
-      { name: 'hole_depth', type: 'number', description: 'Hole Depth' },
-      { name: 'hook_load', type: 'number', description: 'Hook Load' },
-      { name: 'pump_pressure', type: 'number', description: 'Pump Pressure' },
-      { name: 'top_drive_rpm', type: 'number', description: 'Top Drive RPM' },
-      { name: 'top_drive_torque', type: 'number', description: 'Top Drive Torque' },
-      { name: 'timestamp', type: 'string', description: 'Timestamp' }
-    ]
-  },
-  // Manufacturing Data Sources
-  { 
-    id: 'production-data', 
-    name: 'Production Line Data', 
-    type: 'table',
-    category: 'Manufacturing',
-    tableName: 'production_data',
-    description: 'Real-time production line metrics',
-    fields: [
-      { name: 'line_id', type: 'string', description: 'Production Line ID' },
-      { name: 'product_id', type: 'string', description: 'Product ID' },
-      { name: 'quantity_produced', type: 'number', description: 'Quantity Produced' },
-      { name: 'efficiency_rate', type: 'number', description: 'Efficiency Rate' },
-      { name: 'temperature', type: 'number', description: 'Temperature' },
-      { name: 'pressure', type: 'number', description: 'Pressure' },
-      { name: 'vibration', type: 'array', description: 'Vibration Data' }
-    ]
-  },
-  // Quality Control Data
-  { 
-    id: 'quality-inspections', 
-    name: 'Quality Inspections', 
-    type: 'table',
-    category: 'Quality',
-    tableName: 'quality_inspections',
-    description: 'Quality control inspection results',
-    fields: [
-      { name: 'inspection_id', type: 'string', description: 'Inspection ID' },
-      { name: 'product_batch', type: 'string', description: 'Product Batch' },
-      { name: 'defect_count', type: 'number', description: 'Defect Count' },
-      { name: 'pass_rate', type: 'number', description: 'Pass Rate' },
-      { name: 'inspector_id', type: 'string', description: 'Inspector ID' },
-      { name: 'inspection_result', type: 'boolean', description: 'Inspection Result' }
-    ]
-  }
-];
+// Real data sources - these will be fetched from API
+const useDataIntegrationSources = () => {
+  const { data: dataSources = [], isLoading } = useQuery({
+    queryKey: ['/api/data-sources'],
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+
+  // Transform data sources into the format expected by the node interface
+  const transformedSources = useMemo(() => {
+    const sources: any[] = [];
+
+    dataSources.forEach((dataSource: any) => {
+      if (dataSource.dataSchema && Array.isArray(dataSource.dataSchema)) {
+        dataSource.dataSchema.forEach((table: any) => {
+          sources.push({
+            id: `${dataSource.id}-${table.table}`,
+            name: `${dataSource.name} - ${table.table}`,
+            type: 'table',
+            category: dataSource.category || dataSource.type,
+            tableName: table.table,
+            sourceId: dataSource.id,
+            description: `Data from ${dataSource.name}`,
+            fields: table.fields || [],
+            recordCount: table.recordCount || 0
+          });
+        });
+      } else {
+        // For data sources without schema, create a generic entry
+        sources.push({
+          id: dataSource.id,
+          name: dataSource.name,
+          type: 'datasource',
+          category: dataSource.category || dataSource.type,
+          sourceId: dataSource.id,
+          description: dataSource.name,
+          fields: [],
+          recordCount: dataSource.recordCount || 0
+        });
+      }
+    });
+
+    return sources;
+  }, [dataSources]);
+
+  return { dataSources: transformedSources, isLoading };
+};
 
 // Real automation triggers from the system
 const automationTriggers = [
@@ -510,6 +418,9 @@ export default function ModelConfigurationTab() {
     staleTime: 1000, // Consider data fresh for only 1 second
   });
 
+  // Use real data integration sources
+  const { dataSources: realDataSources, isLoading: isDataSourcesLoading } = useDataIntegrationSources();
+
   // Transform real AI models to match expected format and combine with samples
   const availableAIModels = useMemo(() => {
     const transformedRealModels = (realAIModels as any[]).map(model => ({
@@ -549,7 +460,7 @@ export default function ModelConfigurationTab() {
     return matchesSearch;
   });
 
-  const filteredDataSources = dataIntegrationSources.filter(source => {
+  const filteredDataSources = realDataSources.filter(source => {
     const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -675,7 +586,7 @@ export default function ModelConfigurationTab() {
         break;
       
       case 'data-input':
-        const dataSource = dataIntegrationSources.find(ds => ds.id === data?.sourceId);
+        const dataSource = realDataSources.find(ds => ds.id === data?.sourceId);
         const dataUniqueName = generateUniqueName(data?.name || 'Data Input', nodes);
         newNode = {
           id,
