@@ -2131,209 +2131,77 @@ export default function ModelConfigurationTab() {
               }}
             />
 
-            {/* Enhanced Connection Lines with proper layering */}
+            {/* Connection Rendering Layer */}
             <svg 
-              className="absolute inset-0 w-full h-full" 
-              style={{ zIndex: 1, pointerEvents: 'none' }}
-              xmlns="http://www.w3.org/2000/svg"
+              className="absolute inset-0 w-full h-full pointer-events-none" 
+              style={{ zIndex: 10 }}
             >
               <defs>
                 <marker
-                  id="arrowhead"
-                  markerWidth="12"
+                  id="arrow"
+                  markerWidth="10"
                   markerHeight="8"
-                  refX="11"
+                  refX="9"
                   refY="4"
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
                   <polygon
-                    points="0 0, 12 4, 0 8"
+                    points="0 0, 10 4, 0 8"
                     fill="#3b82f6"
-                    stroke="#3b82f6"
-                    strokeWidth="1"
                   />
                 </marker>
               </defs>
               
-              {/* Force render debug */}
-              {(() => {
-                console.log('SVG Layer - Connections count:', connections.length);
-                return null;
-              })()}
-              
-              {connections.map((connection, index) => {
-                console.log(`Rendering connection ${index}:`, connection);
+              {/* Render existing connections */}
+              {connections.map((connection) => {
                 const fromNode = nodes.find(n => n.id === connection.fromNodeId);
                 const toNode = nodes.find(n => n.id === connection.toNodeId);
-                const fromOutput = fromNode?.outputs.find(o => o.id === connection.fromOutputId);
-                const toInput = toNode?.inputs.find(i => i.id === connection.toInputId);
                 
-                if (!fromNode || !toNode || !fromOutput || !toInput) {
-                  console.warn('Missing connection data:', { fromNode: !!fromNode, toNode: !!toNode, fromOutput: !!fromOutput, toInput: !!toInput });
-                  return null;
-                }
-
-                // Calculate precise connection positions based on actual node layout
-                const fromOutputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
-                const toInputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
+                if (!fromNode || !toNode) return null;
                 
-                // More accurate node layout calculation
-                const nodeHeaderHeight = 40;
-                const nodeBodyPadding = 12; // p-3 = 12px padding
-                const itemHeight = 24; // Each input/output item height
-                const itemSpacing = 4; // gap-1 = 4px
+                const startX = fromNode.position.x + fromNode.width;
+                const startY = fromNode.position.y + 60;
+                const endX = toNode.position.x;
+                const endY = toNode.position.y + 60;
                 
-                // Calculate from position (right side of output node)
-                const fromX = fromNode.position.x + fromNode.width;
-                let fromY = fromNode.position.y + nodeHeaderHeight + nodeBodyPadding;
-                
-                // Add inputs section height if exists
-                if (fromNode.inputs.length > 0) {
-                  fromY += fromNode.inputs.length * itemHeight + 8; // Add border spacing
-                }
-                
-                // Add position for specific output
-                fromY += fromOutputIndex * itemHeight + (itemHeight / 2);
-                
-                // Calculate to position (left side of input node)
-                const toX = toNode.position.x;
-                let toY = toNode.position.y + nodeHeaderHeight + nodeBodyPadding;
-                
-                // Add position for specific input
-                toY += toInputIndex * itemHeight + (itemHeight / 2);
-
-                // Create smooth bezier curve
-                const controlPointOffset = Math.max(60, Math.abs(fromX - toX) * 0.3);
-                const pathData = `M ${fromX} ${fromY} C ${fromX + controlPointOffset} ${fromY}, ${toX - controlPointOffset} ${toY}, ${toX} ${toY}`;
-                const connectionColor = getTypeColor(fromOutput.type);
-                
-                console.log(`Rendering connection ${index}: from ${fromX},${fromY} to ${toX},${toY}`);
+                const midX = startX + (endX - startX) * 0.5;
+                const curve = `M ${startX} ${startY} C ${midX} ${startY} ${midX} ${endY} ${endX} ${endY}`;
                 
                 return (
                   <g key={connection.id}>
-                    {/* High-visibility connection line */}
                     <path
-                      d={pathData}
+                      d={curve}
                       stroke="#3b82f6"
-                      strokeWidth="4"
+                      strokeWidth="3"
                       fill="none"
-                      opacity="1"
-                      markerEnd="url(#arrowhead)"
-                      style={{ 
-                        strokeLinecap: 'round',
-                        strokeLinejoin: 'round'
-                      }}
+                      markerEnd="url(#arrow)"
+                      opacity="0.9"
                     />
-                    
-                    {/* Glow effect */}
-                    <path
-                      d={pathData}
-                      stroke="#3b82f6"
-                      strokeWidth="8"
-                      fill="none"
-                      opacity="0.3"
-                      style={{ 
-                        strokeLinecap: 'round',
-                        filter: 'blur(3px)'
-                      }}
-                    />
-                    
-                    {/* Click area for connection removal */}
-                    <path
-                      d={pathData}
-                      stroke="transparent"
-                      strokeWidth="20"
-                      fill="none"
-                      className="cursor-pointer"
-                      style={{ pointerEvents: 'stroke' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`연결을 제거하시겠습니까? ${connection.sourceOutputName} → ${connection.targetInputName}`)) {
-                          setConnections(prev => prev.filter(c => c.id !== connection.id));
-                          setNodes(prev => prev.map(node => {
-                            if (node.id === connection.toNodeId) {
-                              return {
-                                ...node,
-                                inputs: node.inputs.map(input => 
-                                  input.id === connection.toInputId ? { ...input, connected: false } : input
-                                )
-                              };
-                            }
-                            return node;
-                          }));
-                          toast({
-                            title: "연결 제거됨",
-                            description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 제거되었습니다`,
-                          });
-                        }
-                      }}
-                    />
-                    
-                    {/* Connection endpoints */}
-                    <circle
-                      cx={fromX}
-                      cy={fromY}
-                      r="5"
-                      fill="#3b82f6"
-                      opacity="1"
-                    />
-                    <circle
-                      cx={toX}
-                      cy={toY}
-                      r="5"
-                      fill="#3b82f6"
-                      opacity="1"
-                    />
-
+                    <circle cx={startX} cy={startY} r="4" fill="#3b82f6" />
+                    <circle cx={endX} cy={endY} r="4" fill="#3b82f6" />
                   </g>
                 );
               })}
               
-              {/* Temporary connection line while dragging */}
+              {/* Temporary connection while dragging */}
               {connecting && (
                 <g>
-                  {/* Background glow for temporary line */}
                   <line
                     x1={connecting.startX}
                     y1={connecting.startY}
                     x2={mousePosition.x}
                     y2={mousePosition.y}
-                    stroke={getTypeColor(connecting.type)}
-                    strokeWidth="6"
-                    strokeDasharray="8,4"
-                    opacity="0.3"
-                    className="pointer-events-none"
-                    style={{ 
-                      strokeLinecap: 'round',
-                      filter: 'blur(2px)'
-                    }}
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                    opacity="0.7"
                   />
-                  {/* Main temporary connection line */}
-                  <line
-                    x1={connecting.startX}
-                    y1={connecting.startY}
-                    x2={mousePosition.x}
-                    y2={mousePosition.y}
-                    stroke={getTypeColor(connecting.type)}
-                    strokeWidth="3"
-                    strokeDasharray="8,4"
-                    opacity="1"
-                    className="pointer-events-none"
-                    style={{ 
-                      filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
-                      strokeLinecap: 'round'
-                    }}
-                  />
-                  {/* Connection start point */}
-                  <circle
-                    cx={connecting.startX}
-                    cy={connecting.startY}
-                    r="5"
-                    fill={getTypeColor(connecting.type)}
-                    opacity="1"
-                    className="pointer-events-none"
-                    style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
+                  <circle 
+                    cx={connecting.startX} 
+                    cy={connecting.startY} 
+                    r="4" 
+                    fill="#3b82f6" 
                   />
                 </g>
               )}
