@@ -810,6 +810,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update all data sources to use STRING instead of VARCHAR
+  app.post("/api/data-sources/update-all-varchar-to-string", async (req, res) => {
+    try {
+      const dataSources = await storage.getDataSources();
+      const updatedSources = [];
+      
+      for (const dataSource of dataSources) {
+        if (dataSource.dataSchema && dataSource.dataSchema.length > 0) {
+          const updatedDataSchema = dataSource.dataSchema.map((table: any) => ({
+            ...table,
+            fields: table.fields?.map((field: any) => ({
+              ...field,
+              type: field.type.startsWith('VARCHAR') ? 'STRING' : field.type
+            })) || []
+          }));
+          
+          // Also update config if it exists
+          let updatedConfig = dataSource.config;
+          if (dataSource.config && (dataSource.config as any).dataSchema) {
+            const configDataSchema = (dataSource.config as any).dataSchema.map((table: any) => ({
+              ...table,
+              fields: table.fields?.map((field: any) => ({
+                ...field,
+                type: field.type.startsWith('VARCHAR') ? 'STRING' : field.type
+              })) || []
+            }));
+            updatedConfig = { ...dataSource.config, dataSchema: configDataSchema };
+          }
+          
+          await storage.updateDataSource(dataSource.id, { 
+            dataSchema: updatedDataSchema,
+            config: updatedConfig
+          });
+          
+          updatedSources.push({
+            id: dataSource.id,
+            name: dataSource.name,
+            tablesUpdated: updatedDataSchema.length
+          });
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: "All VARCHAR types updated to STRING successfully",
+        updatedSources: updatedSources
+      });
+    } catch (error) {
+      console.error("Error updating VARCHAR to STRING:", error);
+      res.status(500).json({ error: "Failed to update VARCHAR types" });
+    }
+  });
+
   // Update data source schema types API
   app.post("/api/data-sources/:id/update-schema", async (req, res) => {
     try {
@@ -828,24 +881,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return {
               ...table,
               fields: [
-                { name: '차량 모델', type: 'VARCHAR(50)', description: 'Vehicle model name' },
-                { name: '제조업체', type: 'VARCHAR(50)', description: 'Manufacturer name' },
+                { name: '차량 모델', type: 'STRING', description: 'Vehicle model name' },
+                { name: '제조업체', type: 'STRING', description: 'Manufacturer name' },
                 { name: '연식', type: 'INTEGER', description: 'Manufacturing year' },
                 { name: '주행 거리 (km)', type: 'INTEGER', description: 'Mileage in kilometers' },
-                { name: '색상', type: 'VARCHAR(20)', description: 'Vehicle color' },
-                { name: '가격 (원)', type: 'DECIMAL(12,0)', description: 'Price in Korean Won' }
+                { name: '색상', type: 'STRING', description: 'Vehicle color' },
+                { name: '가격 (원)', type: 'DECIMAL', description: 'Price in Korean Won' }
               ]
             };
           } else if (table.table.includes('UserData')) {
             return {
               ...table,
               fields: [
-                { name: '구매자 이름', type: 'VARCHAR(50)', description: 'Buyer name' },
-                { name: '연락처', type: 'VARCHAR(20)', description: 'Contact phone number' },
-                { name: '주소', type: 'VARCHAR(100)', description: 'Address' },
-                { name: '구매 차량 모델', type: 'VARCHAR(50)', description: 'Purchased vehicle model' },
+                { name: '구매자 이름', type: 'STRING', description: 'Buyer name' },
+                { name: '연락처', type: 'STRING', description: 'Contact phone number' },
+                { name: '주소', type: 'STRING', description: 'Address' },
+                { name: '구매 차량 모델', type: 'STRING', description: 'Purchased vehicle model' },
                 { name: '구매 날짜', type: 'DATE', description: 'Purchase date' },
-                { name: '결제 방식', type: 'VARCHAR(20)', description: 'Payment method' }
+                { name: '결제 방식', type: 'STRING', description: 'Payment method' }
               ]
             };
           }
@@ -1091,7 +1144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const detectDataType = (columnIndex: number, sampleSize: number = 10): string => {
                   const sampleValues = dataRows.slice(0, sampleSize).map(row => row[columnIndex]).filter(val => val && val.trim() !== '');
                   
-                  if (sampleValues.length === 0) return "VARCHAR(255)";
+                  if (sampleValues.length === 0) return "STRING";
                   
                   // Check if all values are numbers
                   const isAllNumbers = sampleValues.every(val => {
@@ -1105,7 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       const num = val.toString().replace(/[,\s]/g, '');
                       return num.includes('.');
                     });
-                    return hasDecimals ? "DECIMAL(10,2)" : "INTEGER";
+                    return hasDecimals ? "DECIMAL" : "INTEGER";
                   }
                   
                   // Check if all values are dates
@@ -1124,19 +1177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   
                   if (isAllDates) return "DATE";
                   
-                  // Check if it's a phone number pattern
-                  const isPhoneNumber = sampleValues.every(val => {
-                    const phonePattern = /^[\d\-\s\(\)]+$/;
-                    return phonePattern.test(val.toString().trim());
-                  });
-                  
-                  if (isPhoneNumber) return "VARCHAR(20)";
-                  
-                  // Default to text
-                  const maxLength = Math.max(...sampleValues.map(val => val.toString().length));
-                  if (maxLength <= 50) return "VARCHAR(100)";
-                  if (maxLength <= 255) return "VARCHAR(255)";
-                  return "TEXT";
+                  // All other values default to STRING
+                  return "STRING";
                 };
                 
                 // Build schema with smart type detection
