@@ -1406,14 +1406,23 @@ export default function ModelConfigurationTab() {
     const output = node.outputs.find(o => o.id === outputId);
     if (!output) return;
     
-    // Calculate output position
+    // Calculate output position using same logic as connection rendering
     const outputIndex = node.outputs.findIndex(o => o.id === outputId);
     const nodeHeaderHeight = 40;
-    const inputItemHeight = 20;
-    const separatorHeight = (node.inputs.length > 0 && node.outputs.length > 0) ? 15 : 0;
+    const nodeBodyPadding = 12; // p-3 = 12px padding
+    const itemHeight = 24; // Each input/output item height
     
+    // Calculate from position (right side of output node)
     const startX = node.position.x + node.width;
-    const startY = node.position.y + nodeHeaderHeight + (node.inputs.length * inputItemHeight) + separatorHeight + (outputIndex * inputItemHeight) + 10;
+    let startY = node.position.y + nodeHeaderHeight + nodeBodyPadding;
+    
+    // Add inputs section height if exists
+    if (node.inputs.length > 0) {
+      startY += node.inputs.length * itemHeight + 8; // Add border spacing
+    }
+    
+    // Add position for specific output
+    startY += outputIndex * itemHeight + (itemHeight / 2);
     
     setConnecting({ 
       nodeId, 
@@ -2026,8 +2035,6 @@ export default function ModelConfigurationTab() {
             <svg 
               className="absolute inset-0 w-full h-full pointer-events-auto" 
               style={{ zIndex: 1 }}
-              viewBox="0 0 2000 2000"
-              preserveAspectRatio="none"
             >
               <defs>
                 {/* Enhanced arrow marker for connection lines */}
@@ -2059,20 +2066,34 @@ export default function ModelConfigurationTab() {
                 
                 if (!fromNode || !toNode || !fromOutput || !toInput) return null;
 
-                // Calculate precise positions
+                // Calculate precise connection positions based on actual node layout
                 const fromOutputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
                 const toInputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
                 
-                // Node structure: header(40px) + inputs(20px each) + separator(15px if both exist) + outputs(20px each)
+                // More accurate node layout calculation
                 const nodeHeaderHeight = 40;
-                const inputItemHeight = 20;
-                const separatorHeight = (fromNode.inputs.length > 0 && fromNode.outputs.length > 0) ? 15 : 0;
+                const nodeBodyPadding = 12; // p-3 = 12px padding
+                const itemHeight = 24; // Each input/output item height
+                const itemSpacing = 4; // gap-1 = 4px
                 
+                // Calculate from position (right side of output node)
                 const fromX = fromNode.position.x + fromNode.width;
-                const fromY = fromNode.position.y + nodeHeaderHeight + (fromNode.inputs.length * inputItemHeight) + separatorHeight + (fromOutputIndex * inputItemHeight) + 10;
+                let fromY = fromNode.position.y + nodeHeaderHeight + nodeBodyPadding;
                 
+                // Add inputs section height if exists
+                if (fromNode.inputs.length > 0) {
+                  fromY += fromNode.inputs.length * itemHeight + 8; // Add border spacing
+                }
+                
+                // Add position for specific output
+                fromY += fromOutputIndex * itemHeight + (itemHeight / 2);
+                
+                // Calculate to position (left side of input node)
                 const toX = toNode.position.x;
-                const toY = toNode.position.y + nodeHeaderHeight + (toInputIndex * inputItemHeight) + 10;
+                let toY = toNode.position.y + nodeHeaderHeight + nodeBodyPadding;
+                
+                // Add position for specific input
+                toY += toInputIndex * itemHeight + (itemHeight / 2);
 
                 // Create smooth bezier curve
                 const controlPointOffset = Math.max(60, Math.abs(fromX - toX) * 0.3);
@@ -2187,33 +2208,47 @@ export default function ModelConfigurationTab() {
               {/* Temporary connection line while dragging */}
               {connecting && (
                 <g>
-                  {/* Background line for better visibility */}
-                  <line
-                    x1={connecting.startX}
-                    y1={connecting.startY}
-                    x2={mousePosition.x}
-                    y2={mousePosition.y}
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth="6"
-                    strokeDasharray="8,4"
-                    opacity="1"
-                    className="pointer-events-none"
-                  />
-                  {/* Main connection line */}
+                  {/* Background glow for temporary line */}
                   <line
                     x1={connecting.startX}
                     y1={connecting.startY}
                     x2={mousePosition.x}
                     y2={mousePosition.y}
                     stroke={getTypeColor(connecting.type)}
-                    strokeWidth="4"
+                    strokeWidth="8"
                     strokeDasharray="8,4"
-                    opacity="0.9"
+                    opacity="0.3"
                     className="pointer-events-none"
                     style={{ 
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      strokeLinecap: 'round',
+                      filter: 'blur(2px)'
+                    }}
+                  />
+                  {/* Main temporary connection line */}
+                  <line
+                    x1={connecting.startX}
+                    y1={connecting.startY}
+                    x2={mousePosition.x}
+                    y2={mousePosition.y}
+                    stroke={getTypeColor(connecting.type)}
+                    strokeWidth="5"
+                    strokeDasharray="8,4"
+                    opacity="1"
+                    className="pointer-events-none"
+                    style={{ 
+                      filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
                       strokeLinecap: 'round'
                     }}
+                  />
+                  {/* Connection start point */}
+                  <circle
+                    cx={connecting.startX}
+                    cy={connecting.startY}
+                    r="5"
+                    fill={getTypeColor(connecting.type)}
+                    opacity="1"
+                    className="pointer-events-none"
+                    style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
                   />
                 </g>
               )}
