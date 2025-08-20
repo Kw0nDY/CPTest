@@ -161,7 +161,11 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     name: '',
     type: 'classification',
     file: null as File | null,
-    folderId: ''
+    folderId: '',
+    manualMode: false,
+    inputSpecs: [{ name: '', type: 'tensor', shape: '', description: '', dtype: 'float32' }],
+    outputSpecs: [{ name: '', type: 'tensor', shape: '', description: '', dtype: 'float32' }],
+    metadata: { framework: '', version: '', architecture: '', description: '' }
   });
 
   const [newFolder, setNewFolder] = useState({
@@ -189,7 +193,16 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
       queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
       toast({ title: "Success", description: "AI model uploaded successfully." });
       setShowUploadDialog(false);
-      setUploadConfig({ name: '', type: 'classification', file: null, folderId: '' });
+      setUploadConfig({ 
+        name: '', 
+        type: 'classification', 
+        file: null, 
+        folderId: '',
+        manualMode: false,
+        inputSpecs: [{ name: '', type: 'tensor', shape: '', description: '', dtype: 'float32' }],
+        outputSpecs: [{ name: '', type: 'tensor', shape: '', description: '', dtype: 'float32' }],
+        metadata: { framework: '', version: '', architecture: '', description: '' }
+      });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to upload AI model.", variant: "destructive" });
@@ -236,13 +249,21 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
   };
 
   const handleUpload = () => {
-    if (!uploadConfig.file || !uploadConfig.name || !uploadConfig.folderId) return;
+    if (!uploadConfig.file || !uploadConfig.name) return;
 
     const formData = new FormData();
     formData.append('file', uploadConfig.file);
     formData.append('name', uploadConfig.name);
     formData.append('type', uploadConfig.type);
-    formData.append('folderId', uploadConfig.folderId);
+    formData.append('folderId', uploadConfig.folderId || 'default');
+
+    // Add manual specifications if in manual mode
+    if (uploadConfig.manualMode) {
+      formData.append('manualMode', 'true');
+      formData.append('inputSpecs', JSON.stringify(uploadConfig.inputSpecs));
+      formData.append('outputSpecs', JSON.stringify(uploadConfig.outputSpecs));
+      formData.append('metadata', JSON.stringify(uploadConfig.metadata));
+    }
 
     uploadModelMutation.mutate(formData);
   };
@@ -816,89 +837,307 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                   </div>
 
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">데이터 파이프 트레인 요약</Label>
-                    <div className="text-xs text-gray-600 mb-2">이 모델은 업로드된 모델 파일을 기반으로 분석이 진행됩니다</div>
-                    <div className="flex gap-2">
+                    <Label className="text-sm font-medium mb-2 block">분석 방식 선택</Label>
+                    <div className="flex gap-2 mb-3">
                       <Button 
                         size="sm" 
-                        variant="outline" 
+                        variant={uploadConfig.manualMode ? "outline" : "default"}
                         className="text-xs" 
-                        onClick={() => {
-                          toast({
-                            title: "자동 추출 시작",
-                            description: "모델 파일을 분석하여 데이터 구조를 자동 추출합니다.",
-                          });
-                          // Trigger automatic extraction logic here
-                        }}
+                        onClick={() => setUploadConfig(prev => ({ ...prev, manualMode: false }))}
                       >
-                        자동 추출
+                        자동 분석
                       </Button>
                       <Button 
                         size="sm" 
-                        variant="outline" 
+                        variant={uploadConfig.manualMode ? "default" : "outline"}
                         className="text-xs"
-                        onClick={() => {
-                          toast({
-                            title: "모델 목적 분석",
-                            description: "업로드된 모델의 용도와 목적을 분석합니다.",
-                          });
-                          // Trigger model purpose analysis here
-                        }}
+                        onClick={() => setUploadConfig(prev => ({ ...prev, manualMode: true }))}
                       >
-                        모델 목적
+                        수동 입력
                       </Button>
                     </div>
+                    
+                    {!uploadConfig.manualMode ? (
+                      <div>
+                        <div className="text-xs text-gray-600 mb-2">AI가 모델 파일을 자동으로 분석합니다 (시간이 걸릴 수 있음)</div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs" 
+                            onClick={() => {
+                              toast({
+                                title: "자동 분석 시작",
+                                description: "모델 파일을 분석하여 구조를 자동 추출합니다.",
+                              });
+                            }}
+                          >
+                            자동 추출
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs"
+                            onClick={() => {
+                              toast({
+                                title: "모델 목적 분석",
+                                description: "업로드된 모델의 용도와 목적을 분석합니다.",
+                              });
+                            }}
+                          >
+                            모델 목적
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-green-600">
+                        빠른 테스트를 위해 입력/출력 사양을 직접 입력하세요
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Step 3: Preview Analysis */}
+            {/* Step 3: Input/Output Specification */}
             {uploadConfig.file && (
               <Card className="border-purple-500/20">
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">3</div>
-                    <CardTitle className="text-sm">데이터의 차원 및 타입 예측(분석)</CardTitle>
+                    <CardTitle className="text-sm">
+                      {uploadConfig.manualMode ? "입력/출력 사양 직접 정의" : "데이터의 차원 및 타입 예측(분석)"}
+                    </CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <Label className="font-medium">입력(INPUT)</Label>
-                      <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
-                        {uploadedModels && uploadedModels.length > 0 && uploadedModels.find(m => m.fileName?.includes('stgcn'))?.analysisStatus === 'completed' ? (
-                          <div className="text-sm space-y-1">
-                            <div className="font-medium text-green-600">✓ 분석 완료</div>
-                            <div className="text-xs text-gray-700">
-                              • temporal_input: 시공간 그래프 입력<br/>
-                              • shape: [-1, 12, 207, 2]<br/>
-                              • dtype: float32
+                  {uploadConfig.manualMode ? (
+                    <div className="space-y-4">
+                      {/* Manual Input Specification */}
+                      <div>
+                        <Label className="font-medium text-sm">입력(INPUT) 사양</Label>
+                        {uploadConfig.inputSpecs.map((spec, index) => (
+                          <div key={index} className="mt-2 p-3 border rounded-lg space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="입력 이름 (예: temporal_input)"
+                                value={spec.name}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.inputSpecs];
+                                  newSpecs[index].name = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                }}
+                                className="text-xs"
+                              />
+                              <select
+                                value={spec.type}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.inputSpecs];
+                                  newSpecs[index].type = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                              >
+                                <option value="tensor">Tensor</option>
+                                <option value="image">Image</option>
+                                <option value="text">Text</option>
+                                <option value="audio">Audio</option>
+                              </select>
                             </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Shape (예: [-1, 12, 207, 2])"
+                                value={spec.shape}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.inputSpecs];
+                                  newSpecs[index].shape = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                }}
+                                className="text-xs"
+                              />
+                              <select
+                                value={spec.dtype}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.inputSpecs];
+                                  newSpecs[index].dtype = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                              >
+                                <option value="float32">float32</option>
+                                <option value="float64">float64</option>
+                                <option value="int32">int32</option>
+                                <option value="int64">int64</option>
+                              </select>
+                            </div>
+                            <Input
+                              placeholder="설명 (예: 시공간 그래프 입력 데이터)"
+                              value={spec.description}
+                              onChange={(e) => {
+                                const newSpecs = [...uploadConfig.inputSpecs];
+                                newSpecs[index].description = e.target.value;
+                                setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                              }}
+                              className="text-xs"
+                            />
                           </div>
-                        ) : (
-                          <div className="text-gray-600">모델 분석 중...</div>
-                        )}
+                        ))}
+                      </div>
+
+                      {/* Manual Output Specification */}
+                      <div>
+                        <Label className="font-medium text-sm">출력(OUTPUT) 사양</Label>
+                        {uploadConfig.outputSpecs.map((spec, index) => (
+                          <div key={index} className="mt-2 p-3 border rounded-lg space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="출력 이름 (예: predictions)"
+                                value={spec.name}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.outputSpecs];
+                                  newSpecs[index].name = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                }}
+                                className="text-xs"
+                              />
+                              <select
+                                value={spec.type}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.outputSpecs];
+                                  newSpecs[index].type = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                              >
+                                <option value="tensor">Tensor</option>
+                                <option value="classification">Classification</option>
+                                <option value="regression">Regression</option>
+                                <option value="detection">Detection</option>
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Shape (예: [-1, 12, 207, 1])"
+                                value={spec.shape}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.outputSpecs];
+                                  newSpecs[index].shape = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                }}
+                                className="text-xs"
+                              />
+                              <select
+                                value={spec.dtype}
+                                onChange={(e) => {
+                                  const newSpecs = [...uploadConfig.outputSpecs];
+                                  newSpecs[index].dtype = e.target.value;
+                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                              >
+                                <option value="float32">float32</option>
+                                <option value="float64">float64</option>
+                                <option value="int32">int32</option>
+                                <option value="int64">int64</option>
+                              </select>
+                            </div>
+                            <Input
+                              placeholder="설명 (예: 시공간 그래프 예측 결과)"
+                              value={spec.description}
+                              onChange={(e) => {
+                                const newSpecs = [...uploadConfig.outputSpecs];
+                                newSpecs[index].description = e.target.value;
+                                setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                              }}
+                              className="text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Metadata */}
+                      <div>
+                        <Label className="font-medium text-sm">메타데이터 (선택사항)</Label>
+                        <div className="mt-2 p-3 border rounded-lg space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="프레임워크 (예: PyTorch)"
+                              value={uploadConfig.metadata.framework}
+                              onChange={(e) => setUploadConfig(prev => ({ 
+                                ...prev, 
+                                metadata: { ...prev.metadata, framework: e.target.value }
+                              }))}
+                              className="text-xs"
+                            />
+                            <Input
+                              placeholder="버전 (예: 1.8+)"
+                              value={uploadConfig.metadata.version}
+                              onChange={(e) => setUploadConfig(prev => ({ 
+                                ...prev, 
+                                metadata: { ...prev.metadata, version: e.target.value }
+                              }))}
+                              className="text-xs"
+                            />
+                          </div>
+                          <Input
+                            placeholder="아키텍처 (예: STGCN)"
+                            value={uploadConfig.metadata.architecture}
+                            onChange={(e) => setUploadConfig(prev => ({ 
+                              ...prev, 
+                              metadata: { ...prev.metadata, architecture: e.target.value }
+                            }))}
+                            className="text-xs"
+                          />
+                          <Input
+                            placeholder="설명 (예: 교통 예측을 위한 시공간 그래프 모델)"
+                            value={uploadConfig.metadata.description}
+                            onChange={(e) => setUploadConfig(prev => ({ 
+                              ...prev, 
+                              metadata: { ...prev.metadata, description: e.target.value }
+                            }))}
+                            className="text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <Label className="font-medium">출력(OUTPUT)</Label>
-                      <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
-                        {uploadedModels && uploadedModels.length > 0 && uploadedModels.find(m => m.fileName?.includes('stgcn'))?.analysisStatus === 'completed' ? (
-                          <div className="text-sm space-y-1">
-                            <div className="font-medium text-green-600">✓ 분석 완료</div>
-                            <div className="text-xs text-gray-700">
-                              • predictions: 시공간 그래프 예측<br/>
-                              • shape: [-1, 12, 207, 1]<br/>
-                              • dtype: float32
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <Label className="font-medium">입력(INPUT)</Label>
+                        <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
+                          {uploadedModels && uploadedModels.length > 0 && uploadedModels.find(m => m.fileName?.includes('stgcn'))?.analysisStatus === 'completed' ? (
+                            <div className="text-sm space-y-1">
+                              <div className="font-medium text-green-600">✓ 분석 완료</div>
+                              <div className="text-xs text-gray-700">
+                                • temporal_input: 시공간 그래프 입력<br/>
+                                • shape: [-1, 12, 207, 2]<br/>
+                                • dtype: float32
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="text-gray-600">모델 분석 중...</div>
-                        )}
+                          ) : (
+                            <div className="text-gray-600">모델 분석 중...</div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-medium">출력(OUTPUT)</Label>
+                        <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[80px]">
+                          {uploadedModels && uploadedModels.length > 0 && uploadedModels.find(m => m.fileName?.includes('stgcn'))?.analysisStatus === 'completed' ? (
+                            <div className="text-sm space-y-1">
+                              <div className="font-medium text-green-600">✓ 분석 완료</div>
+                              <div className="text-xs text-gray-700">
+                                • predictions: 시공간 그래프 예측<br/>
+                                • shape: [-1, 12, 207, 1]<br/>
+                                • dtype: float32
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-gray-600">모델 분석 중...</div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -914,7 +1153,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     업로드 중...
                   </div>
-                ) : '자동 추출'}
+                ) : (uploadConfig.manualMode ? '모델 등록' : '자동 분석 시작')}
               </Button>
               <Button 
                 variant="outline" 
