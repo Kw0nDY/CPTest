@@ -10,6 +10,13 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/settings/data-integration" component={Dashboard} />
+      <Route path="/settings/:tab" component={Dashboard} />
+      <Route path="/settings" component={Dashboard} />
+      <Route path="/main-menu/:view" component={Dashboard} />
+      <Route path="/main-menu" component={Dashboard} />
+      <Route path="/management/:tab" component={Dashboard} />
+      <Route path="/management" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );
