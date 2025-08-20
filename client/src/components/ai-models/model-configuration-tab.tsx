@@ -773,18 +773,23 @@ export default function ModelConfigurationTab() {
     e.preventDefault();
     e.stopPropagation();
     
+    console.log('Node mouse down:', node.uniqueName, node.position);
+    
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
+    const offsetX = e.clientX - rect.left - node.position.x;
+    const offsetY = e.clientY - rect.top - node.position.y;
+
+    console.log('Drag start - offset:', offsetX, offsetY);
+
     setDraggedNode(node);
-    setDragOffset({
-      x: e.clientX - rect.left - node.position.x,
-      y: e.clientY - rect.top - node.position.y
-    });
+    setDragOffset({ x: offsetX, y: offsetY });
 
     // Prevent text selection during drag
     document.body.style.userSelect = 'none';
     document.body.style.webkitUserSelect = 'none';
+    document.body.style.cursor = 'grabbing';
   };
 
   // Delete node
@@ -1326,48 +1331,61 @@ export default function ModelConfigurationTab() {
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggedNode || !canvasRef.current) return;
     
-    e.preventDefault();
-    e.stopPropagation();
-
     const rect = canvasRef.current.getBoundingClientRect();
-    const newPosition = {
-      x: Math.max(0, Math.min(e.clientX - rect.left - dragOffset.x, rect.width - draggedNode.width)),
-      y: Math.max(0, Math.min(e.clientY - rect.top - dragOffset.y, rect.height - draggedNode.height))
-    };
+    const newX = e.clientX - rect.left - dragOffset.x;
+    const newY = e.clientY - rect.top - dragOffset.y;
+
+    // Constrain to canvas bounds
+    const constrainedX = Math.max(20, Math.min(newX, rect.width - draggedNode.width - 20));
+    const constrainedY = Math.max(20, Math.min(newY, rect.height - draggedNode.height - 20));
+
+    console.log('Dragging to:', constrainedX, constrainedY);
 
     setNodes(prev => prev.map(node => 
       node.id === draggedNode.id 
-        ? { ...node, position: newPosition }
+        ? { ...node, position: { x: constrainedX, y: constrainedY } }
         : node
     ));
   }, [draggedNode, dragOffset]);
 
   // Handle mouse up
-  const handleMouseUp = useCallback((e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDraggedNode(null);
-    
-    // Restore text selection
-    document.body.style.userSelect = '';
-    document.body.style.webkitUserSelect = '';
-  }, []);
+  const handleMouseUp = useCallback(() => {
+    if (draggedNode) {
+      setDraggedNode(null);
+      
+      // Restore styles
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.cursor = '';
+    }
+  }, [draggedNode]);
 
-  // Add event listeners
+  // Add global event listeners for drag
   useEffect(() => {
     if (draggedNode) {
-      const handleMove = (e: MouseEvent) => handleMouseMove(e);
-      const handleUp = (e: MouseEvent) => handleMouseUp(e);
+      const handleGlobalMove = (e: MouseEvent) => {
+        e.preventDefault();
+        handleMouseMove(e);
+      };
       
-      document.addEventListener('mousemove', handleMove, { passive: false });
-      document.addEventListener('mouseup', handleUp, { passive: false });
+      const handleGlobalUp = (e: MouseEvent) => {
+        e.preventDefault();
+        handleMouseUp();
+      };
+      
+      document.addEventListener('mousemove', handleGlobalMove);
+      document.addEventListener('mouseup', handleGlobalUp);
+      document.addEventListener('mouseleave', handleGlobalUp);
       
       return () => {
-        document.removeEventListener('mousemove', handleMove);
-        document.removeEventListener('mouseup', handleUp);
-        // Cleanup user selection styles
+        document.removeEventListener('mousemove', handleGlobalMove);
+        document.removeEventListener('mouseup', handleGlobalUp);
+        document.removeEventListener('mouseleave', handleGlobalUp);
+        
+        // Cleanup styles
         document.body.style.userSelect = '';
         document.body.style.webkitUserSelect = '';
+        document.body.style.cursor = '';
       };
     }
   }, [draggedNode, handleMouseMove, handleMouseUp]);
@@ -2192,7 +2210,10 @@ export default function ModelConfigurationTab() {
                   width: node.width,
                   minHeight: node.height
                 }}
-                onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onMouseDown={(e) => {
+                  console.log('Node mouse down event triggered for:', node.uniqueName);
+                  handleNodeMouseDown(e, node);
+                }}
                 onDragStart={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
               >
