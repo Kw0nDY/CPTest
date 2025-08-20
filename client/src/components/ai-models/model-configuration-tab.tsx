@@ -449,6 +449,7 @@ export default function ModelConfigurationTab() {
   const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
   const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; startX: number; startY: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
@@ -767,13 +768,11 @@ export default function ModelConfigurationTab() {
     setShowAddNodeMenu(false);
   };
 
-  // Handle node drag
+  // New simplified drag system
   const handleNodeMouseDown = (e: React.MouseEvent, node: ModelNode) => {
     if (e.button !== 0) return; // Only left click
     e.preventDefault();
     e.stopPropagation();
-    
-    console.log('Node mouse down:', node.uniqueName, node.position);
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -781,15 +780,34 @@ export default function ModelConfigurationTab() {
     const offsetX = e.clientX - rect.left - node.position.x;
     const offsetY = e.clientY - rect.top - node.position.y;
 
-    console.log('Drag start - offset:', offsetX, offsetY);
-
     setDraggedNode(node);
     setDragOffset({ x: offsetX, y: offsetY });
+    setIsDragging(true);
 
-    // Prevent text selection during drag
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
+    // Add event listeners to window for global drag
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newX = moveEvent.clientX - rect.left - offsetX;
+      const newY = moveEvent.clientY - rect.top - offsetY;
+      
+      // Update node position immediately
+      setNodes(prev => prev.map(n => 
+        n.id === node.id 
+          ? { ...n, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
+          : n
+      ));
+    };
+
+    const handleMouseUp = () => {
+      setDraggedNode(null);
+      setIsDragging(false);
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
     document.body.style.cursor = 'grabbing';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
   };
 
   // Delete node
@@ -1327,68 +1345,7 @@ export default function ModelConfigurationTab() {
     );
   };
 
-  // Handle mouse move for dragging
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggedNode || !canvasRef.current) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const newX = e.clientX - rect.left - dragOffset.x;
-    const newY = e.clientY - rect.top - dragOffset.y;
-
-    // Constrain to canvas bounds
-    const constrainedX = Math.max(20, Math.min(newX, rect.width - draggedNode.width - 20));
-    const constrainedY = Math.max(20, Math.min(newY, rect.height - draggedNode.height - 20));
-
-    console.log('Dragging to:', constrainedX, constrainedY);
-
-    setNodes(prev => prev.map(node => 
-      node.id === draggedNode.id 
-        ? { ...node, position: { x: constrainedX, y: constrainedY } }
-        : node
-    ));
-  }, [draggedNode, dragOffset]);
-
-  // Handle mouse up
-  const handleMouseUp = useCallback(() => {
-    if (draggedNode) {
-      setDraggedNode(null);
-      
-      // Restore styles
-      document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
-      document.body.style.cursor = '';
-    }
-  }, [draggedNode]);
-
-  // Add global event listeners for drag
-  useEffect(() => {
-    if (draggedNode) {
-      const handleGlobalMove = (e: MouseEvent) => {
-        e.preventDefault();
-        handleMouseMove(e);
-      };
-      
-      const handleGlobalUp = (e: MouseEvent) => {
-        e.preventDefault();
-        handleMouseUp();
-      };
-      
-      document.addEventListener('mousemove', handleGlobalMove);
-      document.addEventListener('mouseup', handleGlobalUp);
-      document.addEventListener('mouseleave', handleGlobalUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleGlobalMove);
-        document.removeEventListener('mouseup', handleGlobalUp);
-        document.removeEventListener('mouseleave', handleGlobalUp);
-        
-        // Cleanup styles
-        document.body.style.userSelect = '';
-        document.body.style.webkitUserSelect = '';
-        document.body.style.cursor = '';
-      };
-    }
-  }, [draggedNode, handleMouseMove, handleMouseUp]);
+  // Removed old complex drag handlers - using simplified approach in handleNodeMouseDown
 
   // Auto-create final goal if needed
   useEffect(() => {
@@ -2199,7 +2156,9 @@ export default function ModelConfigurationTab() {
             {nodes.map(node => (
               <div
                 key={node.id}
-                className={`absolute border rounded-lg shadow-lg cursor-move ${
+                className={`absolute border rounded-lg shadow-lg ${
+                  isDragging && draggedNode?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'
+                } ${
                   node.type === 'final-goal' 
                     ? 'bg-purple-900 border-purple-500 ring-2 ring-purple-400' 
                     : 'bg-gray-800 border-gray-600'
@@ -2208,12 +2167,10 @@ export default function ModelConfigurationTab() {
                   left: node.position.x,
                   top: node.position.y,
                   width: node.width,
-                  minHeight: node.height
+                  minHeight: node.height,
+                  zIndex: isDragging && draggedNode?.id === node.id ? 1000 : 10
                 }}
-                onMouseDown={(e) => {
-                  console.log('Node mouse down event triggered for:', node.uniqueName);
-                  handleNodeMouseDown(e, node);
-                }}
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
                 onDragStart={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
               >
