@@ -69,6 +69,9 @@ interface ModelNode {
     name: string;
     type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
     active: boolean; // 연결 시작 상태
+    tableData?: any[]; // Sample data for data nodes
+    tableName?: string; // Table name for data nodes
+    fieldName?: string; // Field name for data nodes
   }>;
   modelId?: string; // Reference to uploaded model
   sourceId?: string; // Reference to data source
@@ -77,6 +80,8 @@ interface ModelNode {
   status: 'ready' | 'error' | 'running';
   width: number;
   height: number;
+  sampleData?: any; // Sample data for data input nodes
+  dataSchema?: any[]; // Data schema for data input nodes
 }
 
 interface Connection {
@@ -844,6 +849,42 @@ export default function ModelConfigurationTab() {
       case 'data-input':
         const dataSource = realDataSources.find(ds => ds.id === data?.sourceId);
         const dataUniqueName = generateUniqueName(data?.name || 'Data Input', nodes);
+        
+        // Create outputs from all tables and fields in the data source
+        let outputs: any[] = [];
+        if (dataSource?.dataSchema && dataSource.dataSchema.length > 0) {
+          // Create outputs for each table's fields
+          dataSource.dataSchema.forEach((table: any) => {
+            table.fields?.forEach((field: any) => {
+              outputs.push({
+                id: `${id}-output-${table.table}-${field.name}`,
+                name: `${table.table.split(' - ')[1] || table.table}: ${field.name}`,
+                type: field.type.toLowerCase(),
+                active: false,
+                tableData: dataSource.sampleData?.[table.table] || [],
+                tableName: table.table,
+                fieldName: field.name
+              });
+            });
+          });
+        } else if (dataSource?.fields) {
+          // Fallback to legacy fields structure
+          outputs = dataSource.fields.map((field: any, index: number) => ({
+            id: `${id}-output-${field.name}`,
+            name: field.description || field.name,
+            type: field.type.toLowerCase(),
+            active: false
+          }));
+        } else {
+          // Default output
+          outputs = [{
+            id: `${id}-output-data`,
+            name: 'Data Output',
+            type: data?.type || 'object',
+            active: false
+          }];
+        }
+
         newNode = {
           id,
           type,
@@ -851,21 +892,14 @@ export default function ModelConfigurationTab() {
           uniqueName: dataUniqueName,
           position: addNodePosition,
           inputs: [],
-          outputs: dataSource?.fields?.map((field, index) => ({
-            id: `${id}-output-${field.name}`,
-            name: field.description || field.name,
-            type: field.type,
-            active: false
-          })) || [{
-            id: `${id}-output-data`,
-            name: 'Data Output',
-            type: data?.type || 'object',
-            active: false
-          }],
+          outputs,
           sourceId: data?.sourceId,
           status: 'ready',
           width: calculateNodeWidth(dataUniqueName, true),
-          height: Math.max(100, (dataSource?.fields?.length || 1) * 25 + 60)
+          height: Math.max(100, outputs.length * 25 + 60),
+          // Store sample data for preview
+          sampleData: dataSource?.sampleData || {},
+          dataSchema: dataSource?.dataSchema || []
         };
         break;
 
@@ -2917,6 +2951,53 @@ export default function ModelConfigurationTab() {
                           <div>
                             <div className="mt-2 font-medium text-gray-700">Data Source:</div>
                             <div>{transformedDataSources.find((s: any) => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
+                            
+                            {/* Show Sample Data Tables */}
+                            {selectedNodeForDetails.sampleData && Object.keys(selectedNodeForDetails.sampleData).length > 0 && (
+                              <div className="mt-4">
+                                <div className="font-medium text-gray-700 mb-2">Sample Data:</div>
+                                {Object.entries(selectedNodeForDetails.sampleData).map(([tableName, tableData]: [string, any]) => (
+                                  <div key={tableName} className="mb-4 p-3 border rounded-lg bg-gray-50">
+                                    <h6 className="font-medium text-sm text-gray-800 mb-2">
+                                      {tableName.split(' - ')[1] || tableName}
+                                    </h6>
+                                    {Array.isArray(tableData) && tableData.length > 0 ? (
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-xs border-collapse">
+                                          <thead>
+                                            <tr className="bg-gray-100">
+                                              {Object.keys(tableData[0]).map(column => (
+                                                <th key={column} className="border border-gray-300 px-2 py-1 text-left font-medium">
+                                                  {column}
+                                                </th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {tableData.slice(0, 3).map((row: any, index: number) => (
+                                              <tr key={index}>
+                                                {Object.values(row).map((value: any, colIndex: number) => (
+                                                  <td key={colIndex} className="border border-gray-300 px-2 py-1">
+                                                    {String(value)}
+                                                  </td>
+                                                ))}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                        {tableData.length > 3 && (
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            +{tableData.length - 3} more rows
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-gray-500">No data available</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                         
