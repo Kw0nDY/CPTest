@@ -406,6 +406,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                                 title: "로그인 완료",
                                 description: `${accountResponse.user_name}님, 환영합니다!`
                               });
+                              setCurrentStep('sheet-selection');
                               clearInterval(authCheckInterval);
                             } catch (error) {
                               // 아직 로그인되지 않음
