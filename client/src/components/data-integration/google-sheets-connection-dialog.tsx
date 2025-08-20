@@ -149,6 +149,31 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
     }
   });
 
+  // Check existing login status when dialog opens
+  const checkExistingLogin = async () => {
+    try {
+      const response = await apiRequest('GET', '/api/google/account');
+      const accountData = await response.json();
+      
+      if (accountData && accountData.user_email) {
+        setConnectionData(accountData);
+        setCurrentStep('sheet-selection');
+        return true;
+      }
+    } catch (error) {
+      // No existing login
+      console.log('No existing Google login found');
+    }
+    return false;
+  };
+
+  // Effect to check login status when dialog opens
+  useEffect(() => {
+    if (open && currentStep === 'google-login' && !connectionData) {
+      checkExistingLogin();
+    }
+  }, [open]);
+
   const resetDialog = () => {
     setCurrentStep('google-login');
     setSelectedSheets([]);
@@ -309,7 +334,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                         variant="outline"
                         onClick={async () => {
                           try {
-                            await apiRequest('/api/google/logout', { method: 'POST' });
+                            await apiRequest('POST', '/api/google/logout');
                             setConnectionData(null);
                             toast({
                               title: "로그아웃 완료",

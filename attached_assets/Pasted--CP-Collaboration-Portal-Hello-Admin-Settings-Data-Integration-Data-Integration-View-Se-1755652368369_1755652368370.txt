@@ -1,0 +1,212 @@
+
+CP
+Collaboration Portal
+
+Hello Admin
+
+Settings
+
+Data Integration
+Data Integration
+View Setting
+Automation
+
+AI Fac
+
+BOI
+Management
+
+Member
+
+APIs
+Main Menu
+
+
+Main Menu
+All Views
+KOO
+testTTT
+TEST2
+KOO (Copy)
+TEST2
+TEST
+Data Integration
+Manage your data source connections and integrations
+
+Connected Data Sources
+Available Data Sources
+Available Data Sources
+Search data sources...
+
+All Categories
+Salesforce CRM
+Customer Relationship
+REST API
+Customer relationship management platform
+
+Features:
+
+Real-time sync
+OAuth 2.0
++2
+Connect
+
+SAP ERP
+Enterprise Resource Planning
+SOAP/REST
+Enterprise resource planning system
+
+Features:
+
+RFC connector
+IDoc support
++2
+Connect
+
+Oracle Database
+Enterprise Resource Planning
+Database
+Relational database management system
+
+Features:
+
+JDBC connector
+Stored procedures
++2
+Connect
+
+MySQL Database
+Enterprise Resource Planning
+Database
+Open-source relational database
+
+Features:
+
+JDBC connector
+Replication
++2
+Connect
+
+Manufacturing Execution System
+Manufacturing Execution
+REST API
+Production floor management system
+
+Features:
+
+Real-time production data
+Quality tracking
++1
+Connect
+
+Product Lifecycle Management
+Product Lifecycle
+REST API
+Product development and lifecycle management
+
+Features:
+
+Design data
+BOM management
++2
+Connect
+
+Quality Management System
+Quality Management
+REST API
+Quality control and compliance management
+
+Features:
+
+Audit trails
+Compliance reporting
++2
+Connect
+
+Supply Chain Management
+Supply Chain
+REST API
+Supply chain planning and execution
+
+Features:
+
+Demand planning
+Inventory optimization
++2
+Connect
+
+AVEVA PI System
+Manufacturing Execution
+PI Web API
+Industrial data historian for real-time process monitoring and asset performance tracking
+
+Features:
+
+Real-time data streaming
+Time-series database
++3
+Connect
+
+Microsoft Excel
+File Systems
+OAuth 2.0
+OneDrive and SharePoint Excel files with real-time data access
+
+Features:
+
+OAuth 2.0 authentication
+OneDrive integration
++3
+Connect
+
+Google Sheets
+File Systems
+Google Sheets API
+Google Sheets cloud spreadsheet integration with real-time synchronization
+
+Features:
+
+OAuth 2.0 authentication
+Real-time sync
++1
+Connect
+
+Google Sheets 연결 설정
+단계 1 / 3
+33% 완료
+1
+구글 로그인
+2
+시트 선택
+3
+검토
+Google 계정 로그인 완료
+Google 계정으로 성공적으로 로그인되었습니다.
+
+권
+권동영
+
+dy.kwon@dxt.co.kr
+
+Google Sheets 접근 권한 활성화됨
+
+계정 변경
+다음 단계로
+이전
+취소
+다음
+Close
+[plugin:runtime-error-plugin] Failed to execute 'fetch' on 'Window': '/api/google/logout' is not a valid HTTP method.
+/home/runner/workspace/client/src/lib/queryClient.ts:19:21
+17 |    console.log(`API Request: ${method} ${url}`, data ? { data } : '');
+18 |    
+19 |    const res = await fetch(url, {
+   |                      ^
+20 |      method,
+21 |      headers: {
+
+
+    at apiRequest /home/runner/workspace/client/src/lib/queryClient.ts:19:21
+    at onClick /home/runner/workspace/client/src/components/data-integration/google-sheets-connection-dialog.tsx:312:35
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.js.
