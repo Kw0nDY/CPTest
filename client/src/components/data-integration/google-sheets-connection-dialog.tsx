@@ -105,8 +105,10 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
   // Get available Google Sheets from actual user's Google account
   const { data: sheetsResponse, isLoading: isSheetsLoading, refetch: refetchSheets } = useQuery({
     queryKey: ['/api/google/sheets'],
-    enabled: currentStep === 'sheet-selection',
-    retry: false
+    enabled: currentStep === 'sheet-selection' && !!connectionData,
+    retry: false,
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 0  // Don't cache results
   });
   
   const availableSheets = sheetsResponse?.sheets || [];
@@ -158,6 +160,8 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
       if (accountData && accountData.user_email) {
         setConnectionData(accountData);
         setCurrentStep('sheet-selection');
+        // 새 계정으로 로그인했을 때 시트 목록 새로고침
+        queryClient.invalidateQueries({ queryKey: ['/api/google/sheets'] });
         return true;
       }
     } catch (error) {
@@ -214,6 +218,8 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
   const handleRefreshSheets = async () => {
     setLoadingSheets(true);
     try {
+      // 캐시 무효화 후 새로고침
+      queryClient.invalidateQueries({ queryKey: ['/api/google/sheets'] });
       await refetchSheets();
     } catch (error) {
       console.error('Failed to refresh sheets:', error);
@@ -336,6 +342,10 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                           try {
                             await apiRequest('POST', '/api/google/logout');
                             setConnectionData(null);
+                            setCurrentStep('google-login'); // 로그아웃 후 첫 단계로 이동
+                            // 캐시된 시트 목록 무효화
+                            queryClient.invalidateQueries({ queryKey: ['/api/google/sheets'] });
+                            queryClient.invalidateQueries({ queryKey: ['/api/google/account'] });
                             toast({
                               title: "로그아웃 완료",
                               description: `${connectionData?.user_name || 'Google 계정'}에서 로그아웃되었습니다.`
@@ -506,7 +516,15 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                             <div>
                               <CardTitle className="text-base">{sheet?.name || 'Untitled Sheet'}</CardTitle>
                               <CardDescription>
-                                {sheet?.sheets?.length || 0}개 시트 • 마지막 수정: {sheet?.lastModified ? new Date(sheet.lastModified).toLocaleDateString('ko-KR') : 'Unknown'}
+                                {sheet?.sheets?.length || 0}개 시트 • 마지막 수정: {
+                                  sheet?.lastModified 
+                                    ? new Date(sheet.lastModified).toLocaleDateString('ko-KR', {
+                                        year: 'numeric',
+                                        month: 'short', 
+                                        day: 'numeric'
+                                      })
+                                    : '정보 없음'
+                                }
                               </CardDescription>
                             </div>
                           </div>
