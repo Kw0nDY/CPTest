@@ -247,7 +247,37 @@ export const aiModels = pgTable('ai_models', {
     postprocessing?: any;
     hyperparameters?: any;
     training_info?: any;
+    // Extended configuration for YAML/JSON config files
+    framework?: string;
+    artifactUri?: string;
+    runtime?: string;
+    entrypoint?: string;
+    resources?: {
+      gpu?: number;
+      cpu?: string;
+      memory?: string;
+    };
+    preprocess?: Array<{
+      type: 'sql_query' | 'normalize' | 'denormalize' | 'transform';
+      connection?: string;
+      sql?: string;
+      params?: Record<string, any>;
+    }>;
+    postprocess?: Array<{
+      type: 'sql_query' | 'normalize' | 'denormalize' | 'transform';
+      connection?: string;
+      sql?: string;
+      params?: Record<string, any>;
+    }>;
+    connectors?: Array<{
+      name: string;
+      kind: 'postgres' | 'redis' | 'mysql' | 'mongodb' | 's3';
+      dsn?: string;
+      uri?: string;
+      config?: Record<string, any>;
+    }>;
   }>(),
+  configFilePath: text('config_file_path'), // Path to YAML/JSON config file
   uploadedAt: timestamp('uploaded_at').defaultNow(),
   analyzedAt: timestamp('analyzed_at'),
   createdAt: timestamp('created_at').defaultNow(),

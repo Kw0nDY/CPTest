@@ -10,6 +10,7 @@ import multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path';
 import { modelAnalysisService } from './modelAnalysisService';
+import { modelConfigService } from './modelConfigService';
 
 // Google OAuth2 Client 설정
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -2436,6 +2437,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdModel = await storage.createAiModel(modelData);
 
+      // Generate config file for manual mode as well
+      if (manualMode === 'true') {
+        try {
+          const configData = await modelConfigService.generateConfig({
+            id: createdModel.id,
+            name: createdModel.name,
+            framework: typeMap[modelType] || 'pytorch',
+            filePath: tempFilePath,
+            inputSpecs: JSON.parse(inputSpecs || '[]'),
+            outputSpecs: JSON.parse(outputSpecs || '[]')
+          });
+          
+          const configFilePath = await modelConfigService.saveConfigFile(createdModel.id, configData);
+          
+          // Update model with config file path
+          await storage.updateAiModel(createdModel.id, {
+            configFilePath: configFilePath
+          });
+        } catch (configError) {
+          console.error('Config file generation error in manual mode:', configError);
+        }
+      }
+
       // Start model analysis in background (only if not manual mode)
       if (manualMode !== 'true') {
         setImmediate(async () => {
@@ -2449,15 +2473,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const analysisResult = await modelAnalysisService.analyzeModel(tempFilePath, req.file!.originalname);
 
           if (analysisResult.success) {
-            // Update model with analysis results
-            await storage.updateAiModel(createdModel.id, {
-              status: 'completed',
-              analysisStatus: 'completed',
-              inputSpecs: analysisResult.inputSpecs,
-              outputSpecs: analysisResult.outputSpecs,
-              metadata: analysisResult.metadata,
-              analyzedAt: new Date()
-            });
+            // Generate YAML config file
+            try {
+              const configData = await modelConfigService.generateConfig({
+                id: createdModel.id,
+                name: createdModel.name,
+                framework: typeMap[modelType] || 'pytorch',
+                filePath: tempFilePath,
+                inputSpecs: analysisResult.inputSpecs,
+                outputSpecs: analysisResult.outputSpecs
+              });
+              
+              const configFilePath = await modelConfigService.saveConfigFile(createdModel.id, configData);
+              
+              // Update model with analysis results and config file path
+              await storage.updateAiModel(createdModel.id, {
+                status: 'completed',
+                analysisStatus: 'completed',
+                inputSpecs: analysisResult.inputSpecs,
+                outputSpecs: analysisResult.outputSpecs,
+                metadata: analysisResult.metadata,
+                configFilePath: configFilePath,
+                analyzedAt: new Date()
+              });
+            } catch (configError) {
+              console.error('Config file generation error:', configError);
+              // Still update model with analysis results even if config generation fails
+              await storage.updateAiModel(createdModel.id, {
+                status: 'completed',
+                analysisStatus: 'completed',
+                inputSpecs: analysisResult.inputSpecs,
+                outputSpecs: analysisResult.outputSpecs,
+                metadata: analysisResult.metadata,
+                analyzedAt: new Date()
+              });
+            }
           } else {
             // Update with error status
             await storage.updateAiModel(createdModel.id, {
@@ -2549,6 +2599,226 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting model configuration:', error);
       res.status(500).json({ error: 'Failed to delete model configuration' });
+    }
+  });
+
+  // AI Model Config File Management APIs
+  app.post('/api/ai-models/:id/generate-config', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      // Generate config from current model data
+      const configData = await modelConfigService.generateConfig({
+        id: model.id,
+        name: model.name,
+        framework: model.metadata?.framework || 'pytorch',
+        filePath: model.filePath || '',
+        inputSpecs: model.inputSpecs || [],
+        outputSpecs: model.outputSpecs || [],
+        configuration: model.configuration
+      });
+
+      const configFilePath = await modelConfigService.saveConfigFile(model.id, configData);
+
+      // Update model with config file path
+      await storage.updateAiModel(id, {
+        configFilePath: configFilePath
+      });
+
+      res.json({
+        success: true,
+        message: 'Config file generated successfully',
+        configFilePath: configFilePath,
+        config: configData
+      });
+    } catch (error) {
+      console.error('Error generating config file:', error);
+      res.status(500).json({ error: 'Failed to generate config file' });
+    }
+  });
+
+  app.get('/api/ai-models/:id/config', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      if (!model.configFilePath) {
+        return res.status(404).json({ error: 'Config file not found for this model' });
+      }
+
+      const config = await modelConfigService.loadConfigFile(model.configFilePath);
+      
+      res.json({
+        success: true,
+        config: config,
+        filePath: model.configFilePath
+      });
+    } catch (error) {
+      console.error('Error loading config file:', error);
+      res.status(500).json({ error: 'Failed to load config file' });
+    }
+  });
+
+  app.get('/api/ai-models/:id/config/download', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      if (!model.configFilePath) {
+        return res.status(404).json({ error: 'Config file not found for this model' });
+      }
+
+      const config = await modelConfigService.loadConfigFile(model.configFilePath);
+      const fileName = `${model.name.toLowerCase().replace(/\s+/g, '_')}_config.yml`;
+
+      res.setHeader('Content-Type', 'application/x-yaml');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      
+      // Convert config to YAML and send
+      const yaml = await import('js-yaml');
+      const yamlContent = yaml.dump(config, {
+        indent: 2,
+        lineWidth: 120,
+        noRefs: true
+      });
+      
+      res.send(yamlContent);
+    } catch (error) {
+      console.error('Error downloading config file:', error);
+      res.status(500).json({ error: 'Failed to download config file' });
+    }
+  });
+
+  app.put('/api/ai-models/:id/config', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { config } = req.body;
+      
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      // Validate config structure
+      const validation = modelConfigService.validateConfig(config);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: 'Invalid config structure',
+          details: validation.errors
+        });
+      }
+
+      let configFilePath = model.configFilePath;
+      
+      if (configFilePath) {
+        // Update existing config file
+        await modelConfigService.updateConfigFile(configFilePath, config);
+      } else {
+        // Create new config file
+        configFilePath = await modelConfigService.saveConfigFile(model.id, config);
+        await storage.updateAiModel(id, {
+          configFilePath: configFilePath
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Config file updated successfully',
+        configFilePath: configFilePath
+      });
+    } catch (error) {
+      console.error('Error updating config file:', error);
+      res.status(500).json({ error: 'Failed to update config file' });
+    }
+  });
+
+  // Upload and parse config file
+  const configUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024 // 5MB limit for config files
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedExtensions = ['.yml', '.yaml', '.json'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowedExtensions.includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Config file type ${ext} not supported. Supported formats: ${allowedExtensions.join(', ')}`));
+      }
+    }
+  });
+
+  app.post('/api/ai-models/:id/config/upload', configUpload.single('config'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No config file provided' });
+      }
+
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      // Parse the uploaded config file
+      const tempConfigPath = path.join(process.cwd(), 'uploads', 'configs', `temp_${Date.now()}_${req.file.originalname}`);
+      await fs.writeFile(tempConfigPath, req.file.buffer);
+
+      try {
+        const config = await modelConfigService.parseUploadedConfig(tempConfigPath);
+        
+        // Validate config structure
+        const validation = modelConfigService.validateConfig(config);
+        if (!validation.valid) {
+          await fs.unlink(tempConfigPath); // Clean up temp file
+          return res.status(400).json({ 
+            error: 'Invalid config file structure',
+            details: validation.errors
+          });
+        }
+
+        // Save as the model's config file
+        const configFilePath = await modelConfigService.saveConfigFile(model.id, config);
+        
+        // Update model with config file path
+        await storage.updateAiModel(id, {
+          configFilePath: configFilePath
+        });
+
+        // Clean up temp file
+        await fs.unlink(tempConfigPath);
+
+        res.json({
+          success: true,
+          message: 'Config file uploaded and parsed successfully',
+          config: config,
+          configFilePath: configFilePath
+        });
+      } catch (parseError) {
+        // Clean up temp file on error
+        await fs.unlink(tempConfigPath);
+        throw parseError;
+      }
+    } catch (error) {
+      console.error('Error uploading config file:', error);
+      res.status(500).json({ error: 'Failed to upload config file' });
     }
   });
 

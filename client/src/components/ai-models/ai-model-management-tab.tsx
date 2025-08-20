@@ -42,7 +42,10 @@ import {
   X,
   Check,
   RefreshCw,
-  Loader2
+  Loader2,
+  FileCode,
+  FileDown,
+  FileUp
 } from 'lucide-react';
 
 interface AIModel {
@@ -362,6 +365,63 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     setReanalyzeTargetModel(null);
   };
 
+  // Config file management mutations
+  const generateConfigMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      return apiRequest(`/api/ai-models/${modelId}/generate-config`, { method: 'POST' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      toast({ title: "Config Generated", description: "YAML config file generated successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate config file.", variant: "destructive" });
+    },
+  });
+
+  const downloadConfig = async (modelId: string, modelName: string) => {
+    try {
+      const response = await fetch(`/api/ai-models/${modelId}/config/download`);
+      if (!response.ok) throw new Error('Failed to download config');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${modelName.toLowerCase().replace(/\s+/g, '_')}_config.yml`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Download Started", description: "Config file download started." });
+    } catch (error) {
+      toast({ title: "Download Failed", description: "Failed to download config file.", variant: "destructive" });
+    }
+  };
+
+  const handleConfigFileUpload = (modelId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('config', file);
+    
+    fetch(`/api/ai-models/${modelId}/config/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+        toast({ title: "Config Uploaded", description: "Config file uploaded successfully." });
+      } else {
+        throw new Error(data.error || 'Upload failed');
+      }
+    })
+    .catch(() => {
+      toast({ title: "Upload Failed", description: "Failed to upload config file.", variant: "destructive" });
+    });
+  };
+
   const getFilteredModels = (folderId: string) => {
     if (folderId === 'user-models') {
       return uploadedModels.filter(model => model.folderId === 'user-models');
@@ -614,6 +674,62 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                               <span className="font-medium text-green-600">{model.accuracy?.toFixed(1)}%</span>
                             </div>
                           )}
+                        </div>
+
+                        {/* Config File Actions */}
+                        <div className="border-t pt-3 mt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600">Config File</span>
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => generateConfigMutation.mutate(model.id)}
+                                disabled={generateConfigMutation.isPending}
+                                title="Generate YAML config file"
+                              >
+                                {generateConfigMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <FileCode className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => downloadConfig(model.id, model.name)}
+                                title="Download config file"
+                              >
+                                <FileDown className="h-3 w-3" />
+                              </Button>
+                              <label className="cursor-pointer">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  title="Upload config file"
+                                  asChild
+                                >
+                                  <span>
+                                    <FileUp className="h-3 w-3" />
+                                  </span>
+                                </Button>
+                                <input
+                                  type="file"
+                                  accept=".yml,.yaml,.json"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      handleConfigFileUpload(model.id, file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Actions */}

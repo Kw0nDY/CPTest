@@ -13,6 +13,15 @@ The platform has been fully localized to English while maintaining Korean commun
 - AI Fac (with sub-items: Upload Models, Model Configuration)  
 - BOI (with sub-items: Overview, Input Setting, AI Insights, Reports)
 
+**AI Model Management Features (Updated January 2025):**
+- Complete YAML/JSON config file lifecycle management system
+- Automatic config file generation during model upload (both automatic and manual modes)
+- Config file download functionality with proper YAML formatting
+- Config file upload and parsing with validation
+- Model-specific config file storage and retrieval
+- Integration with model analysis workflow for streamlined configuration
+- Support for updating existing config files and creating new ones
+
 **View Setting Features:**
 - Dynamic UI creation system for building custom dashboard views
 - Data source integration from connected systems (AVEVA PI, SAP ERP, Oracle, Salesforce)
@@ -63,6 +72,15 @@ Preferred communication style: Korean language communication requested. Always r
 - System must read actual Excel file content, not generate mock data based on filenames
 - Worksheet names, column names, data types, and sample data must match real file content exactly
 - Critical requirement: View Data functionality must display authentic Excel data, not simulated content
+
+**AI Model Config File Management Requirements:**
+- Complete YAML/JSON config file system with js-yaml dependency integration
+- Automatic config file generation post-upload with structured format matching provided specifications
+- Model-specific config file storage with proper file path management
+- Config file validation system to ensure structural integrity
+- Download functionality providing properly formatted YAML files
+- Upload and parsing system supporting both YAML and JSON formats
+- Config file lifecycle management including updates and modifications
 
 ## System Architecture
 
