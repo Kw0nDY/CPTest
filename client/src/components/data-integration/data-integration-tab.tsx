@@ -429,11 +429,10 @@ export default function DataIntegrationTab() {
   // Delete data source mutation
   const deleteDataSourceMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log(`Attempting to delete data source: ${id}`);
       const response = await apiRequest('DELETE', `/api/data-sources/${id}`);
-      if (!response.ok) {
-        throw new Error(`Failed to delete data source: ${response.status}`);
-      }
       const result = await response.json();
+      console.log('Delete response:', result);
       return result;
     },
     onSuccess: (data) => {
@@ -477,7 +476,8 @@ export default function DataIntegrationTab() {
 
   const createDataSourceMutation = useMutation({
     mutationFn: async (config: any) => {
-      return apiRequest('/api/data-sources', 'POST', config);
+      const response = await apiRequest('POST', '/api/data-sources', config);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
