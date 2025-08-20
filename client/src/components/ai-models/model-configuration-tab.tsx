@@ -34,7 +34,8 @@ import {
   ArrowRight,
   Link2,
   Target,
-  Monitor
+  Monitor,
+  Check
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -381,6 +382,7 @@ export default function ModelConfigurationTab() {
   } | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<{nodeId: string; inputId: string} | null>(null);
+  const [showValidationDetails, setShowValidationDetails] = useState(false);
   
   // Delete dialog states
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -1547,28 +1549,87 @@ export default function ModelConfigurationTab() {
   const validateConfiguration = (): {isValid: boolean; errors: string[]} => {
     const errors: string[] = [];
     
+    if (nodes.length === 0) {
+      errors.push('No nodes found. Add at least one AI model to create a workflow.');
+      return { isValid: false, errors };
+    }
+    
     // Check if there are any AI models
     const aiModels = nodes.filter(n => n.type === 'ai-model');
     if (aiModels.length === 0) {
-      errors.push('At least one AI model is required');
+      errors.push('At least one AI model is required to create a workflow');
     }
     
-    // Check if AI models have input connections
+    // Check if AI models have sufficient input connections
     aiModels.forEach(model => {
-      const hasConnectedInputs = model.inputs.some(input => input.connected);
-      if (!hasConnectedInputs && model.inputs.length > 0) {
-        errors.push(`AI model "${model.uniqueName}" needs input connections to run`);
+      const modelConnections = connections.filter(conn => conn.toNodeId === model.id);
+      const requiredInputs = model.inputs.filter(input => !input.optional);
+      
+      if (requiredInputs.length > 0 && modelConnections.length === 0) {
+        errors.push(`AI model "${model.uniqueName}" requires input data connections`);
       }
+      
+      // Check if all required inputs are connected
+      requiredInputs.forEach(input => {
+        const isConnected = modelConnections.some(conn => conn.toInputId === input.id);
+        if (!isConnected) {
+          errors.push(`Required input "${input.name}" in "${model.uniqueName}" is not connected`);
+        }
+      });
     });
     
     // Check final goal connections
     const finalGoals = nodes.filter(n => n.type === 'final-goal');
+    if (finalGoals.length === 0) {
+      errors.push('Add a "Final Goal" node to define the workflow output');
+    }
+    
     finalGoals.forEach(goal => {
       const hasConnections = connections.some(conn => conn.toNodeId === goal.id);
       if (!hasConnections) {
-        errors.push(`Final goal "${goal.uniqueName}" must have input connections`);
+        errors.push(`Final goal "${goal.uniqueName}" must receive input from AI models or data sources`);
       }
     });
+    
+    // Check for isolated nodes (nodes with no connections)
+    const dataNodes = nodes.filter(n => n.type === 'data-input');
+    dataNodes.forEach(dataNode => {
+      const hasOutputConnections = connections.some(conn => conn.fromNodeId === dataNode.id);
+      if (!hasOutputConnections) {
+        errors.push(`Data source "${dataNode.uniqueName}" is not connected to any AI models`);
+      }
+    });
+    
+    // Check for circular dependencies (basic check)
+    const hasCircularDependency = () => {
+      const visited = new Set<string>();
+      const recursionStack = new Set<string>();
+      
+      const hasCycle = (nodeId: string): boolean => {
+        if (recursionStack.has(nodeId)) return true;
+        if (visited.has(nodeId)) return false;
+        
+        visited.add(nodeId);
+        recursionStack.add(nodeId);
+        
+        const outgoingConnections = connections.filter(conn => conn.fromNodeId === nodeId);
+        for (const conn of outgoingConnections) {
+          if (hasCycle(conn.toNodeId)) return true;
+        }
+        
+        recursionStack.delete(nodeId);
+        return false;
+      };
+      
+      for (const node of nodes) {
+        if (hasCycle(node.id)) return true;
+      }
+      return false;
+    };
+    
+    if (hasCircularDependency()) {
+      errors.push('Circular dependency detected in the workflow. Please check your connections.');
+    }
     
     return {
       isValid: errors.length === 0,
@@ -1578,25 +1639,41 @@ export default function ModelConfigurationTab() {
 
   // Test configuration
   const testConfiguration = () => {
-    const validation = validateConfiguration();
-    setTestResults({
-      status: validation.isValid ? 'success' : 'error',
-      message: validation.isValid ? 'Configuration is valid' : 'Configuration has errors',
-      details: validation
-    });
+    setIsTestRunning(true);
     
-    if (validation.isValid) {
-      toast({
-        title: "Test Configuration",
-        description: "Configuration is valid and ready to run!",
+    // Simulate test execution with validation
+    setTimeout(() => {
+      const validation = validateConfiguration();
+      setTestResults({
+        status: validation.isValid ? 'success' : 'error',
+        message: validation.isValid ? 'Configuration is valid and ready to run!' : 'Configuration has errors',
+        details: validation
       });
-    } else {
-      toast({
-        title: "Configuration Issues",
-        description: `${validation.errors.length} issues found. Please review and fix.`,
-        variant: "destructive"
-      });
-    }
+      
+      setIsTestRunning(false);
+      
+      if (validation.isValid) {
+        toast({
+          title: "✅ Test Configuration",
+          description: "Configuration is valid and ready to run!",
+        });
+      } else {
+        toast({
+          title: "❌ Configuration Issues",
+          description: `${validation.errors.length} issue(s) found. Click to view details.`,
+          variant: "destructive",
+          action: (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowValidationDetails(true)}
+            >
+              View Details
+            </Button>
+          )
+        });
+      }
+    }, 1000);
   };
 
   // Save configuration
@@ -3135,6 +3212,88 @@ export default function ModelConfigurationTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Configuration Validation Details Modal */}
+      <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              Configuration Issues
+            </DialogTitle>
+            <DialogDescription>
+              Review and fix the following issues before testing or running your workflow:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {testResults?.details?.errors?.map((error: string, index: number) => (
+              <div key={index} className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center mt-0.5">
+                    <span className="text-red-600 text-sm font-bold">{index + 1}</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-red-800 font-medium">{error}</p>
+                    {error.includes('input connections') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Drag from a data source or AI model output to this node's input ports
+                      </p>
+                    )}
+                    {error.includes('Final goal') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Add a "Final Goal" node from the canvas menu and connect it to your AI models
+                      </p>
+                    )}
+                    {error.includes('AI model') && error.includes('required') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Add at least one AI model to your workflow to process data
+                      </p>
+                    )}
+                    {error.includes('not connected to any AI models') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Connect this data source to AI model inputs to use the data
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {testResults?.details?.errors?.length === 0 && (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">All Good!</h3>
+                <p className="text-gray-600">Your configuration has no issues and is ready to run.</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <Button 
+              onClick={() => setShowValidationDetails(false)}
+              className="flex-1"
+            >
+              Close
+            </Button>
+            {testResults?.details?.errors?.length > 0 && (
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setShowValidationDetails(false);
+                  // Auto-test again after closing
+                  setTimeout(testConfiguration, 500);
+                }}
+                className="flex-1"
+              >
+                Test Again
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
