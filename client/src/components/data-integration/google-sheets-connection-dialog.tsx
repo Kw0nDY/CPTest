@@ -516,20 +516,21 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                             <div>
                               <CardTitle className="text-base">{sheet?.name || 'Untitled Sheet'}</CardTitle>
                               <CardDescription>
-                                {sheet?.sheets?.length || 0}개 시트 • 마지막 수정: {
-                                  sheet?.lastModified 
+                                {sheet?.sheetCount || sheet?.sheets?.length || 0}개 시트 • 마지막 수정: {
+                                  sheet?.lastModifiedFormatted || 
+                                  (sheet?.lastModified 
                                     ? new Date(sheet.lastModified).toLocaleDateString('ko-KR', {
                                         year: 'numeric',
                                         month: 'short', 
                                         day: 'numeric'
                                       })
-                                    : '정보 없음'
+                                    : '정보 없음')
                                 }
                               </CardDescription>
                             </div>
                           </div>
                           <Badge variant="secondary">
-                            {sheet?.sheets?.length || 0} 시트
+                            {sheet?.sheetCount || sheet?.sheets?.length || 0} 시트
                           </Badge>
                         </div>
                       </CardHeader>

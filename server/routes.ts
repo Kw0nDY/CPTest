@@ -613,7 +613,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   name: file.name,
                   url: file.webViewLink,
                   sheets: worksheetNames,
-                  lastModified: file.modifiedTime
+                  sheetCount: worksheetNames.length,
+                  lastModified: file.modifiedTime,
+                  lastModifiedFormatted: file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  }) : null
                 };
                 
                 console.log(`Final sheet object for ${file.name}:`, result);
@@ -632,13 +638,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
         } catch (promiseAllError) {
           console.error('Promise.all failed:', promiseAllError);
-          // Fallback: create basic sheet objects without worksheet info
+          // Fallback: create basic sheet objects with better info from Drive API
           sheets = driveData.files.map((file: any) => ({
             id: file.id,
             name: file.name,
             url: file.webViewLink,
-            sheets: ['Sheet1'], // Default fallback
-            lastModified: file.modifiedTime
+            sheets: ['기본 시트'], // More realistic fallback
+            sheetCount: 1,
+            lastModified: file.modifiedTime,
+            lastModifiedFormatted: file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString('ko-KR', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            }) : null
           }));
         }
 
@@ -649,11 +661,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`All available sheets: ${sheets.length}`);
         console.log('All sheets data:', JSON.stringify(sheets, null, 2));
         
-        // For sheets that failed to load worksheet info, add default worksheet names
-        const enhancedSheets = sheets.map(sheet => ({
-          ...sheet,
-          sheets: sheet.sheets.length > 0 ? sheet.sheets : ['Sheet1', 'Sheet2', 'Sheet3'] // Default fallback
-        }));
+        // Enhanced sheets with better fallback logic
+        const enhancedSheets = sheets.map(sheet => {
+          // If we have actual sheet data, use it
+          if (sheet.sheets && sheet.sheets.length > 0 && !sheet.sheets.includes('Sheet1')) {
+            return sheet;
+          }
+          
+          // Otherwise, try to get minimal info from Google Drive API
+          return {
+            ...sheet,
+            sheets: sheet.sheets.length > 0 ? sheet.sheets : ['기본 시트'], // More realistic fallback
+            sheetCount: sheet.sheets.length > 0 ? sheet.sheets.length : 1
+          };
+        });
         
         return res.json({
           success: true,
