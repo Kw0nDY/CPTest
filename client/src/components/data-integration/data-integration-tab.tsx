@@ -798,20 +798,6 @@ export default function DataIntegrationTab() {
                             <Eye className="w-4 h-4 mr-1" />
                             View Data
                           </Button>
-                          {ds.type === 'Google Sheets' && (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="flex-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRefreshDataSource(ds.id, ds.name);
-                              }}
-                            >
-                              <RefreshCw className="w-4 h-4 mr-1" />
-                              새로고침
-                            </Button>
-                          )}
                           <Button 
                             variant="outline" 
                             size="sm" 

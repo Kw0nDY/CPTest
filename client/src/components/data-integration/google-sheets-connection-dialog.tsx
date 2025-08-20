@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { FileSpreadsheet, Calendar, Users, Eye, EyeOff, ChevronDown, ChevronRight, ArrowLeft, ArrowRight, Settings, CheckCircle } from "lucide-react";
+import { FileSpreadsheet, Calendar, Users, Eye, EyeOff, ChevronDown, ChevronRight, ArrowLeft, ArrowRight, Settings, CheckCircle, RefreshCw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +59,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
     description: ''
   });
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set());
+  const [loadingSheets, setLoadingSheets] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -158,6 +159,42 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
       sheetsConfig: selectedSheetsConfig,
       connectionData
     });
+  };
+
+  const handleRefreshSheets = async () => {
+    if (!selectedDriveConfig || !selectedSheetsConfig) {
+      toast({
+        title: "API 설정 필요",
+        description: "Google Sheets를 새로고침하려면 먼저 Drive API와 Sheets API를 설정해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoadingSheets(true);
+    toast({
+      title: "새로고침 시작",
+      description: "Google Sheets 목록을 새로고침하고 있습니다..."
+    });
+    
+    try {
+      // 실제 Google Sheets API 호출하여 최신 목록 가져오기
+      // 여기에서는 기존 쿼리를 무효화하여 새로 불러오도록 함
+      await queryClient.invalidateQueries({ queryKey: ['/api/google-sheets'] });
+      
+      toast({
+        title: "새로고침 완료",
+        description: "최신 Google Sheets 목록이 업데이트되었습니다."
+      });
+    } catch (error) {
+      toast({
+        title: "새로고침 실패",
+        description: "Google Sheets 목록 새로고침에 실패했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSheets(false);
+    }
   };
 
   const getStepNumber = (step: string) => {
@@ -363,13 +400,27 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
           {currentStep === 'sheet-selection' && (
             <div className="space-y-6">
               <div className="text-center py-4">
-                <h3 className="text-xl font-semibold mb-2">스프레드시트 선택</h3>
-                <p className="text-muted-foreground">
-                  연결하고 싶은 Google Sheets를 선택하세요.
-                </p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold mb-2">스프레드시트 선택</h3>
+                    <p className="text-muted-foreground">
+                      연결하고 싶은 Google Sheets를 선택하세요.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshSheets}
+                    disabled={loadingSheets}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingSheets ? 'animate-spin' : ''}`} />
+                    새로고침
+                  </Button>
+                </div>
               </div>
 
-              {isSheetsLoading ? (
+              {(isSheetsLoading || loadingSheets) ? (
                 <div className="text-center py-8">
                   <div className="inline-flex items-center">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />
