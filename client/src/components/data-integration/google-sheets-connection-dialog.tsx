@@ -129,26 +129,12 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
 
   const handleNext = () => {
     if (currentStep === 'api-selection') {
-      if (!selectedDriveConfig || !selectedSheetsConfig) {
-        toast({
-          title: "API 설정 필요",
-          description: "Drive API와 Sheets API를 모두 선택해주세요.",
-          variant: "destructive"
-        });
-        return;
-      }
-      setCurrentStep('authentication');
+      // 수동 연결: API 설정 없이도 바로 시트 선택으로 이동
+      setCurrentStep('sheet-selection');
     } else if (currentStep === 'authentication') {
       setCurrentStep('sheet-selection');
     } else if (currentStep === 'sheet-selection') {
-      if (selectedSheets.length === 0) {
-        toast({
-          title: "시트 선택 필요",
-          description: "최소 하나의 시트를 선택해주세요.",
-          variant: "destructive"
-        });
-        return;
-      }
+      // 수동 연결: 시트를 선택하지 않아도 바로 검토 단계로 이동
       setCurrentStep('review');
     }
   };
@@ -157,7 +143,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
     if (currentStep === 'authentication') {
       setCurrentStep('api-selection');
     } else if (currentStep === 'sheet-selection') {
-      setCurrentStep('authentication');
+      setCurrentStep('api-selection'); // 수동 연결: 바로 API 선택으로 돌아가기
     } else if (currentStep === 'review') {
       setCurrentStep('sheet-selection');
     }
@@ -175,12 +161,13 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
   };
 
   const getStepNumber = (step: string) => {
-    const steps = ['api-selection', 'authentication', 'sheet-selection', 'review'];
+    // 수동 연결용 3단계 프로세스: API 선택 → 시트 선택 → 검토
+    const steps = ['api-selection', 'sheet-selection', 'review'];
     return steps.indexOf(step) + 1;
   };
 
   const getProgress = () => {
-    return (getStepNumber(currentStep) / 4) * 100;
+    return (getStepNumber(currentStep) / 3) * 100; // 3단계로 변경
   };
 
   return (
@@ -204,7 +191,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
         {/* Progress Bar */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>단계 {getStepNumber(currentStep)} / 4</span>
+            <span>단계 {getStepNumber(currentStep)} / 3</span>
             <span>{Math.round(getProgress())}% 완료</span>
           </div>
           <Progress value={getProgress()} className="w-full" />
@@ -212,7 +199,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
 
         {/* Step Navigation */}
         <div className="flex justify-between items-center text-sm">
-          {['API 선택', '로그인', '시트 선택', '검토'].map((stepName, index) => (
+          {['API 선택', '시트 선택', '검토'].map((stepName, index) => (
             <div key={stepName} className="flex items-center">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                 index + 1 <= getStepNumber(currentStep) 
@@ -234,7 +221,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
               }`}>
                 {stepName}
               </span>
-              {index < 3 && (
+              {index < 2 && (
                 <ArrowRight className="w-4 h-4 mx-3 text-gray-300" />
               )}
             </div>
@@ -247,9 +234,9 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
           {currentStep === 'api-selection' && (
             <div className="space-y-6">
               <div className="text-center py-4">
-                <h3 className="text-xl font-semibold mb-2">Google API 설정 선택</h3>
+                <h3 className="text-xl font-semibold mb-2">Google Sheets 연결 방법</h3>
                 <p className="text-muted-foreground">
-                  Drive API와 Sheets API 설정을 선택하거나 새로 등록하세요.
+                  수동으로 Google Sheets를 연결합니다. API 설정이 필요하지 않습니다.
                 </p>
               </div>
 
@@ -542,11 +529,6 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
             ) : (
               <Button
                 onClick={handleNext}
-                disabled={
-                  (currentStep === 'api-selection' && (!selectedDriveConfig || !selectedSheetsConfig)) ||
-                  (currentStep === 'authentication' && !connectionData) ||
-                  (currentStep === 'sheet-selection' && selectedSheets.length === 0)
-                }
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 다음
