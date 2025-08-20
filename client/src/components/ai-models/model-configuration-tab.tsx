@@ -1502,7 +1502,7 @@ export default function ModelConfigurationTab() {
   };
 
   // Port activation system
-  const [activeOutput, setActiveOutput] = useState<{nodeId: string; outputId: string; type: string} | null>(null);
+  const [activeOutput, setActiveOutput] = useState<{nodeId: string; outputId: string; type: string; x?: number; y?: number} | null>(null);
   
   // Handle output port click - start connection
   const handleOutputClick = (e: React.MouseEvent, nodeId: string, outputId: string, type: string) => {
@@ -2202,48 +2202,88 @@ export default function ModelConfigurationTab() {
                 
                 if (!fromNode || !toNode) return null;
                 
+                // Calculate output port position (right side of source node)
+                const outputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
                 const startX = fromNode.position.x + fromNode.width;
-                const startY = fromNode.position.y + 60;
-                const endX = toNode.position.x;
-                const endY = toNode.position.y + 60;
+                const startY = fromNode.position.y + 60 + (outputIndex * 28) + 14;
                 
-                const midX = startX + (endX - startX) * 0.5;
-                const curve = `M ${startX} ${startY} C ${midX} ${startY} ${midX} ${endY} ${endX} ${endY}`;
+                // Calculate input port position (left side of target node)
+                const inputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
+                const endX = toNode.position.x;
+                const endY = toNode.position.y + 60 + (inputIndex * 28) + 14;
+                
+                // Create bezier curve
+                const controlOffset = Math.abs(endX - startX) * 0.5;
+                const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
                 
                 return (
-                  <g key={connection.id}>
+                  <g key={connection.id} className="pointer-events-auto">
+                    {/* Connection path */}
                     <path
                       d={curve}
-                      stroke="#3b82f6"
+                      stroke={getTypeColor(connection.type)}
                       strokeWidth="3"
                       fill="none"
                       markerEnd="url(#arrow)"
-                      opacity="0.9"
+                      opacity="0.8"
+                      className="hover:opacity-100 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
+                          setConnections(prev => prev.filter(c => c.id !== connection.id));
+                          // Update target node input as disconnected
+                          setNodes(prev => prev.map(node => {
+                            if (node.id === connection.toNodeId) {
+                              return {
+                                ...node,
+                                inputs: node.inputs.map(input => {
+                                  if (input.id === connection.toInputId) {
+                                    return { ...input, connected: false };
+                                  }
+                                  return input;
+                                })
+                              };
+                            }
+                            return node;
+                          }));
+                          toast({
+                            title: "연결 해제",
+                            description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 해제되었습니다`,
+                          });
+                        }
+                      }}
                     />
-                    <circle cx={startX} cy={startY} r="4" fill="#3b82f6" />
-                    <circle cx={endX} cy={endY} r="4" fill="#3b82f6" />
+                    
+                    {/* Connection endpoints */}
+                    <circle 
+                      cx={startX} 
+                      cy={startY} 
+                      r="4" 
+                      fill={getTypeColor(connection.type)}
+                      className="pointer-events-none"
+                    />
+                    <circle 
+                      cx={endX} 
+                      cy={endY} 
+                      r="4" 
+                      fill={getTypeColor(connection.type)}
+                      className="pointer-events-none"
+                    />
                   </g>
                 );
               })}
               
-              {/* Temporary connection while dragging */}
-              {connecting && (
+              {/* Preview connection while dragging */}
+              {activeOutput && (
                 <g>
-                  <line
-                    x1={connecting.startX}
-                    y1={connecting.startY}
-                    x2={mousePosition.x}
-                    y2={mousePosition.y}
-                    stroke="#3b82f6"
+                  <path
+                    d={`M ${activeOutput.x || 0} ${activeOutput.y || 0} L ${mousePosition.x} ${mousePosition.y}`}
+                    stroke={getTypeColor(activeOutput.type)}
                     strokeWidth="2"
                     strokeDasharray="5,5"
-                    opacity="0.7"
-                  />
-                  <circle 
-                    cx={connecting.startX} 
-                    cy={connecting.startY} 
-                    r="4" 
-                    fill="#3b82f6" 
+                    fill="none"
+                    opacity="0.6"
+                    className="pointer-events-none"
                   />
                 </g>
               )}
