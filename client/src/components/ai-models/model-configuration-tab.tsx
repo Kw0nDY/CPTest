@@ -505,24 +505,6 @@ export default function ModelConfigurationTab() {
     return colors[type as keyof typeof colors] || '#6b7280';
   };
 
-  // Filter models based on search and category
-  const filteredAIModels = availableAIModels.filter(model => {
-    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
-
-  const filteredDataSources = dataIntegrationSources.filter(source => {
-    const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const filteredAutomationTriggers = automationTriggers.filter(trigger => {
-    const matchesSearch = trigger.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || trigger.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
   // Fetch real views data
   const { data: availableViews = [] } = useQuery<ViewData[]>({
     queryKey: ['/api/views'],
@@ -540,6 +522,24 @@ export default function ModelConfigurationTab() {
   const availableAIModels = useMemo(() => {
     return mergeAIModels(realAIModels, sampleAIModels);
   }, [realAIModels]);
+
+  // Filter models based on search and category
+  const filteredAIModels = availableAIModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
+
+  const filteredDataSources = dataIntegrationSources.filter(source => {
+    const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredAutomationTriggers = automationTriggers.filter(trigger => {
+    const matchesSearch = trigger.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || trigger.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   // Calculate dynamic node width based on text content
   const calculateNodeWidth = (text: string, hasButtons: boolean = false): number => {
