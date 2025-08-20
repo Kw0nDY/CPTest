@@ -278,12 +278,22 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                   <div className="space-y-4 max-w-md mx-auto">
                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-medium">
-                          G
+                        <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center text-white font-medium text-lg">
+                          {connectionData?.user_name?.charAt(0) || connectionData?.user_email?.charAt(0) || 'G'}
                         </div>
-                        <div className="text-left">
-                          <p className="font-medium text-green-800">Google 계정 연결됨</p>
-                          <p className="text-sm text-green-600">Google Sheets 접근 권한 획득</p>
+                        <div className="text-left flex-1">
+                          <p className="font-medium text-green-800">
+                            {connectionData?.user_name || 'Google 사용자'}
+                          </p>
+                          <p className="text-sm text-green-600">
+                            {connectionData?.user_email || 'user@example.com'}
+                          </p>
+                          <p className="text-xs text-green-500 mt-1">
+                            Google Sheets 접근 권한 활성화됨
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                         </div>
                       </div>
                     </div>
@@ -295,12 +305,12 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                           setConnectionData(null);
                           toast({
                             title: "로그아웃 완료",
-                            description: "Google 계정에서 로그아웃되었습니다."
+                            description: `${connectionData?.user_name || 'Google 계정'}에서 로그아웃되었습니다.`
                           });
                         }}
                         className="flex-1"
                       >
-                        다른 계정으로 로그인
+                        계정 변경
                       </Button>
                       
                       <Button 
@@ -337,8 +347,8 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                         setTimeout(() => {
                           setConnectionData({ 
                             access_token: 'simulated_token',
-                            user_email: 'user@example.com',
-                            user_name: 'Google 사용자'
+                            user_email: 'john.doe@company.com',
+                            user_name: '홍길동'
                           });
                           toast({
                             title: "로그인 완료",
@@ -463,7 +473,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <Label className="font-medium">Google 계정</Label>
-                        <p className="text-muted-foreground">로그인 완료</p>
+                        <p className="text-muted-foreground">{connectionData?.user_email || 'user@example.com'}</p>
                       </div>
                       <div>
                         <Label className="font-medium">선택된 시트</Label>
