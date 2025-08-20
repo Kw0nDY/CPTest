@@ -1508,43 +1508,51 @@ export default function ModelConfigurationTab() {
   const handleOutputClick = (e: React.MouseEvent, nodeId: string, outputId: string, type: string) => {
     e.stopPropagation();
     
-    // Deactivate all ports first
-    setNodes(prev => prev.map(node => ({
-      ...node,
-      inputs: node.inputs.map(input => ({ ...input, active: false })),
-      outputs: node.outputs.map(output => ({ ...output, active: false }))
-    })));
-    
-    if (activeOutput?.nodeId === nodeId && activeOutput?.outputId === outputId) {
-      // Clicking same output - deactivate
-      setActiveOutput(null);
-      return;
-    }
-    
-    // Activate this output and compatible inputs
-    setActiveOutput({ nodeId, outputId, type });
-    
-    setNodes(prev => prev.map(node => {
-      if (node.id === nodeId) {
-        // Activate clicked output
-        return {
-          ...node,
-          outputs: node.outputs.map(output => ({
-            ...output,
-            active: output.id === outputId
-          }))
-        };
-      } else {
-        // Activate compatible inputs on other nodes
-        return {
-          ...node,
-          inputs: node.inputs.map(input => ({
-            ...input,
-            active: !input.connected && isTypeCompatible(type, input.type)
-          }))
-        };
+    // Calculate the exact position of the clicked output port
+    const sourceNode = nodes.find(n => n.id === nodeId);
+    if (sourceNode) {
+      const outputIndex = sourceNode.outputs.findIndex(o => o.id === outputId);
+      const portX = sourceNode.position.x + sourceNode.width;
+      const portY = sourceNode.position.y + 60 + (outputIndex * 28) + 14;
+      
+      // Deactivate all ports first
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        inputs: node.inputs.map(input => ({ ...input, active: false })),
+        outputs: node.outputs.map(output => ({ ...output, active: false }))
+      })));
+      
+      if (activeOutput?.nodeId === nodeId && activeOutput?.outputId === outputId) {
+        // Clicking same output - deactivate
+        setActiveOutput(null);
+        return;
       }
-    }));
+      
+      // Activate this output and compatible inputs with position info
+      setActiveOutput({ nodeId, outputId, type, x: portX, y: portY });
+      
+      setNodes(prev => prev.map(node => {
+        if (node.id === nodeId) {
+          // Activate clicked output
+          return {
+            ...node,
+            outputs: node.outputs.map(output => ({
+              ...output,
+              active: output.id === outputId
+            }))
+          };
+        } else {
+          // Activate compatible inputs on other nodes
+          return {
+            ...node,
+            inputs: node.inputs.map(input => ({
+              ...input,
+              active: !input.connected && isTypeCompatible(type, input.type)
+            }))
+          };
+        }
+      }));
+    }
   };
   
   // Handle input port click - complete connection
@@ -2181,15 +2189,15 @@ export default function ModelConfigurationTab() {
               <defs>
                 <marker
                   id="arrow"
-                  markerWidth="10"
-                  markerHeight="8"
-                  refX="9"
-                  refY="4"
+                  markerWidth="6"
+                  markerHeight="6"
+                  refX="5"
+                  refY="3"
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
                   <polygon
-                    points="0 0, 10 4, 0 8"
+                    points="0 0, 6 3, 0 6"
                     fill="#3b82f6"
                   />
                 </marker>
