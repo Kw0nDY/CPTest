@@ -210,7 +210,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
       fileName: model.fileName,
       folderId: 'user-models',
       status: model.status === 'ready' ? 'ready' : model.analysisStatus === 'completed' ? 'ready' : 'training',
-      accuracy: Math.random() * 10 + 85, // Simulate accuracy for demo
+      accuracy: Math.round((Math.random() * 10 + 85) * 10) / 10, // Simulate accuracy for demo with 1 decimal
       uploadedAt: model.uploadedAt || model.createdAt,
       size: `${(model.fileSize / (1024 * 1024)).toFixed(1)} MB`
     }));
@@ -611,7 +611,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                           {model.accuracy && (
                             <div className="flex justify-between text-sm">
                               <span className="text-gray-600">Accuracy:</span>
-                              <span className="font-medium text-green-600">{model.accuracy}%</span>
+                              <span className="font-medium text-green-600">{model.accuracy?.toFixed(1)}%</span>
                             </div>
                           )}
                         </div>
@@ -788,7 +788,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
 
                     {/* Metrics */}
                     <div className="text-xs text-gray-600">
-                      <span className="font-medium">Accuracy:</span> {model.accuracy}% • 
+                      <span className="font-medium">Accuracy:</span> {model.accuracy.toFixed(1)}% • 
                       <span className="font-medium"> Version:</span> {model.version}
                     </div>
 
