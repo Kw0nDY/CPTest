@@ -2461,8 +2461,34 @@ export default function ModelConfigurationTab() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (connecting) {
-                              // Use the enhanced connection handler
-                              handleConnectionEnd(node.id, input.id, input.type);
+                              // Check if we can connect (types must match)
+                              if (connecting.type === input.type && !input.connected) {
+                                connectNodes(connecting.nodeId, connecting.outputId, node.id, input.id);
+                                setConnecting(null);
+                                toast({
+                                  title: "연결 성공",
+                                  description: `${connecting.outputName || '출력'}이 ${input.name}에 연결되었습니다`,
+                                });
+                              } else if (connecting.type !== input.type) {
+                                toast({
+                                  title: "연결 실패",
+                                  description: `타입이 일치하지 않습니다: ${connecting.type} → ${input.type}`,
+                                  variant: "destructive"
+                                });
+                                setConnecting(null);
+                              } else if (input.connected) {
+                                toast({
+                                  title: "연결 실패", 
+                                  description: "이미 연결된 입력입니다",
+                                  variant: "destructive"
+                                });
+                                setConnecting(null);
+                              }
+                            } else {
+                              toast({
+                                title: "연결할 출력을 먼저 선택하세요",
+                                description: "출력 포트를 클릭한 후 이 입력에 연결하세요",
+                              });
                             }
                           }}
                           title={`${input.name} (${input.type}) - Click to connect`}
@@ -2490,11 +2516,42 @@ export default function ModelConfigurationTab() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setConnecting(null); // Clear any existing connection
-                            handleConnectionStart(node.id, output.id, output.type);
-                            toast({
-                              title: "연결 시작",
-                              description: `"${output.name}" 출력을 연결할 입력을 클릭하세요`,
-                            });
+                            
+                            // Store connection details including output name
+                            const fromNode = nodes.find(n => n.id === node.id);
+                            const fromOutput = fromNode?.outputs.find(o => o.id === output.id);
+                            
+                            if (fromOutput && fromNode) {
+                              // Calculate output position for temporary line
+                              const outputIndex = fromNode.outputs.findIndex(o => o.id === output.id);
+                              const nodeHeaderHeight = 40;
+                              const nodeBodyPadding = 12;
+                              const itemHeight = 24;
+                              
+                              let fromY = fromNode.position.y + nodeHeaderHeight + nodeBodyPadding;
+                              
+                              // Add inputs section height if exists  
+                              if (fromNode.inputs.length > 0) {
+                                fromY += fromNode.inputs.length * itemHeight + 8;
+                              }
+                              
+                              fromY += outputIndex * itemHeight + (itemHeight / 2);
+                              const fromX = fromNode.position.x + fromNode.width;
+                              
+                              setConnecting({
+                                nodeId: node.id,
+                                outputId: output.id,
+                                type: output.type,
+                                outputName: output.name,
+                                startX: fromX,
+                                startY: fromY
+                              });
+                              
+                              toast({
+                                title: "연결 시작",
+                                description: `"${output.name}" 출력을 연결할 입력을 클릭하세요`,
+                              });
+                            }
                           }}
                           title={`${output.name} (${output.type}) - Click to start connection`}
                         />
