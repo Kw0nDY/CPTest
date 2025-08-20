@@ -102,22 +102,14 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get available Google Sheets
-  const { data: availableSheets = [], isLoading: isSheetsLoading } = useQuery({
-    queryKey: ['/api/google-sheets'],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/google-sheets');
-      return response.json();
-    },
-    enabled: currentStep === 'sheet-selection' && !!connectionData?.access_token
+  // Get available Google Sheets from actual user's Google account
+  const { data: sheetsResponse, isLoading: isSheetsLoading, refetch: refetchSheets } = useQuery({
+    queryKey: ['/api/google/sheets'],
+    enabled: currentStep === 'sheet-selection',
+    retry: false
   });
-
-  // Mock sheets data for testing
-  const mockSheets = [
-    { id: 'sheet1', name: 'Sales Data 2024', sheets: ['Q1 Sales', 'Q2 Sales', 'Q3 Sales'], lastModified: '2025-01-15' },
-    { id: 'sheet2', name: 'Customer Database', sheets: ['Active Customers', 'Prospects'], lastModified: '2025-01-14' },
-    { id: 'sheet3', name: 'Product Inventory', sheets: ['Current Stock', 'Reorder List'], lastModified: '2025-01-13' }
-  ];
+  
+  const availableSheets = sheetsResponse?.sheets || [];
 
   // Get sheet data preview
   const { data: sheetData } = useQuery({
@@ -195,35 +187,11 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
   };
 
   const handleRefreshSheets = async () => {
-    if (!connectionData?.access_token) {
-      toast({
-        title: "로그인 필요",
-        description: "Google Sheets를 새로고침하려면 먼저 Google 계정으로 로그인해주세요.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setLoadingSheets(true);
-    toast({
-      title: "새로고침 시작",
-      description: "Google Sheets 목록을 새로고침하고 있습니다..."
-    });
-    
     try {
-      // 실제 Google Sheets API 호출하여 최신 목록 가져오기
-      await queryClient.invalidateQueries({ queryKey: ['/api/google/sheets'] });
-      
-      toast({
-        title: "새로고침 완료",
-        description: "최신 Google Sheets 목록이 업데이트되었습니다."
-      });
+      await refetchSheets();
     } catch (error) {
-      toast({
-        title: "새로고침 실패",
-        description: "Google Sheets 목록 새로고침에 실패했습니다.",
-        variant: "destructive"
-      });
+      console.error('Failed to refresh sheets:', error);
     } finally {
       setLoadingSheets(false);
     }
@@ -483,7 +451,8 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {(availableSheets.length > 0 ? availableSheets : mockSheets).map((sheet: any, index: number) => (
+                  {availableSheets.length > 0 ? (
+                    availableSheets.map((sheet: any, index: number) => (
                     <Card
                       key={sheet?.id || `sheet-${index}`}
                       className={`cursor-pointer transition-colors ${
@@ -520,7 +489,23 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                         </div>
                       </CardHeader>
                     </Card>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-muted-foreground">
+                        {sheetsResponse?.error ? (
+                          <div>
+                            <p className="mb-2">{sheetsResponse.error}</p>
+                            {sheetsResponse.helpMessage && (
+                              <p className="text-sm">{sheetsResponse.helpMessage}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p>Google Sheets를 찾을 수 없습니다. Google 계정에 스프레드시트가 있는지 확인해주세요.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
