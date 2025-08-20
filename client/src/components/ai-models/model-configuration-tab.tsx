@@ -1482,6 +1482,25 @@ export default function ModelConfigurationTab() {
     return true;
   };
 
+  // Type compatibility check
+  const isTypeCompatible = (outputType: string, inputType: string): boolean => {
+    // Exact match
+    if (outputType === inputType) return true;
+    
+    // Compatible types
+    const compatibleTypes: Record<string, string[]> = {
+      'tensor': ['tensor', 'array', 'object'],
+      'array': ['array', 'tensor', 'object'],
+      'object': ['object', 'array'],
+      'string': ['string'],
+      'number': ['number'],
+      'boolean': ['boolean'],
+      'image': ['image', 'object']
+    };
+    
+    return compatibleTypes[outputType]?.includes(inputType) || false;
+  };
+
   // Port activation system
   const [activeOutput, setActiveOutput] = useState<{nodeId: string; outputId: string; type: string} | null>(null);
   
