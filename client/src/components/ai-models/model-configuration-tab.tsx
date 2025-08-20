@@ -60,12 +60,14 @@ interface ModelNode {
     name: string;
     type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
     connected: boolean;
+    active: boolean; // 연결 대기 상태
     value?: any;
   }>;
   outputs: Array<{
     id: string;
     name: string;
     type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
+    active: boolean; // 연결 시작 상태
   }>;
   modelId?: string; // Reference to uploaded model
   sourceId?: string; // Reference to data source
@@ -656,12 +658,14 @@ export default function ModelConfigurationTab() {
             id: `${id}-input-${input.id}`,
             name: input.name,
             type: input.type,
-            connected: false
+            connected: false,
+            active: false
           })) || [],
           outputs: modelData?.outputs.map((output: any) => ({
             id: `${id}-output-${output.id}`,
             name: output.name,
-            type: output.type
+            type: output.type,
+            active: false
           })) || [],
           modelId: data?.modelId,
           status: 'ready',
@@ -683,11 +687,13 @@ export default function ModelConfigurationTab() {
           outputs: dataSource?.fields?.map((field, index) => ({
             id: `${id}-output-${field.name}`,
             name: field.description || field.name,
-            type: field.type
+            type: field.type,
+            active: false
           })) || [{
             id: `${id}-output-data`,
             name: 'Data Output',
-            type: data?.type || 'object'
+            type: data?.type || 'object',
+            active: false
           }],
           sourceId: data?.sourceId,
           status: 'ready',
@@ -709,11 +715,13 @@ export default function ModelConfigurationTab() {
           outputs: triggerData?.outputs?.map((output, index) => ({
             id: `${id}-output-${output.name}`,
             name: output.description || output.name,
-            type: output.type
+            type: output.type,
+            active: false
           })) || [{
             id: `${id}-output-trigger`,
             name: 'Trigger Output',
-            type: data?.type || 'object'
+            type: data?.type || 'object',
+            active: false
           }],
           triggerId: data?.triggerId,
           status: 'ready',
@@ -735,11 +743,13 @@ export default function ModelConfigurationTab() {
           outputs: viewData?.outputs?.map((output: any, index: number) => ({
             id: `${id}-output-${output.id}`,
             name: output.name,
-            type: output.type
+            type: output.type,
+            active: false
           })) || [{
             id: `${id}-output-view`,
             name: 'View Output',
-            type: 'object'
+            type: 'object',
+            active: false
           }],
           viewId: data?.viewId,
           status: 'ready',
@@ -760,7 +770,8 @@ export default function ModelConfigurationTab() {
             id: `${id}-input-goal`,
             name: 'Goal Input',
             type: 'object',
-            connected: false
+            connected: false,
+            active: false
           }],
           outputs: [],
           status: 'ready',
@@ -1090,24 +1101,20 @@ export default function ModelConfigurationTab() {
       }
     ];
 
-    // Update connected status for inputs
-    const updatedNodes = newNodes.map(node => {
-      if (node.id === 'ai-quality') {
-        return {
-          ...node,
-          inputs: node.inputs.map((input: any) => 
-            input.id === 'temperature' ? { ...input, connected: true } : input
-          )
-        };
-      }
-      if (node.id === 'final-goal') {
-        return {
-          ...node,
-          inputs: node.inputs.map((input: any) => ({ ...input, connected: true }))
-        };
-      }
-      return node;
-    });
+    // Update connected status for inputs and initialize active states
+    const updatedNodes = newNodes.map(node => ({
+      ...node,
+      inputs: node.inputs?.map((input: any) => {
+        if (node.id === 'ai-quality' && input.id === 'temperature') {
+          return { ...input, connected: true, active: false };
+        }
+        if (node.id === 'final-goal') {
+          return { ...input, connected: true, active: false };
+        }
+        return { ...input, active: false };
+      }) || [],
+      outputs: node.outputs?.map((output: any) => ({ ...output, active: false })) || []
+    }));
 
     setNodes(updatedNodes);
     setConnections(newConnections);
@@ -1475,104 +1482,117 @@ export default function ModelConfigurationTab() {
     return true;
   };
 
-  // Handle connection start
-  const handleConnectionStart = (nodeId: string, outputId: string, type: string) => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return;
+  // Port activation system
+  const [activeOutput, setActiveOutput] = useState<{nodeId: string; outputId: string; type: string} | null>(null);
+  
+  // Handle output port click - start connection
+  const handleOutputClick = (e: React.MouseEvent, nodeId: string, outputId: string, type: string) => {
+    e.stopPropagation();
     
-    const output = node.outputs.find(o => o.id === outputId);
-    if (!output) return;
+    // Deactivate all ports first
+    setNodes(prev => prev.map(node => ({
+      ...node,
+      inputs: node.inputs.map(input => ({ ...input, active: false })),
+      outputs: node.outputs.map(output => ({ ...output, active: false }))
+    })));
     
-    // Calculate output position using same logic as connection rendering
-    const outputIndex = node.outputs.findIndex(o => o.id === outputId);
-    const nodeHeaderHeight = 40;
-    const nodeBodyPadding = 12; // p-3 = 12px padding
-    const itemHeight = 24; // Each input/output item height
-    
-    // Calculate from position (right side of output node)
-    const startX = node.position.x + node.width;
-    let startY = node.position.y + nodeHeaderHeight + nodeBodyPadding;
-    
-    // Add inputs section height if exists
-    if (node.inputs.length > 0) {
-      startY += node.inputs.length * itemHeight + 8; // Add border spacing
+    if (activeOutput?.nodeId === nodeId && activeOutput?.outputId === outputId) {
+      // Clicking same output - deactivate
+      setActiveOutput(null);
+      return;
     }
     
-    // Add position for specific output
-    startY += outputIndex * itemHeight + (itemHeight / 2);
+    // Activate this output and compatible inputs
+    setActiveOutput({ nodeId, outputId, type });
     
-    setConnecting({ 
-      nodeId, 
-      outputId, 
-      type,
-      startX,
-      startY
+    setNodes(prev => prev.map(node => {
+      if (node.id === nodeId) {
+        // Activate clicked output
+        return {
+          ...node,
+          outputs: node.outputs.map(output => ({
+            ...output,
+            active: output.id === outputId
+          }))
+        };
+      } else {
+        // Activate compatible inputs on other nodes
+        return {
+          ...node,
+          inputs: node.inputs.map(input => ({
+            ...input,
+            active: !input.connected && isTypeCompatible(type, input.type)
+          }))
+        };
+      }
+    }));
+  };
+  
+  // Handle input port click - complete connection
+  const handleInputClick = (e: React.MouseEvent, nodeId: string, inputId: string, inputType: string) => {
+    e.stopPropagation();
+    
+    if (!activeOutput) return;
+    
+    const targetInput = nodes.find(n => n.id === nodeId)?.inputs.find(i => i.id === inputId);
+    if (!targetInput || targetInput.connected || !targetInput.active) {
+      return;
+    }
+    
+    // Create connection
+    const connectionId = `conn-${Date.now()}`;
+    const fromNode = nodes.find(n => n.id === activeOutput.nodeId);
+    const fromOutput = fromNode?.outputs.find(o => o.id === activeOutput.outputId);
+    
+    const newConnection = {
+      id: connectionId,
+      fromNodeId: activeOutput.nodeId,
+      fromOutputId: activeOutput.outputId,
+      toNodeId: nodeId,
+      toInputId: inputId,
+      type: activeOutput.type,
+      sourceOutputName: fromOutput?.name || 'Output',
+      targetInputName: targetInput.name || 'Input'
+    };
+    
+    // Update connections and connected state
+    setConnections(prev => [...prev, newConnection]);
+    setNodes(prev => prev.map(node => {
+      if (node.id === nodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => ({
+            ...input,
+            connected: input.id === inputId ? true : input.connected,
+            active: false
+          }))
+        };
+      }
+      return {
+        ...node,
+        inputs: node.inputs.map(input => ({ ...input, active: false })),
+        outputs: node.outputs.map(output => ({ ...output, active: false }))
+      };
+    }));
+    
+    setActiveOutput(null);
+    
+    toast({
+      title: "연결 완료",
+      description: `${fromOutput?.name} → ${targetInput.name}`,
     });
   };
 
-  // Enhanced connection end handler
-  const handleConnectionEnd = (nodeId: string, inputId: string, inputType: string) => {
-    if (!connecting) return;
-    
-    const targetNode = nodes.find(n => n.id === nodeId);
-    const targetInput = targetNode?.inputs.find(i => i.id === inputId);
-    const fromNode = nodes.find(n => n.id === connecting.nodeId);
-    const fromOutput = fromNode?.outputs.find(o => o.id === connecting.outputId);
-    
-    // Validation checks
-    if (targetInput?.connected) {
-      toast({
-        title: "연결 실패",
-        description: "이 입력은 이미 다른 출력에 연결되어 있습니다",
-        variant: "destructive"
-      });
-      setConnecting(null);
-      return;
+  // Canvas click handler to clear active states
+  const handleCanvasClick = () => {
+    if (activeOutput) {
+      setActiveOutput(null);
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        inputs: node.inputs.map(input => ({ ...input, active: false })),
+        outputs: node.outputs.map(output => ({ ...output, active: false }))
+      })));
     }
-    
-    if (connecting.nodeId === nodeId) {
-      toast({
-        title: "연결 실패", 
-        description: "같은 노드끼리는 연결할 수 없습니다",
-        variant: "destructive"
-      });
-      setConnecting(null);
-      return;
-    }
-
-    // Create new connection
-    const connectionId = `conn-${Date.now()}`;
-    const newConnection = {
-      id: connectionId,
-      fromNodeId: connecting.nodeId,
-      fromOutputId: connecting.outputId,
-      toNodeId: nodeId,
-      toInputId: inputId,
-      type: connecting.type,
-      sourceOutputName: fromOutput?.name || 'Output',
-      targetInputName: targetInput?.name || 'Input'
-    };
-
-    // Update state immediately
-    setConnections(prev => [...prev, newConnection]);
-    setNodes(prev => prev.map(node => 
-      node.id === nodeId 
-        ? {
-            ...node,
-            inputs: node.inputs.map(input =>
-              input.id === inputId ? { ...input, connected: true } : input
-            )
-          }
-        : node
-    ));
-
-    // Success notification
-    toast({
-      title: "연결 성공",
-      description: `${fromOutput?.name} → ${targetInput?.name} 연결 완료`,
-    });
-
-    setConnecting(null);
   };
 
   // Validate configuration before test/save
@@ -2065,7 +2085,10 @@ export default function ModelConfigurationTab() {
             ref={canvasRef}
             className="w-full h-full relative cursor-crosshair"
             onContextMenu={handleCanvasRightClick}
-            onClick={() => setShowAddNodeMenu(false)}
+            onClick={(e) => {
+              setShowAddNodeMenu(false);
+              handleCanvasClick();
+            }}
             onMouseMove={(e) => {
               if (canvasRef.current) {
                 const rect = canvasRef.current.getBoundingClientRect();
@@ -2076,7 +2099,7 @@ export default function ModelConfigurationTab() {
               }
             }}
             onMouseUp={() => {
-              setConnecting(null);
+              // Clear any connecting state if needed
             }}
             onDragOver={(e) => {
               e.preventDefault();
@@ -2324,44 +2347,16 @@ export default function ModelConfigurationTab() {
                     <div key={input.id} className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-transform"
+                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 ${
+                            input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          } ${
+                            input.connected ? 'animate-pulse' : ''
+                          }`}
                           style={{ 
-                            backgroundColor: input.connected ? getTypeColor(input.type) : 'transparent',
-                            borderColor: getTypeColor(input.type)
+                            backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
+                            borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
                           }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (connecting) {
-                              // Check if we can connect (types must match)
-                              if (connecting.type === input.type && !input.connected) {
-                                connectNodes(connecting.nodeId, connecting.outputId, node.id, input.id);
-                                setConnecting(null);
-                                toast({
-                                  title: "연결 성공",
-                                  description: `${connecting.outputName || '출력'}이 ${input.name}에 연결되었습니다`,
-                                });
-                              } else if (connecting.type !== input.type) {
-                                toast({
-                                  title: "연결 실패",
-                                  description: `타입이 일치하지 않습니다: ${connecting.type} → ${input.type}`,
-                                  variant: "destructive"
-                                });
-                                setConnecting(null);
-                              } else if (input.connected) {
-                                toast({
-                                  title: "연결 실패", 
-                                  description: "이미 연결된 입력입니다",
-                                  variant: "destructive"
-                                });
-                                setConnecting(null);
-                              }
-                            } else {
-                              toast({
-                                title: "연결할 출력을 먼저 선택하세요",
-                                description: "출력 포트를 클릭한 후 이 입력에 연결하세요",
-                              });
-                            }
-                          }}
+                          onClick={(e) => handleInputClick(e, node.id, input.id, input.type)}
                           title={`${input.name} (${input.type}) - Click to connect`}
                         />
                         <span className="text-gray-300 truncate max-w-28">{input.name}</span>
@@ -2382,48 +2377,13 @@ export default function ModelConfigurationTab() {
                       <div className="flex items-center gap-2">
                         <span className="text-gray-300 truncate max-w-28">{output.name}</span>
                         <div
-                          className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
-                          style={{ backgroundColor: getTypeColor(output.type) }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConnecting(null); // Clear any existing connection
-                            
-                            // Store connection details including output name
-                            const fromNode = nodes.find(n => n.id === node.id);
-                            const fromOutput = fromNode?.outputs.find(o => o.id === output.id);
-                            
-                            if (fromOutput && fromNode) {
-                              // Calculate output position for temporary line
-                              const outputIndex = fromNode.outputs.findIndex(o => o.id === output.id);
-                              const nodeHeaderHeight = 40;
-                              const nodeBodyPadding = 12;
-                              const itemHeight = 24;
-                              
-                              let fromY = fromNode.position.y + nodeHeaderHeight + nodeBodyPadding;
-                              
-                              // Add inputs section height if exists  
-                              if (fromNode.inputs.length > 0) {
-                                fromY += fromNode.inputs.length * itemHeight + 8;
-                              }
-                              
-                              fromY += outputIndex * itemHeight + (itemHeight / 2);
-                              const fromX = fromNode.position.x + fromNode.width;
-                              
-                              setConnecting({
-                                nodeId: node.id,
-                                outputId: output.id,
-                                type: output.type,
-                                outputName: output.name,
-                                startX: fromX,
-                                startY: fromY
-                              });
-                              
-                              toast({
-                                title: "연결 시작",
-                                description: `"${output.name}" 출력을 연결할 입력을 클릭하세요`,
-                              });
-                            }
+                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 ${
+                            output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          }`}
+                          style={{ 
+                            backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
                           }}
+                          onClick={(e) => handleOutputClick(e, node.id, output.id, output.type)}
                           title={`${output.name} (${output.type}) - Click to start connection`}
                         />
                       </div>
