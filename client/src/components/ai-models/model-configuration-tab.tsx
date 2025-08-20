@@ -451,7 +451,7 @@ export default function ModelConfigurationTab() {
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; startX: number; startY: number } | null>(null);
+  const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; outputName?: string; startX: number; startY: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
   const [addNodePosition, setAddNodePosition] = useState({ x: 0, y: 0 });
@@ -2157,7 +2157,10 @@ export default function ModelConfigurationTab() {
               </defs>
               
               {/* Force render debug */}
-              {console.log('SVG Layer - Connections count:', connections.length)}
+              {(() => {
+                console.log('SVG Layer - Connections count:', connections.length);
+                return null;
+              })()}
               
               {connections.map((connection, index) => {
                 console.log(`Rendering connection ${index}:`, connection);
