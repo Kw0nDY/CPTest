@@ -810,6 +810,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update data source schema types API
+  app.post("/api/data-sources/:id/update-schema", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      
+      if (!dataSource || dataSource.type !== 'Google Sheets') {
+        return res.status(404).json({ error: "Google Sheets data source not found" });
+      }
+      
+      // Update schema with better type detection for 차량정보
+      if (dataSource.name === '차량정보' && dataSource.config) {
+        const config = dataSource.config as any;
+        const updatedDataSchema = config.dataSchema?.map((table: any) => {
+          if (table.table.includes('CarData')) {
+            return {
+              ...table,
+              fields: [
+                { name: '차량 모델', type: 'VARCHAR(50)', description: 'Vehicle model name' },
+                { name: '제조업체', type: 'VARCHAR(50)', description: 'Manufacturer name' },
+                { name: '연식', type: 'INTEGER', description: 'Manufacturing year' },
+                { name: '주행 거리 (km)', type: 'INTEGER', description: 'Mileage in kilometers' },
+                { name: '색상', type: 'VARCHAR(20)', description: 'Vehicle color' },
+                { name: '가격 (원)', type: 'DECIMAL(12,0)', description: 'Price in Korean Won' }
+              ]
+            };
+          } else if (table.table.includes('UserData')) {
+            return {
+              ...table,
+              fields: [
+                { name: '구매자 이름', type: 'VARCHAR(50)', description: 'Buyer name' },
+                { name: '연락처', type: 'VARCHAR(20)', description: 'Contact phone number' },
+                { name: '주소', type: 'VARCHAR(100)', description: 'Address' },
+                { name: '구매 차량 모델', type: 'VARCHAR(50)', description: 'Purchased vehicle model' },
+                { name: '구매 날짜', type: 'DATE', description: 'Purchase date' },
+                { name: '결제 방식', type: 'VARCHAR(20)', description: 'Payment method' }
+              ]
+            };
+          }
+          return table;
+        });
+        
+        const updatedConfig = {
+          ...config,
+          dataSchema: updatedDataSchema
+        };
+        
+        // Also update the dataSchema field outside config for consistency
+        await storage.updateDataSource(id, { 
+          config: updatedConfig,
+          dataSchema: updatedDataSchema
+        });
+        
+        return res.json({
+          success: true,
+          message: "Schema types updated successfully",
+          updatedTables: updatedDataSchema?.length || 0
+        });
+      }
+      
+      res.json({ success: false, message: "No updates needed" });
+    } catch (error) {
+      console.error("Error updating schema:", error);
+      res.status(500).json({ error: "Failed to update schema" });
+    }
+  });
+
   // Data Sources API
   app.get("/api/data-sources", async (req, res) => {
     try {
@@ -1020,10 +1087,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 console.log(`Found ${headers.length} columns and ${dataRows.length} data rows in ${worksheetTitle}`);
                 
-                // Build schema
+                // Function to detect data type from sample values
+                const detectDataType = (columnIndex: number, sampleSize: number = 10): string => {
+                  const sampleValues = dataRows.slice(0, sampleSize).map(row => row[columnIndex]).filter(val => val && val.trim() !== '');
+                  
+                  if (sampleValues.length === 0) return "VARCHAR(255)";
+                  
+                  // Check if all values are numbers
+                  const isAllNumbers = sampleValues.every(val => {
+                    const num = val.toString().replace(/[,\s]/g, '');
+                    return !isNaN(Number(num)) && !isNaN(parseFloat(num));
+                  });
+                  
+                  if (isAllNumbers) {
+                    // Check if any values have decimal points
+                    const hasDecimals = sampleValues.some(val => {
+                      const num = val.toString().replace(/[,\s]/g, '');
+                      return num.includes('.');
+                    });
+                    return hasDecimals ? "DECIMAL(10,2)" : "INTEGER";
+                  }
+                  
+                  // Check if all values are dates
+                  const isAllDates = sampleValues.every(val => {
+                    const dateStr = val.toString().trim();
+                    // Check various date formats
+                    const datePatterns = [
+                      /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+                      /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY
+                      /^\d{4}\/\d{2}\/\d{2}$/, // YYYY/MM/DD
+                      /^\d{4}\.\d{2}\.\d{2}$/, // YYYY.MM.DD
+                      /^\d{2}\.\d{2}\.\d{4}$/, // DD.MM.YYYY
+                    ];
+                    return datePatterns.some(pattern => pattern.test(dateStr)) || !isNaN(Date.parse(dateStr));
+                  });
+                  
+                  if (isAllDates) return "DATE";
+                  
+                  // Check if it's a phone number pattern
+                  const isPhoneNumber = sampleValues.every(val => {
+                    const phonePattern = /^[\d\-\s\(\)]+$/;
+                    return phonePattern.test(val.toString().trim());
+                  });
+                  
+                  if (isPhoneNumber) return "VARCHAR(20)";
+                  
+                  // Default to text
+                  const maxLength = Math.max(...sampleValues.map(val => val.toString().length));
+                  if (maxLength <= 50) return "VARCHAR(100)";
+                  if (maxLength <= 255) return "VARCHAR(255)";
+                  return "TEXT";
+                };
+                
+                // Build schema with smart type detection
                 const fields = headers.map((header, index) => ({
                   name: header || `Column_${index + 1}`,
-                  type: "VARCHAR(255)",
+                  type: detectDataType(index),
                   description: `Column from ${worksheetTitle} in ${spreadsheetTitle}`
                 }));
                 
