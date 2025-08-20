@@ -159,8 +159,8 @@ const mergeAIModels = (realModels: any[], sampleModels: any[]) => {
         // Keep original folder structure for now
         folderId: sampleModel.folderId,
         // Use real inputs/outputs if analysis is complete
-        inputs: realModel.inputs && realModel.inputs.length > 0 ? realModel.inputs : sampleModel.inputs,
-        outputs: realModel.outputs && realModel.outputs.length > 0 ? realModel.outputs : sampleModel.outputs,
+        inputs: realModel.inputSpecs && realModel.inputSpecs.length > 0 ? realModel.inputSpecs : sampleModel.inputs,
+        outputs: realModel.outputSpecs && realModel.outputSpecs.length > 0 ? realModel.outputSpecs : sampleModel.outputs,
         // Add analysis status
         analysisStatus: realModel.analysisStatus || 'unknown',
         analysisProgress: realModel.analysisProgress || 0
@@ -175,8 +175,8 @@ const mergeAIModels = (realModels: any[], sampleModels: any[]) => {
     .map(realModel => ({
       ...realModel,
       folderId: realModel.folderId || 'quality-models', // Default folder
-      inputs: realModel.inputs || [],
-      outputs: realModel.outputs || [],
+      inputs: realModel.inputSpecs || [],
+      outputs: realModel.outputSpecs || [],
       analysisStatus: realModel.analysisStatus || 'unknown',
       analysisProgress: realModel.analysisProgress || 0
     }));
@@ -1311,6 +1311,9 @@ export default function ModelConfigurationTab() {
   // Handle mouse move for dragging
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggedNode || !canvasRef.current) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
 
     const rect = canvasRef.current.getBoundingClientRect();
     const newPosition = {

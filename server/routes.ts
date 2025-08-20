@@ -2368,7 +2368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Start model analysis in background (only if not manual mode)
       if (manualMode !== 'true') {
         setImmediate(async () => {
-        try {
+          try {
           // Update status to processing
           await storage.updateAiModel(createdModel.id, {
             analysisStatus: 'processing'
@@ -2406,7 +2406,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Clean up temporary file
           await modelAnalysisService.cleanupFile(tempFilePath);
         }
-      });
+        });
+      }
 
       res.json({
         message: 'Model uploaded successfully and analysis started',
