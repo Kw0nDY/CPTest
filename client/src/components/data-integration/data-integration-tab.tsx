@@ -430,20 +430,25 @@ export default function DataIntegrationTab() {
   const deleteDataSourceMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest('DELETE', `/api/data-sources/${id}`);
-      return response.json();
+      if (!response.ok) {
+        throw new Error(`Failed to delete data source: ${response.status}`);
+      }
+      const result = await response.json();
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Data source deleted successfully:', data);
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
       toast({
         title: "데이터 소스가 삭제되었습니다",
         description: "연결된 데이터 소스가 성공적으로 제거되었습니다."
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Delete data source error:', error);
       toast({
         title: "삭제 실패",
-        description: "데이터 소스 삭제 중 오류가 발생했습니다.",
+        description: `데이터 소스 삭제 중 오류가 발생했습니다: ${error.message}`,
         variant: "destructive"
       });
     }

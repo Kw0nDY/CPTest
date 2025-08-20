@@ -1062,11 +1062,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/data-sources/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteDataSource(id);
-      res.status(200).json({ message: "Data source deleted successfully" });
-    } catch (error) {
+      console.log(`Deleting data source with ID: ${id}`);
+      
+      const result = await storage.deleteDataSource(id);
+      console.log(`Delete result:`, result);
+      
+      res.status(200).json({ 
+        success: true,
+        message: "Data source deleted successfully",
+        id: id
+      });
+    } catch (error: any) {
       console.error("Error deleting data source:", error);
-      res.status(500).json({ error: "Failed to delete data source" });
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to delete data source",
+        details: error.message
+      });
     }
   });
 
