@@ -163,6 +163,22 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async updateDataSource(id: string, updates: Partial<DataSource>): Promise<DataSource> {
+    const [updated] = await db
+      .update(dataSources)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(dataSources.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDataSource(id: string): Promise<void> {
+    await db.delete(dataSources).where(eq(dataSources.id, id));
+  }
+
   async getDataSourceTables(dataSourceId: string): Promise<any[]> {
     // Check if this is a file-based data source (Excel or Google Sheets) and return its schema
     const dataSource = await this.getDataSource(dataSourceId);

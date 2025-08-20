@@ -23,7 +23,8 @@ import {
   Eye,
   Server,
   Table,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
 import { GoogleSheetsConnectionDialog } from './google-sheets-connection-dialog';
@@ -589,6 +590,32 @@ export default function DataIntegrationTab() {
     }
   };
 
+  const handleRefreshDataSource = async (id: string, name: string) => {
+    try {
+      const response = await apiRequest('POST', `/api/data-sources/${id}/refresh`);
+      const result = await response.json();
+      
+      if (result.success) {
+        // Refresh data sources to show updated data
+        queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+        
+        toast({
+          title: "새로고침 완료",
+          description: result.message || `${name} 데이터가 성공적으로 새로고침되었습니다.`
+        });
+      } else {
+        throw new Error(result.error || 'Refresh failed');
+      }
+    } catch (error: any) {
+      console.error('Refresh error:', error);
+      toast({
+        title: "새로고침 실패",
+        description: error.message || `${name} 데이터 새로고침에 실패했습니다.`,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleGoogleSheetsSuccess = async () => {
     try {
       // Refresh data sources to show the new Google Sheets connection
@@ -771,6 +798,20 @@ export default function DataIntegrationTab() {
                             <Eye className="w-4 h-4 mr-1" />
                             View Data
                           </Button>
+                          {ds.type === 'Google Sheets' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRefreshDataSource(ds.id, ds.name);
+                              }}
+                            >
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              새로고침
+                            </Button>
+                          )}
                           <Button 
                             variant="outline" 
                             size="sm" 

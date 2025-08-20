@@ -1021,6 +1021,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Refresh Google Sheets data
+  app.post("/api/data-sources/:id/refresh", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      console.log(`=== REFRESHING DATA SOURCE: ${id} ===`);
+      
+      // Get the existing data source
+      const dataSources = await storage.getDataSources();
+      const dataSource = dataSources.find(ds => ds.id === id);
+      
+      if (!dataSource) {
+        return res.status(404).json({ error: "Data source not found" });
+      }
+      
+      if (dataSource.type !== 'Google Sheets') {
+        return res.status(400).json({ error: "Only Google Sheets can be refreshed" });
+      }
+      
+      console.log('Found Google Sheets data source:', dataSource.name);
+      
+      // Check if we have authentication tokens
+      if (!req.session?.googleTokens) {
+        console.log('No Google tokens available - using manual refresh');
+        
+        // For manual connections, update with current timestamp
+        const updatedConfig = {
+          ...dataSource.config,
+          lastRefresh: new Date().toISOString(),
+          refreshMethod: 'manual'
+        };
+        
+        const updatedDataSource = {
+          ...dataSource,
+          config: updatedConfig,
+          lastSync: new Date().toISOString()
+        };
+        
+        await storage.updateDataSource(id, updatedDataSource);
+        
+        return res.json({
+          success: true,
+          message: "데이터 소스가 새로고침되었습니다 (수동 연결)",
+          dataSource: updatedDataSource,
+          refreshType: 'manual'
+        });
+      }
+      
+      const tokens = req.session.googleTokens;
+      
+      // Check if token is expired
+      if (Date.now() > tokens.expires_at) {
+        return res.status(401).json({ 
+          error: "Google 토큰이 만료되었습니다. 다시 인증해주세요." 
+        });
+      }
+      
+      console.log('Using OAuth tokens to refresh data');
+      
+      const { google } = await import('googleapis');
+      const driveConfig = req.session.selectedDriveConfig;
+      const sheetsConfig = req.session.selectedSheetsConfig;
+      
+      if (!driveConfig || !sheetsConfig) {
+        return res.status(400).json({ error: "API configuration missing" });
+      }
+      
+      const auth = new google.auth.OAuth2(
+        driveConfig.clientId,
+        driveConfig.clientSecret,
+        `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`
+      );
+      
+      auth.setCredentials({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        token_type: 'Bearer',
+        expiry_date: tokens.expires_at
+      });
+      
+      const sheets = google.sheets({ version: 'v4', auth });
+      const selectedSheets = dataSource.config.selectedSheets || [];
+      
+      const dataSchema: any[] = [];
+      const sampleData: any = {};
+      let totalRecordCount = 0;
+      
+      // Refresh data from each selected sheet
+      for (const sheetId of selectedSheets) {
+        try {
+          console.log(`Refreshing Google Sheet: ${sheetId}`);
+          
+          const spreadsheetResponse = await sheets.spreadsheets.get({
+            spreadsheetId: sheetId
+          });
+          
+          const spreadsheetTitle = spreadsheetResponse.data.properties?.title || `Sheet_${sheetId}`;
+          const availableSheets = spreadsheetResponse.data.sheets?.map(s => s.properties?.title) || [];
+          
+          // Process each worksheet
+          for (const worksheetName of availableSheets) {
+            try {
+              console.log(`Refreshing data from worksheet: "${worksheetName}"`);
+              
+              const range = `'${worksheetName}'!A1:Z100`;
+              const response = await sheets.spreadsheets.values.get({
+                spreadsheetId: sheetId,
+                range: range,
+              });
+              
+              const rows = response.data.values || [];
+              
+              if (rows.length > 0) {
+                const headers = rows[0] || [];
+                const dataRows = rows.slice(1).map((row: any[]) => {
+                  const rowData: any = {};
+                  headers.forEach((header: string, index: number) => {
+                    rowData[header || `Column_${index + 1}`] = row[index] || '';
+                  });
+                  return rowData;
+                });
+                
+                const fields = headers.map((header: string, index: number) => ({
+                  name: header || `Column_${index + 1}`,
+                  type: 'VARCHAR(255)',
+                  description: `Column from ${worksheetName} in ${spreadsheetTitle}`
+                }));
+                
+                dataSchema.push({
+                  table: `${spreadsheetTitle} - ${worksheetName}`,
+                  fields: fields,
+                  recordCount: dataRows.length,
+                  lastUpdated: new Date().toISOString()
+                });
+                
+                sampleData[`${spreadsheetTitle} - ${worksheetName}`] = dataRows.slice(0, 5);
+                totalRecordCount += dataRows.length;
+                
+                console.log(`Successfully refreshed ${worksheetName}: ${dataRows.length} records`);
+              }
+            } catch (worksheetError: any) {
+              console.error(`Error refreshing worksheet ${worksheetName}:`, worksheetError);
+            }
+          }
+        } catch (sheetError: any) {
+          console.error(`Error refreshing sheet ${sheetId}:`, sheetError);
+        }
+      }
+      
+      // Update the data source with fresh data
+      const updatedConfig = {
+        ...dataSource.config,
+        dataSchema: dataSchema,
+        sampleData: sampleData,
+        lastRefresh: new Date().toISOString(),
+        refreshMethod: 'oauth'
+      };
+      
+      const updatedDataSource = {
+        ...dataSource,
+        config: updatedConfig,
+        recordCount: totalRecordCount,
+        lastSync: new Date().toISOString()
+      };
+      
+      await storage.updateDataSource(id, updatedDataSource);
+      
+      console.log(`Successfully refreshed Google Sheets: ${totalRecordCount} total records`);
+      
+      res.json({
+        success: true,
+        message: `Google Sheets 데이터가 성공적으로 새로고침되었습니다. ${totalRecordCount}개 레코드`,
+        dataSource: updatedDataSource,
+        refreshType: 'oauth',
+        recordCount: totalRecordCount,
+        schemasUpdated: dataSchema.length
+      });
+      
+    } catch (error: any) {
+      console.error("Error refreshing data source:", error);
+      res.status(500).json({ 
+        error: "데이터 소스 새로고침에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
   // Google API Config management endpoints
   app.get("/api/google-api-configs", async (req, res) => {
     try {
