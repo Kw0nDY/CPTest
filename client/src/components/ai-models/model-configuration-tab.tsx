@@ -2163,6 +2163,7 @@ export default function ModelConfigurationTab() {
                   minHeight: node.height
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onDragStart={(e) => e.preventDefault()}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Node Header */}

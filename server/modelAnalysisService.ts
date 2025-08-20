@@ -276,7 +276,8 @@ export class ModelAnalysisService {
         messages: [{ role: 'user', content: prompt }]
       });
 
-      const responseText = response.content[0]?.text || '{}';
+      const content = response.content[0];
+      const responseText = (content && content.type === 'text') ? content.text : '{}';
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
@@ -342,7 +343,7 @@ export class ModelAnalysisService {
         {
           name: 'input_tensor',
           type: 'tensor',
-          shape: [-1, 'variable'],
+          shape: [-1, 64],
           description: 'Model input tensor',
           dtype: 'float32'
         }
@@ -351,7 +352,7 @@ export class ModelAnalysisService {
         {
           name: 'output_tensor',
           type: 'tensor',
-          shape: [-1, 'variable'],
+          shape: [-1, 1],
           description: 'Model output tensor',
           dtype: 'float32'
         }
