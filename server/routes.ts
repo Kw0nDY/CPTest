@@ -10,7 +10,20 @@ import { google } from 'googleapis';
 // Google OAuth2 Client 설정
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.REPLIT_DOMAIN ? `https://${process.env.REPLIT_DOMAIN}/auth/google/callback` : 'http://localhost:5000/auth/google/callback';
+
+// Replit 환경에 맞는 리디렉션 URI 설정
+const getRedirectUri = () => {
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}/auth/google/callback`;
+  }
+  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+    return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`;
+  }
+  return 'http://localhost:5000/auth/google/callback';
+};
+
+const REDIRECT_URI = getRedirectUri();
+console.log('OAuth Redirect URI:', REDIRECT_URI);
 
 const oauth2Client = new OAuth2Client(
   GOOGLE_CLIENT_ID,
