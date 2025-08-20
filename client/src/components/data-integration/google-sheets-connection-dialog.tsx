@@ -359,8 +359,9 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                           });
                           
                           // 실제 Google OAuth URL 가져오기
-                          const response = await apiRequest('/auth/google/login');
-                          const { authUrl } = response;
+                          const response = await apiRequest('GET', '/auth/google/login');
+                          const result = await response.json();
+                          const { authUrl } = result;
                           
                           // 새 창에서 Google OAuth 페이지 열기
                           window.open(authUrl, '_blank', 'width=500,height=600');
@@ -368,7 +369,8 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                           // 로그인 완료 확인을 위한 폴링
                           const checkAuthStatus = async () => {
                             try {
-                              const accountResponse = await apiRequest('/api/google/account');
+                              const response = await apiRequest('GET', '/api/google/account');
+                              const accountResponse = await response.json();
                               setConnectionData(accountResponse);
                               toast({
                                 title: "로그인 완료",
