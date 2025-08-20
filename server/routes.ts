@@ -957,9 +957,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { google } = await import('googleapis');
       
-      // Use provided API configurations or session configurations
-      const finalDriveConfig = driveConfig || req.session?.selectedDriveConfig;
-      const finalSheetsConfig = sheetsConfig || req.session?.selectedSheetsConfig;
+      // Use provided API configurations (no session dependency for now)
+      const finalDriveConfig = driveConfig;
+      const finalSheetsConfig = sheetsConfig;
       
       // For OAuth authentication, we can use environment variables as fallback
       if (!finalDriveConfig && !finalSheetsConfig && tokens.access_token) {
@@ -2779,7 +2779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse the uploaded config file
       const tempConfigPath = path.join(process.cwd(), 'uploads', 'configs', `temp_${Date.now()}_${req.file.originalname}`);
-      await fs.writeFile(tempConfigPath, req.file.buffer);
+      await fs.promises.writeFile(tempConfigPath, req.file.buffer);
 
       try {
         const config = await modelConfigService.parseUploadedConfig(tempConfigPath);
@@ -2787,7 +2787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Validate config structure
         const validation = modelConfigService.validateConfig(config);
         if (!validation.valid) {
-          await fs.unlink(tempConfigPath); // Clean up temp file
+          await fs.promises.unlink(tempConfigPath); // Clean up temp file
           return res.status(400).json({ 
             error: 'Invalid config file structure',
             details: validation.errors
@@ -2803,7 +2803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         // Clean up temp file
-        await fs.unlink(tempConfigPath);
+        await fs.promises.unlink(tempConfigPath);
 
         res.json({
           success: true,
@@ -2813,12 +2813,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (parseError) {
         // Clean up temp file on error
-        await fs.unlink(tempConfigPath);
+        await fs.promises.unlink(tempConfigPath);
         throw parseError;
       }
     } catch (error) {
       console.error('Error uploading config file:', error);
       res.status(500).json({ error: 'Failed to upload config file' });
+    }
+  });
+
+  // Initialize default data sources if they don't exist
+  app.post('/api/initialize-sample-data', async (req, res) => {
+    try {
+      const existingDataSources = await storage.getDataSources();
+      
+      // Check if sample data sources already exist
+      const sapExists = existingDataSources.some(ds => ds.id === 'sap-erp');
+      const salesforceExists = existingDataSources.some(ds => ds.id === 'salesforce-crm');
+      const avevaExists = existingDataSources.some(ds => ds.id === 'aveva-pi');
+      
+      const created = [];
+      
+      if (!sapExists) {
+        const sapDataSource = await storage.createDataSource({
+          id: 'sap-erp',
+          name: 'SAP ERP',
+          type: 'ERP',
+          category: 'Enterprise Resource Planning',
+          vendor: 'SAP',
+          status: 'connected',
+          config: {
+            host: 'sap-erp-prod.company.com',
+            port: 8000,
+            systemNumber: '00',
+            client: '100'
+          },
+          connectionDetails: {
+            authentication: 'Basic',
+            lastConnection: new Date().toISOString(),
+            connectionString: 'sap://sap-erp-prod:8000/100'
+          },
+          recordCount: 25
+        });
+        created.push('SAP ERP');
+      }
+      
+      if (!salesforceExists) {
+        const salesforceDataSource = await storage.createDataSource({
+          id: 'salesforce-crm',
+          name: 'Salesforce CRM',
+          type: 'CRM',
+          category: 'Customer Relationship Management',
+          vendor: 'Salesforce',
+          status: 'connected',
+          config: {
+            instanceUrl: 'https://company.salesforce.com',
+            apiVersion: 'v58.0',
+            username: 'admin@company.com'
+          },
+          connectionDetails: {
+            authentication: 'OAuth 2.0',
+            lastConnection: new Date().toISOString(),
+            features: ['Real-time sync', 'Bulk API', 'Custom fields']
+          },
+          recordCount: 15
+        });
+        created.push('Salesforce CRM');
+      }
+      
+      if (!avevaExists) {
+        const avevaDataSource = await storage.createDataSource({
+          id: 'aveva-pi',
+          name: 'AVEVA PI System',
+          type: 'Historian',
+          category: 'Manufacturing/Operations',
+          vendor: 'AVEVA',
+          status: 'connected',
+          config: {
+            piServerUrl: 'https://aveva-pi.company.com/piwebapi',
+            version: '2023',
+            database: 'PetroLux_PI'
+          },
+          connectionDetails: {
+            authentication: 'Windows Authentication',
+            lastConnection: new Date().toISOString(),
+            features: ['Real-time data streaming', 'Time-series database', 'Asset Framework']
+          },
+          recordCount: 15
+        });
+        created.push('AVEVA PI System');
+      }
+      
+      res.json({
+        success: true,
+        message: created.length > 0 ? `Created ${created.length} sample data sources: ${created.join(', ')}` : 'All sample data sources already exist',
+        created: created
+      });
+    } catch (error) {
+      console.error('Error initializing sample data:', error);
+      res.status(500).json({ error: 'Failed to initialize sample data' });
     }
   });
 

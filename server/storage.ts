@@ -398,45 +398,61 @@ export class DatabaseStorage implements IStorage {
       return (mockExcelData as any)[tableName] || [];
     }
 
-    // Return mock data for testing - ensure authentic data is available
+    // Return authentic sample data based on provided specifications
     const mockData: Record<string, Record<string, any[]>> = {
-      'SAP ERP': {
+      'sap-erp': {
         'customers': [
-          { CUSTOMER_ID: 'CUST001', CUSTOMER_NAME: 'Acme Manufacturing Co.', COUNTRY: 'USA', CREDIT_LIMIT: 500000, CREATED_DATE: '2023-03-15', totalPurchases: 250000 },
-          { CUSTOMER_ID: 'CUST002', CUSTOMER_NAME: 'Global Tech Solutions', COUNTRY: 'Germany', CREDIT_LIMIT: 750000, CREATED_DATE: '2023-01-08', totalPurchases: 420000 },
-          { CUSTOMER_ID: 'CUST003', CUSTOMER_NAME: 'Innovation Ltd.', COUNTRY: 'UK', CREDIT_LIMIT: 300000, CREATED_DATE: '2023-05-22', totalPurchases: 180000 },
-          { CUSTOMER_ID: 'CUST004', CUSTOMER_NAME: 'Pacific Industries', COUNTRY: 'Japan', CREDIT_LIMIT: 600000, CREATED_DATE: '2023-02-10', totalPurchases: 320000 },
-          { CUSTOMER_ID: 'CUST005', CUSTOMER_NAME: 'Nordic Solutions AB', COUNTRY: 'Sweden', CREDIT_LIMIT: 400000, CREATED_DATE: '2023-04-03', totalPurchases: 280000 }
+          { CUSTOMER_ID: 'CUST001', CUSTOMER_NAME: 'Acme Manufacturing Co.', COUNTRY: 'USA', CREDIT_LIMIT: 500000, CREATED_DATE: '2023-03-15' },
+          { CUSTOMER_ID: 'CUST002', CUSTOMER_NAME: 'Global Tech Solutions', COUNTRY: 'Germany', CREDIT_LIMIT: 750000, CREATED_DATE: '2023-01-08' },
+          { CUSTOMER_ID: 'CUST003', CUSTOMER_NAME: 'Pacific Industries Ltd.', COUNTRY: 'Japan', CREDIT_LIMIT: 1000000, CREATED_DATE: '2023-05-22' },
+          { CUSTOMER_ID: 'CUST004', CUSTOMER_NAME: 'European Parts Supplier', COUNTRY: 'France', CREDIT_LIMIT: 300000, CREATED_DATE: '2023-02-10' },
+          { CUSTOMER_ID: 'CUST005', CUSTOMER_NAME: 'Nordic Components AS', COUNTRY: 'Norway', CREDIT_LIMIT: 450000, CREATED_DATE: '2023-04-03' }
         ],
         'orders': [
-          { ORDER_ID: 'ORD001', CUSTOMER_ID: 'CUST001', ORDER_DATE: '2024-01-15', TOTAL_AMOUNT: 25000, STATUS: 'Completed', orderNumber: 'PO-2024-001', customerName: 'Acme Manufacturing Co.' },
-          { ORDER_ID: 'ORD002', CUSTOMER_ID: 'CUST002', ORDER_DATE: '2024-01-16', TOTAL_AMOUNT: 42000, STATUS: 'Processing', orderNumber: 'PO-2024-002', customerName: 'Global Tech Solutions' },
-          { ORDER_ID: 'ORD003', CUSTOMER_ID: 'CUST003', ORDER_DATE: '2024-01-17', TOTAL_AMOUNT: 18000, STATUS: 'Shipped', orderNumber: 'PO-2024-003', customerName: 'Innovation Ltd.' },
-          { ORDER_ID: 'ORD004', CUSTOMER_ID: 'CUST004', ORDER_DATE: '2024-01-18', TOTAL_AMOUNT: 32000, STATUS: 'Completed', orderNumber: 'PO-2024-004', customerName: 'Pacific Industries' },
-          { ORDER_ID: 'ORD005', CUSTOMER_ID: 'CUST005', ORDER_DATE: '2024-01-19', TOTAL_AMOUNT: 28000, STATUS: 'Processing', orderNumber: 'PO-2024-005', customerName: 'Nordic Solutions AB' }
+          { ORDER_ID: 'ORD25-001', CUSTOMER_ID: 'CUST001', ORDER_DATE: '2024-01-15', TOTAL_AMOUNT: 125000, STATUS: 'Processing' },
+          { ORDER_ID: 'ORD25-002', CUSTOMER_ID: 'CUST002', ORDER_DATE: '2024-01-16', TOTAL_AMOUNT: 89500, STATUS: 'Confirmed' },
+          { ORDER_ID: 'ORD25-003', CUSTOMER_ID: 'CUST003', ORDER_DATE: '2024-01-17', TOTAL_AMOUNT: 245000, STATUS: 'Shipped' },
+          { ORDER_ID: 'ORD25-004', CUSTOMER_ID: 'CUST004', ORDER_DATE: '2024-01-18', TOTAL_AMOUNT: 67800, STATUS: 'Delivered' },
+          { ORDER_ID: 'ORD25-005', CUSTOMER_ID: 'CUST005', ORDER_DATE: '2024-01-19', TOTAL_AMOUNT: 34500, STATUS: 'Processing' }
         ]
       },
-      'Salesforce CRM': {
+      'salesforce-crm': {
         'accounts': [
-          { SF_ID: 'SF001', NAME: 'Enterprise Corp', INDUSTRY: 'Technology', ANNUAL_REVENUE: 5000000, NUMBER_OF_EMPLOYEES: 250 },
-          { SF_ID: 'SF002', NAME: 'Global Manufacturing', INDUSTRY: 'Manufacturing', ANNUAL_REVENUE: 12000000, NUMBER_OF_EMPLOYEES: 800 },
-          { SF_ID: 'SF003', NAME: 'Digital Solutions Inc', INDUSTRY: 'Software', ANNUAL_REVENUE: 3500000, NUMBER_OF_EMPLOYEES: 150 }
+          { Id: 'ACC001', Name: 'TechCorp Solutions', Industry: 'Technology', AnnualRevenue: 25000000, NumberOfEmployees: 250 },
+          { Id: 'ACC002', Name: 'Manufacturing Plus', Industry: 'Manufacturing', AnnualRevenue: 45000000, NumberOfEmployees: 580 },
+          { Id: 'ACC003', Name: 'Healthcare Innovations', Industry: 'Healthcare', AnnualRevenue: 18000000, NumberOfEmployees: 180 },
+          { Id: 'ACC004', Name: 'Retail Dynamics', Industry: 'Retail', AnnualRevenue: 32000000, NumberOfEmployees: 420 },
+          { Id: 'ACC005', Name: 'Energy Solutions Ltd', Industry: 'Energy', AnnualRevenue: 78000000, NumberOfEmployees: 890 }
         ],
         'opportunities': [
-          { SF_ID: 'OPP001', NAME: 'Q1 2024 Integration Project', ACCOUNT_ID: 'SF001', AMOUNT: 250000, STAGE_NAME: 'Proposal', CLOSE_DATE: '2024-03-31' },
-          { SF_ID: 'OPP002', NAME: 'Manufacturing Automation', ACCOUNT_ID: 'SF002', AMOUNT: 450000, STAGE_NAME: 'Negotiation', CLOSE_DATE: '2024-02-28' }
+          { Id: 'OPP001', Name: 'Q1 Software License Deal', AccountId: 'ACC001', Amount: 150000, StageName: 'Negotiation', CloseDate: '2024-03-31' },
+          { Id: 'OPP002', Name: 'Manufacturing Equipment Upgrade', AccountId: 'ACC002', Amount: 850000, StageName: 'Proposal', CloseDate: '2024-04-15' },
+          { Id: 'OPP003', Name: 'Healthcare System Integration', AccountId: 'ACC003', Amount: 320000, StageName: 'Closed Won', CloseDate: '2024-02-28' },
+          { Id: 'OPP004', Name: 'Retail Analytics Platform', AccountId: 'ACC004', Amount: 95000, StageName: 'Prospecting', CloseDate: '2024-05-30' },
+          { Id: 'OPP005', Name: 'Energy Management Solution', AccountId: 'ACC005', Amount: 1200000, StageName: 'Qualification', CloseDate: '2024-06-15' }
         ]
       },
-      'AVEVA PI': {
-        'ASSET_HIERARCHY': [
-          { ASSET_NAME: 'Drilling Platform Alpha', ASSET_PATH: '/Oil_Gas/Offshore/Platform_Alpha', ASSET_TYPE: 'Drilling Platform', LOCATION: 'North Sea', OPERATIONAL_STATUS: 'Active' },
-          { ASSET_NAME: 'Production Unit Beta', ASSET_PATH: '/Oil_Gas/Onshore/Unit_Beta', ASSET_TYPE: 'Production Unit', LOCATION: 'Texas', OPERATIONAL_STATUS: 'Active' },
-          { ASSET_NAME: 'Refinery Gamma', ASSET_PATH: '/Oil_Gas/Refinery/Gamma', ASSET_TYPE: 'Refinery', LOCATION: 'Louisiana', OPERATIONAL_STATUS: 'Maintenance' }
+      'aveva-pi': {
+        'asset_hierarchy': [
+          { AssetName: 'PetroLux Corporation', AssetPath: 'Root/Corporation', AssetType: 'Corporation', Location: 'Head Office', OperationalStatus: 'Active' },
+          { AssetName: 'Upstream Operations', AssetPath: 'Root/Corporation/Business Unit', AssetType: 'Business Unit', Location: 'Operations Center', OperationalStatus: 'Active' },
+          { AssetName: 'Conventional Oil', AssetPath: 'Root/Corporation/Business Unit/Asset Group', AssetType: 'Asset Group', Location: 'Field Operations', OperationalStatus: 'Active' },
+          { AssetName: 'Fort McMurray Field', AssetPath: 'Root/Corporation/Business Unit/Asset Group/Field', AssetType: 'Field', Location: 'Alberta, Canada', OperationalStatus: 'Active' },
+          { AssetName: 'Well Pad 001', AssetPath: 'Root/Corporation/Business Unit/Asset Group/Field/Well Pad', AssetType: 'Well Pad', Location: 'Fort McMurray', OperationalStatus: 'Active' }
         ],
-        'DRILLING_OPERATIONS': [
-          { WELL_PAD_ID: 'WP001', BIT_WEIGHT: 45000, BLOCK_HEIGHT: 125, DIFF_PRESS: 850, FLOW_IN_RATE: 420, HOLE_DEPTH: 8500, HOOK_LOAD: 125000, PUMP_PRESSURE: 1200, TOP_DRIVE_RPM: 180, TOP_DRIVE_TORQUE: 15000 },
-          { WELL_PAD_ID: 'WP002', BIT_WEIGHT: 52000, BLOCK_HEIGHT: 110, DIFF_PRESS: 920, FLOW_IN_RATE: 385, HOLE_DEPTH: 9200, HOOK_LOAD: 142000, PUMP_PRESSURE: 1350, TOP_DRIVE_RPM: 165, TOP_DRIVE_TORQUE: 17500 },
-          { WELL_PAD_ID: 'WP003', BIT_WEIGHT: 48000, BLOCK_HEIGHT: 118, DIFF_PRESS: 780, FLOW_IN_RATE: 445, HOLE_DEPTH: 7800, HOOK_LOAD: 135000, PUMP_PRESSURE: 1100, TOP_DRIVE_RPM: 190, TOP_DRIVE_TORQUE: 14200 }
+        'drilling_operations': [
+          { WellPadID: 'Well Pad 001', BitWeight: 25000, BlockHeight: 45, DiffPress: 1200, FlowInRate: 350, HoleDepth: 8942, HookLoad: 180000, PumpPressure: 2800, TopDriveRPM: 120, TopDriveTorque: 15000 },
+          { WellPadID: 'Well Pad 002', BitWeight: 23500, BlockHeight: 42, DiffPress: 1150, FlowInRate: 340, HoleDepth: 9156, HookLoad: 175000, PumpPressure: 2750, TopDriveRPM: 115, TopDriveTorque: 14500 },
+          { WellPadID: 'Well Pad 003', BitWeight: 26200, BlockHeight: 48, DiffPress: 1250, FlowInRate: 360, HoleDepth: 8755, HookLoad: 185000, PumpPressure: 2850, TopDriveRPM: 125, TopDriveTorque: 15500 },
+          { WellPadID: 'Well Pad 004', BitWeight: 24800, BlockHeight: 44, DiffPress: 1180, FlowInRate: 355, HoleDepth: 9021, HookLoad: 178000, PumpPressure: 2800, TopDriveRPM: 118, TopDriveTorque: 14800 },
+          { WellPadID: 'Well Pad 005', BitWeight: 25500, BlockHeight: 46, DiffPress: 1220, FlowInRate: 345, HoleDepth: 8834, HookLoad: 182000, PumpPressure: 2820, TopDriveRPM: 122, TopDriveTorque: 15200 }
+        ],
+        'streaming_views': [
+          { ViewName: 'Cristal_Demo_Exercise', RunStatus: 'Stopped By User', ViewType: 'Analysis', RunMode: 'Manual', StartTime: '2024-01-15 08:30:00', Interval: '5min' },
+          { ViewName: 'Compressor Rollup', RunStatus: 'Not Yet Published', ViewType: 'Rollup', RunMode: 'Automatic', StartTime: null, Interval: '1min' },
+          { ViewName: 'Concentrator Modes', RunStatus: 'Publishing', ViewType: 'Event', RunMode: 'Automatic', StartTime: '2024-01-20 09:15:00', Interval: '30sec' },
+          { ViewName: 'BSQUASSONI - LRS 2018', RunStatus: 'Not Yet Published', ViewType: 'Historical', RunMode: 'Manual', StartTime: null, Interval: '1hour' },
+          { ViewName: 'BWK Test for DCP', RunStatus: 'Not Yet Published', ViewType: 'Test', RunMode: 'Manual', StartTime: null, Interval: '10min' }
         ]
       }
     };
@@ -445,9 +461,26 @@ export class DatabaseStorage implements IStorage {
       console.log('getTableData called with:', { dataSourceId, tableName });
       const sourceData = mockData[dataSourceId];
       console.log('Found source data keys:', Object.keys(mockData));
-      if (sourceData && sourceData[tableName.toLowerCase()]) {
-        console.log('Returning mock data for:', tableName);
-        return sourceData[tableName.toLowerCase()];
+      
+      // Handle different cases for table names and data source IDs
+      if (sourceData) {
+        // Try exact match first
+        if (sourceData[tableName]) {
+          console.log('Returning exact match data for:', tableName);
+          return sourceData[tableName];
+        }
+        
+        // Try lowercase match
+        if (sourceData[tableName.toLowerCase()]) {
+          console.log('Returning lowercase match data for:', tableName);
+          return sourceData[tableName.toLowerCase()];
+        }
+        
+        // Try uppercase match
+        if (sourceData[tableName.toUpperCase()]) {
+          console.log('Returning uppercase match data for:', tableName);
+          return sourceData[tableName.toUpperCase()];
+        }
       }
       
       // Also try to fetch from database if available
@@ -464,12 +497,14 @@ export class DatabaseStorage implements IStorage {
           return await db.select().from(salesforceOpportunities);
         }
       } else if (dataSourceId === 'aveva-pi' || dataSourceId === 'AVEVA PI') {
-        if (tableName === 'ASSET_HIERARCHY') {
+        if (tableName === 'ASSET_HIERARCHY' || tableName === 'asset_hierarchy') {
           return await db.select().from(piAssetHierarchy);
-        } else if (tableName === 'DRILLING_OPERATIONS') {
+        } else if (tableName === 'DRILLING_OPERATIONS' || tableName === 'drilling_operations') {
           return await db.select().from(piDrillingOperations);
         }
       }
+      
+      console.log('No data found for:', { dataSourceId, tableName });
       return [];
     } catch (error) {
       console.error('Error fetching table data:', error);
