@@ -857,27 +857,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Sheets connection with data loading
   app.post("/api/google-sheets/connect", async (req, res) => {
     try {
-      const { selectedSheets, config } = req.body;
-      
       console.log('=== GOOGLE SHEETS CONNECT REQUEST ===');
-      console.log('Selected sheets:', selectedSheets);
-      console.log('Config:', config);
+      console.log('Full request body:', JSON.stringify(req.body, null, 2));
+      
+      // Extract data from the nested structure
+      const { title, description, selectedSheets, driveConfig, sheetsConfig, connectionData } = req.body;
+      
+      console.log('Extracted data:');
+      console.log('- title:', title);
+      console.log('- description:', description);
+      console.log('- selectedSheets:', selectedSheets);
+      console.log('- driveConfig:', driveConfig);
+      console.log('- sheetsConfig:', sheetsConfig);
+      console.log('- connectionData:', connectionData ? 'present' : 'missing');
       console.log('Session exists:', !!req.session);
       console.log('Has Google tokens:', !!req.session?.googleTokens);
       
-      if (!req.session?.googleTokens) {
+      if (!req.session?.googleTokens && !connectionData) {
         console.log('No Google tokens in session - treating as manual connection');
         
         // For manual connections without OAuth, create data source with provided config
         const dataSource = {
-          name: config.title || 'Google Sheets',
+          name: title || 'Google Sheets',
           type: 'Google Sheets',
           category: 'file',
           vendor: 'Google',
           status: 'connected',
           config: {
-            title: config.title,
-            description: config.description,
+            title: title || 'Google Sheets',
+            description: description || '',
             selectedSheets: selectedSheets || [],
             manualConnection: true,
             connectionMethod: 'manual',
@@ -909,7 +917,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const tokens = req.session.googleTokens;
+      // Use tokens from connectionData if available, or from session
+      const tokens = connectionData || req.session?.googleTokens;
+      
+      if (!tokens) {
+        return res.status(400).json({ error: "No authentication tokens available" });
+      }
       
       // Check if token is expired
       if (Date.now() > tokens.expires_at) {
@@ -918,11 +931,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { google } = await import('googleapis');
       
-      // Use stored API configurations instead of environment variables
-      const driveConfig = req.session.selectedDriveConfig;
-      const sheetsConfig = req.session.selectedSheetsConfig;
+      // Use provided API configurations or session configurations
+      const finalDriveConfig = driveConfig || req.session?.selectedDriveConfig;
+      const finalSheetsConfig = sheetsConfig || req.session?.selectedSheetsConfig;
       
-      if (!driveConfig || !sheetsConfig) {
+      // For OAuth authentication, we can use environment variables as fallback
+      if (!finalDriveConfig && !finalSheetsConfig && tokens.access_token) {
+        console.log('Using direct OAuth authentication with environment credentials');
+        const auth = new google.auth.OAuth2(
+          GOOGLE_CLIENT_ID,
+          GOOGLE_CLIENT_SECRET,
+          REDIRECT_URI
+        );
+
+        auth.setCredentials({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_type: 'Bearer',
+          expiry_date: tokens.expires_at
+        });
+
+        const sheets = google.sheets({ version: 'v4', auth });
+        const dataSchema: any[] = [];
+        const sampleData: any = {};
+
+        // Process each selected sheet
+        for (const sheetId of selectedSheets || []) {
+          try {
+            console.log(`Processing Google Sheet: ${sheetId}`);
+            
+            // Get spreadsheet metadata
+            const spreadsheetResponse = await sheets.spreadsheets.get({
+              spreadsheetId: sheetId
+            });
+            
+            const spreadsheetTitle = spreadsheetResponse.data.properties?.title || `Sheet_${sheetId}`;
+            console.log(`Found spreadsheet: ${spreadsheetTitle}`);
+
+            // Get all worksheet names
+            const worksheets = spreadsheetResponse.data.sheets || [];
+            
+            for (const worksheet of worksheets) {
+              const worksheetTitle = worksheet.properties?.title || 'Untitled';
+              console.log(`Processing worksheet: ${worksheetTitle}`);
+              
+              try {
+                // Get data from this worksheet (first 100 rows)
+                const range = `${worksheetTitle}!A1:Z100`;
+                const valuesResponse = await sheets.spreadsheets.values.get({
+                  spreadsheetId: sheetId,
+                  range: range
+                });
+                
+                const values = valuesResponse.data.values || [];
+                if (values.length === 0) {
+                  console.log(`No data found in worksheet: ${worksheetTitle}`);
+                  continue;
+                }
+                
+                const headers = values[0] || [];
+                const dataRows = values.slice(1);
+                
+                console.log(`Found ${headers.length} columns and ${dataRows.length} data rows in ${worksheetTitle}`);
+                
+                // Build schema
+                const fields = headers.map((header, index) => ({
+                  name: header || `Column_${index + 1}`,
+                  type: "VARCHAR(255)",
+                  description: `Column from ${worksheetTitle} in ${spreadsheetTitle}`
+                }));
+                
+                dataSchema.push({
+                  table: `${spreadsheetTitle} - ${worksheetTitle}`,
+                  fields: fields,
+                  recordCount: dataRows.length,
+                  lastUpdated: new Date().toISOString()
+                });
+                
+                // Build sample data (first 5 rows)
+                const sampleRows = dataRows.slice(0, 5).map(row => {
+                  const rowObj: any = {};
+                  headers.forEach((header, index) => {
+                    rowObj[header || `Column_${index + 1}`] = row[index] || '';
+                  });
+                  return rowObj;
+                });
+                
+                sampleData[`${spreadsheetTitle} - ${worksheetTitle}`] = sampleRows;
+                
+              } catch (worksheetError) {
+                console.error(`Error processing worksheet ${worksheetTitle}:`, worksheetError);
+              }
+            }
+            
+          } catch (sheetError) {
+            console.error(`Error processing sheet ${sheetId}:`, sheetError);
+          }
+        }
+
+        // Create data source with actual Google Sheets data
+        const dataSource = {
+          name: title || 'Google Sheets',
+          type: 'Google Sheets',
+          category: 'file',
+          vendor: 'Google',
+          status: 'connected',
+          config: {
+            title: title || 'Google Sheets',
+            description: description || '',
+            selectedSheets: selectedSheets || [],
+            connectionMethod: 'oauth',
+            dataSchema: dataSchema,
+            sampleData: sampleData,
+            lastSync: new Date().toISOString(),
+            tokens: {
+              expires_at: tokens.expires_at,
+              user_email: tokens.user_email,
+              user_name: tokens.user_name
+            }
+          }
+        };
+        
+        const createdDataSource = await storage.createDataSource(dataSource);
+        
+        return res.json({
+          success: true,
+          dataSource: createdDataSource,
+          message: "Google Sheets 연결이 완료되었습니다",
+          connectionType: 'oauth',
+          tablesFound: dataSchema.length
+        });
+      }
+      
+      if (!finalDriveConfig || !finalSheetsConfig) {
         return res.status(400).json({ error: "API configuration missing" });
       }
       
