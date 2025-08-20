@@ -4,6 +4,16 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -140,6 +150,12 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [selectedPrebuiltModel, setSelectedPrebuiltModel] = useState<PrebuiltModel | null>(null);
   const [selectedUploadedModel, setSelectedUploadedModel] = useState<string>('');
+  
+  // Dialog states for consistent popup style
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetModel, setDeleteTargetModel] = useState<{ id: string; name: string } | null>(null);
+  const [reanalyzeDialogOpen, setReanalyzeDialogOpen] = useState(false);
+  const [reanalyzeTargetModel, setReanalyzeTargetModel] = useState<{ id: string; name: string } | null>(null);
   
   // Map sidebar menu items to internal tab structure
   const getInternalTab = (sidebarTab?: string) => {
@@ -310,16 +326,40 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
     createFolderMutation.mutate(newFolder);
   };
 
-  const handleDeleteModel = (modelId: string) => {
-    if (confirm('Are you sure you want to delete this model?')) {
-      deleteModelMutation.mutate(modelId);
+  const handleDeleteModel = (modelId: string, modelName: string) => {
+    setDeleteTargetModel({ id: modelId, name: modelName });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteModel = () => {
+    if (deleteTargetModel) {
+      deleteModelMutation.mutate(deleteTargetModel.id);
+      setDeleteDialogOpen(false);
+      setDeleteTargetModel(null);
     }
   };
 
-  const handleReanalyzeModel = (modelId: string) => {
-    if (confirm('모델을 다시 분석하시겠습니까? 기존 분석 결과는 덮어씌워집니다.')) {
-      reanalyzeModelMutation.mutate(modelId);
+  const cancelDeleteModel = () => {
+    setDeleteDialogOpen(false);
+    setDeleteTargetModel(null);
+  };
+
+  const handleReanalyzeModel = (modelId: string, modelName: string) => {
+    setReanalyzeTargetModel({ id: modelId, name: modelName });
+    setReanalyzeDialogOpen(true);
+  };
+
+  const confirmReanalyzeModel = () => {
+    if (reanalyzeTargetModel) {
+      reanalyzeModelMutation.mutate(reanalyzeTargetModel.id);
+      setReanalyzeDialogOpen(false);
+      setReanalyzeTargetModel(null);
     }
+  };
+
+  const cancelReanalyzeModel = () => {
+    setReanalyzeDialogOpen(false);
+    setReanalyzeTargetModel(null);
   };
 
   const getFilteredModels = (folderId: string) => {
@@ -477,7 +517,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                               className="h-6 w-6 p-0"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteModel(model.id);
+                                handleDeleteModel(model.id, model.name);
                               }}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -591,7 +631,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => handleReanalyzeModel(model.id)}
+                              onClick={() => handleReanalyzeModel(model.id, model.name)}
                               disabled={reanalyzeModelMutation.isPending}
                               title="Re-analyze model to extract input/output specs"
                             >
@@ -609,7 +649,7 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                             variant="outline" 
                             size="sm"
                             className="text-red-600 hover:text-red-700"
-                            onClick={() => handleDeleteModel(model.id)}
+                            onClick={() => handleDeleteModel(model.id, model.name)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1329,6 +1369,48 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Model</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTargetModel?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDeleteModel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteModel}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reanalyze Confirmation Dialog */}
+      <AlertDialog open={reanalyzeDialogOpen} onOpenChange={setReanalyzeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-analyze Model</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to re-analyze "{reanalyzeTargetModel?.name}"? This will overwrite the existing analysis results and may take a few minutes to complete.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelReanalyzeModel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmReanalyzeModel}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Re-analyze
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
