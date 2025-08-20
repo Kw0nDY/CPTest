@@ -2028,16 +2028,19 @@ export default function ModelConfigurationTab() {
                 {/* Arrow marker for connection lines */}
                 <marker
                   id="arrowhead"
-                  markerWidth="10"
-                  markerHeight="7"
-                  refX="9"
-                  refY="3.5"
+                  markerWidth="12"
+                  markerHeight="8"
+                  refX="11"
+                  refY="4"
                   orient="auto"
+                  markerUnits="strokeWidth"
                 >
                   <polygon
-                    points="0 0, 10 3.5, 0 7"
+                    points="0 0, 12 4, 0 8"
                     fill="currentColor"
-                    opacity="0.8"
+                    opacity="1"
+                    stroke="currentColor"
+                    strokeWidth="0.5"
                   />
                 </marker>
               </defs>
@@ -2117,13 +2120,17 @@ export default function ModelConfigurationTab() {
                     {/* Visible connection line */}
                     <path
                       d={pathData}
-                      stroke={`url(#grad-${connection.id})`}
-                      strokeWidth="3"
+                      stroke={connectionColor}
+                      strokeWidth="4"
                       fill="none"
-                      opacity="0.9"
+                      opacity="1"
                       markerEnd="url(#arrowhead)"
-                      style={{ color: connectionColor }}
-                      className="pointer-events-none"
+                      className="pointer-events-none drop-shadow-lg"
+                      style={{ 
+                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round'
+                      }}
                     />
                     
                     {/* Animated flow indicator */}
@@ -2163,17 +2170,36 @@ export default function ModelConfigurationTab() {
               
               {/* Temporary connection line while dragging */}
               {connecting && (
-                <line
-                  x1={connecting.startX}
-                  y1={connecting.startY}
-                  x2={mousePosition.x}
-                  y2={mousePosition.y}
-                  stroke={getTypeColor(connecting.type)}
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                  opacity="0.7"
-                  className="pointer-events-none"
-                />
+                <g>
+                  {/* Background line for better visibility */}
+                  <line
+                    x1={connecting.startX}
+                    y1={connecting.startY}
+                    x2={mousePosition.x}
+                    y2={mousePosition.y}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="6"
+                    strokeDasharray="8,4"
+                    opacity="1"
+                    className="pointer-events-none"
+                  />
+                  {/* Main connection line */}
+                  <line
+                    x1={connecting.startX}
+                    y1={connecting.startY}
+                    x2={mousePosition.x}
+                    y2={mousePosition.y}
+                    stroke={getTypeColor(connecting.type)}
+                    strokeWidth="4"
+                    strokeDasharray="8,4"
+                    opacity="0.9"
+                    className="pointer-events-none"
+                    style={{ 
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      strokeLinecap: 'round'
+                    }}
+                  />
+                </g>
               )}
             </svg>
 
