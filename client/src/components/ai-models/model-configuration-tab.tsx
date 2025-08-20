@@ -1331,8 +1331,8 @@ export default function ModelConfigurationTab() {
 
     const rect = canvasRef.current.getBoundingClientRect();
     const newPosition = {
-      x: e.clientX - rect.left - dragOffset.x,
-      y: e.clientY - rect.top - dragOffset.y
+      x: Math.max(0, Math.min(e.clientX - rect.left - dragOffset.x, rect.width - draggedNode.width)),
+      y: Math.max(0, Math.min(e.clientY - rect.top - dragOffset.y, rect.height - draggedNode.height))
     };
 
     setNodes(prev => prev.map(node => 
@@ -1356,12 +1356,15 @@ export default function ModelConfigurationTab() {
   // Add event listeners
   useEffect(() => {
     if (draggedNode) {
-      document.addEventListener('mousemove', handleMouseMove, { passive: false });
-      document.addEventListener('mouseup', handleMouseUp, { passive: false });
+      const handleMove = (e: MouseEvent) => handleMouseMove(e);
+      const handleUp = (e: MouseEvent) => handleMouseUp(e);
+      
+      document.addEventListener('mousemove', handleMove, { passive: false });
+      document.addEventListener('mouseup', handleUp, { passive: false });
       
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleUp);
         // Cleanup user selection styles
         document.body.style.userSelect = '';
         document.body.style.webkitUserSelect = '';
