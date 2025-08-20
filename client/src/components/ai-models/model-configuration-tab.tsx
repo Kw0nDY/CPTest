@@ -459,6 +459,17 @@ export default function ModelConfigurationTab() {
     return [...transformedRealModels, ...sampleAIModels];
   }, [realAIModels]);
 
+  // Helper function to determine category from source type
+  const getCategoryFromType = (type: string): string => {
+    if (type?.toLowerCase().includes('sap')) return 'ERP';
+    if (type?.toLowerCase().includes('salesforce')) return 'CRM';
+    if (type?.toLowerCase().includes('oracle')) return 'Database';
+    if (type?.toLowerCase().includes('pi')) return 'Industrial';
+    if (type?.toLowerCase().includes('manufacturing')) return 'Manufacturing';
+    if (type?.toLowerCase().includes('quality')) return 'Quality';
+    return 'Database';
+  };
+
   // Filter models based on search and category
   const filteredAIModels = availableAIModels.filter(model => {
     const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -489,17 +500,6 @@ export default function ModelConfigurationTab() {
       sampleData: source.sampleData || {}
     }));
   }, [realDataSources]);
-
-  // Helper function to determine category from source type
-  const getCategoryFromType = (type: string): string => {
-    if (type?.toLowerCase().includes('sap')) return 'ERP';
-    if (type?.toLowerCase().includes('salesforce')) return 'CRM';
-    if (type?.toLowerCase().includes('oracle')) return 'Database';
-    if (type?.toLowerCase().includes('pi')) return 'Industrial';
-    if (type?.toLowerCase().includes('manufacturing')) return 'Manufacturing';
-    if (type?.toLowerCase().includes('quality')) return 'Quality';
-    return 'Database';
-  };
 
   const filteredDataSources = transformedDataSources.filter(source => {
     const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
