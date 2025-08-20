@@ -2324,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No model file provided' });
       }
 
-      const { name, description } = req.body;
+      const { name, description, manualMode, inputSpecs, outputSpecs, metadata } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'Model name is required' });
       }
@@ -2354,15 +2354,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: req.file.originalname,
         fileSize: req.file.size,
         modelType: typeMap[modelType] || 'unknown',
-        status: 'processing' as const,
+        status: manualMode === 'true' ? 'completed' as const : 'processing' as const,
         filePath: tempFilePath,
-        analysisStatus: 'pending' as const
+        analysisStatus: manualMode === 'true' ? 'completed' as const : 'pending' as const,
+        inputSpecs: manualMode === 'true' ? JSON.parse(inputSpecs || '[]') : undefined,
+        outputSpecs: manualMode === 'true' ? JSON.parse(outputSpecs || '[]') : undefined,
+        metadata: manualMode === 'true' ? JSON.parse(metadata || '{}') : undefined,
+        analyzedAt: manualMode === 'true' ? new Date() : undefined
       };
 
       const createdModel = await storage.createAiModel(modelData);
 
-      // Start model analysis in background
-      setImmediate(async () => {
+      // Start model analysis in background (only if not manual mode)
+      if (manualMode !== 'true') {
+        setImmediate(async () => {
         try {
           // Update status to processing
           await storage.updateAiModel(createdModel.id, {
