@@ -15,6 +15,45 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleApiConfigDialog } from "./google-api-config-dialog";
 
+// Google Sheets 데이터 미리보기 컴포넌트
+function SheetDataPreview({ sheetId }: { sheetId: string }) {
+  const { data: sheetData, isLoading } = useQuery({
+    queryKey: ['/api/google/sheets', sheetId, 'data'],
+    enabled: !!sheetId
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-gray-500">데이터를 불러오는 중...</div>;
+  }
+
+  if (!sheetData?.worksheets?.length) {
+    return <div className="text-sm text-gray-500">데이터가 없습니다.</div>;
+  }
+
+  return (
+    <div className="pl-5 border-l-2 border-gray-200 dark:border-gray-700 space-y-3">
+      {sheetData.worksheets.slice(0, 2).map((worksheet: any, idx: number) => (
+        <div key={idx} className="text-sm">
+          <div className="font-medium text-gray-800 dark:text-gray-200 mb-1">
+            {worksheet.title} ({worksheet.totalRows} rows)
+          </div>
+          {worksheet.headers.length > 0 && (
+            <div className="text-gray-600 dark:text-gray-400">
+              Columns: {worksheet.headers.slice(0, 3).join(', ')}
+              {worksheet.headers.length > 3 && ` +${worksheet.headers.length - 3} more`}
+            </div>
+          )}
+        </div>
+      ))}
+      {sheetData.worksheets.length > 2 && (
+        <div className="text-sm text-gray-500">
+          +{sheetData.worksheets.length - 2} more worksheets
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Sheet {
   name: string;
   properties: {
@@ -173,8 +212,7 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
     
     try {
       // 실제 Google Sheets API 호출하여 최신 목록 가져오기
-      // 여기에서는 기존 쿼리를 무효화하여 새로 불러오도록 함
-      await queryClient.invalidateQueries({ queryKey: ['/api/google-sheets'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/google/sheets'] });
       
       toast({
         title: "새로고침 완료",
@@ -301,12 +339,21 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                     <div className="flex gap-3">
                       <Button 
                         variant="outline"
-                        onClick={() => {
-                          setConnectionData(null);
-                          toast({
-                            title: "로그아웃 완료",
-                            description: `${connectionData?.user_name || 'Google 계정'}에서 로그아웃되었습니다.`
-                          });
+                        onClick={async () => {
+                          try {
+                            await apiRequest('/api/google/logout', { method: 'POST' });
+                            setConnectionData(null);
+                            toast({
+                              title: "로그아웃 완료",
+                              description: `${connectionData?.user_name || 'Google 계정'}에서 로그아웃되었습니다.`
+                            });
+                          } catch (error) {
+                            toast({
+                              title: "로그아웃 실패",
+                              description: "로그아웃 중 오류가 발생했습니다.",
+                              variant: "destructive"
+                            });
+                          }
                         }}
                         className="flex-1"
                       >
@@ -336,25 +383,49 @@ export function GoogleSheetsConnectionDialog({ trigger, onConnect }: GoogleSheet
                   
                   <div className="space-y-4 max-w-md mx-auto">
                     <Button 
-                      onClick={() => {
-                        // Google OAuth 로그인 시뮬레이션
-                        toast({
-                          title: "로그인 시작",
-                          description: "Google 계정으로 로그인하고 있습니다..."
-                        });
-                        
-                        // 시뮬레이션을 위한 딜레이 후 다음 단계로 이동
-                        setTimeout(() => {
-                          setConnectionData({ 
-                            access_token: 'simulated_token',
-                            user_email: 'john.doe@company.com',
-                            user_name: '홍길동'
-                          });
+                      onClick={async () => {
+                        try {
                           toast({
-                            title: "로그인 완료",
-                            description: "Google 계정으로 성공적으로 로그인되었습니다."
+                            title: "Google 로그인 시작",
+                            description: "Google 인증 페이지로 이동합니다..."
                           });
-                        }, 2000);
+                          
+                          // 실제 Google OAuth URL 가져오기
+                          const response = await apiRequest('/auth/google/login');
+                          const { authUrl } = response;
+                          
+                          // 새 창에서 Google OAuth 페이지 열기
+                          window.open(authUrl, '_blank', 'width=500,height=600');
+                          
+                          // 로그인 완료 확인을 위한 폴링
+                          const checkAuthStatus = async () => {
+                            try {
+                              const accountResponse = await apiRequest('/api/google/account');
+                              setConnectionData(accountResponse);
+                              toast({
+                                title: "로그인 완료",
+                                description: `${accountResponse.user_name}님, 환영합니다!`
+                              });
+                              clearInterval(authCheckInterval);
+                            } catch (error) {
+                              // 아직 로그인되지 않음
+                            }
+                          };
+                          
+                          const authCheckInterval = setInterval(checkAuthStatus, 2000);
+                          
+                          // 30초 후 폴링 중단
+                          setTimeout(() => {
+                            clearInterval(authCheckInterval);
+                          }, 30000);
+                          
+                        } catch (error) {
+                          toast({
+                            title: "로그인 실패",
+                            description: "Google 로그인에 실패했습니다.",
+                            variant: "destructive"
+                          });
+                        }
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
                       size="lg"

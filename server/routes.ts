@@ -4,6 +4,19 @@ import session from "express-session";
 import { storage } from "./storage";
 import { insertViewSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
+import { OAuth2Client } from 'google-auth-library';
+import { google } from 'googleapis';
+
+// Google OAuth2 Client 설정
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REPLIT_DOMAIN ? `https://${process.env.REPLIT_DOMAIN}/auth/google/callback` : 'http://localhost:5000/auth/google/callback';
+
+const oauth2Client = new OAuth2Client(
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  REDIRECT_URI
+);
 
 // Extend Express Request type to include session
 declare module 'express-serve-static-core' {
@@ -1819,6 +1832,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error getting data sources:', error);
       res.status(500).json({ error: 'Failed to get data sources' });
+    }
+  });
+
+  // Google OAuth 로그인 시작
+  app.get('/auth/google/login', (req, res) => {
+    const scopes = [
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/spreadsheets.readonly'
+    ];
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent'
+    });
+
+    res.json({ authUrl });
+  });
+
+  // Google OAuth 콜백
+  app.get('/auth/google/callback', async (req, res) => {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    try {
+      const { tokens } = await oauth2Client.getToken(code as string);
+      oauth2Client.setCredentials(tokens);
+
+      // 사용자 정보 가져오기
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+
+      // 세션에 토큰과 사용자 정보 저장
+      if (req.session) {
+        req.session.googleTokens = {
+          access_token: tokens.access_token!,
+          refresh_token: tokens.refresh_token!,
+          expires_in: tokens.expiry_date ? Math.floor((tokens.expiry_date - Date.now()) / 1000) : 3600,
+          expires_at: tokens.expiry_date || Date.now() + 3600000
+        };
+        req.session.googleAccount = {
+          email: userInfo.data.email!,
+          name: userInfo.data.name!,
+          picture: userInfo.data.picture!
+        };
+      }
+
+      // 프론트엔드로 리다이렉트
+      res.redirect('/settings/data-integration?auth=success');
+    } catch (error) {
+      console.error('Google OAuth error:', error);
+      res.redirect('/settings/data-integration?auth=error');
+    }
+  });
+
+  // Google 계정 정보 조회
+  app.get('/api/google/account', (req, res) => {
+    if (!req.session?.googleTokens || !req.session?.googleAccount) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    res.json({
+      access_token: req.session.googleTokens.access_token,
+      user_email: req.session.googleAccount.email,
+      user_name: req.session.googleAccount.name,
+      user_picture: req.session.googleAccount.picture,
+      expires_at: req.session.googleTokens.expires_at
+    });
+  });
+
+  // Google 로그아웃
+  app.post('/api/google/logout', (req, res) => {
+    if (req.session) {
+      req.session.googleTokens = undefined;
+      req.session.googleAccount = undefined;
+    }
+    res.json({ success: true });
+  });
+
+  // Google Sheets 목록 조회
+  app.get('/api/google/sheets', async (req, res) => {
+    if (!req.session?.googleTokens) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+      // 토큰 설정
+      oauth2Client.setCredentials({
+        access_token: req.session.googleTokens.access_token,
+        refresh_token: req.session.googleTokens.refresh_token
+      });
+
+      const drive = google.drive({ version: 'v3', auth: oauth2Client });
+      
+      // Google Sheets 파일 목록 조회
+      const response = await drive.files.list({
+        q: "mimeType='application/vnd.google-apps.spreadsheet'",
+        fields: 'files(id, name, createdTime, modifiedTime, owners)',
+        orderBy: 'modifiedTime desc',
+        pageSize: 50
+      });
+
+      const sheets = response.data.files?.map(file => ({
+        id: file.id,
+        name: file.name,
+        createdTime: file.createdTime,
+        modifiedTime: file.modifiedTime,
+        owner: file.owners?.[0]?.displayName || 'Unknown'
+      })) || [];
+
+      res.json({ sheets });
+    } catch (error) {
+      console.error('Error fetching Google Sheets:', error);
+      res.status(500).json({ error: 'Failed to fetch Google Sheets' });
+    }
+  });
+
+  // Google Sheets 데이터 조회
+  app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
+    if (!req.session?.googleTokens) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+      const { sheetId } = req.params;
+      
+      // 토큰 설정
+      oauth2Client.setCredentials({
+        access_token: req.session.googleTokens.access_token,
+        refresh_token: req.session.googleTokens.refresh_token
+      });
+
+      const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+      
+      // 스프레드시트 메타데이터 조회
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: sheetId
+      });
+
+      const worksheets = spreadsheet.data.sheets?.map(sheet => ({
+        title: sheet.properties?.title,
+        sheetId: sheet.properties?.sheetId,
+        rowCount: sheet.properties?.gridProperties?.rowCount,
+        columnCount: sheet.properties?.gridProperties?.columnCount
+      })) || [];
+
+      // 각 워크시트의 데이터 조회 (처음 몇 행만)
+      const sheetsData = await Promise.all(
+        worksheets.map(async (worksheet) => {
+          try {
+            const range = `${worksheet.title}!A1:Z100`; // 처음 100행, Z열까지
+            const response = await sheets.spreadsheets.values.get({
+              spreadsheetId: sheetId,
+              range: range
+            });
+
+            const values = response.data.values || [];
+            const headers = values[0] || [];
+            const rows = values.slice(1);
+
+            return {
+              title: worksheet.title,
+              headers,
+              data: rows.slice(0, 10), // 샘플 데이터 10행만
+              totalRows: rows.length,
+              fields: headers.map(header => ({
+                name: header,
+                type: 'VARCHAR(255)',
+                description: `Column ${header} from ${worksheet.title}`
+              }))
+            };
+          } catch (error) {
+            console.error(`Error fetching data for sheet ${worksheet.title}:`, error);
+            return {
+              title: worksheet.title,
+              headers: [],
+              data: [],
+              totalRows: 0,
+              fields: []
+            };
+          }
+        })
+      );
+
+      res.json({
+        spreadsheetId: sheetId,
+        spreadsheetName: spreadsheet.data.properties?.title,
+        worksheets: sheetsData
+      });
+    } catch (error) {
+      console.error('Error fetching sheet data:', error);
+      res.status(500).json({ error: 'Failed to fetch sheet data' });
     }
   });
 
