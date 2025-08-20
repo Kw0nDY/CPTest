@@ -420,8 +420,11 @@ export default function ModelConfigurationTab() {
     staleTime: 1000, // Consider data fresh for only 1 second
   });
 
-  // Use real data integration sources
-  const { dataSources: realDataSources, isLoading: isDataSourcesLoading } = useDataIntegrationSources();
+  // Fetch real data integration sources directly
+  const { data: realDataSources = [], isLoading: isDataSourcesLoading } = useQuery({
+    queryKey: ['/api/data-sources'],
+    staleTime: 30000, // Cache for 30 seconds
+  });
 
   // Transform real AI models to match expected format and combine with samples
   const availableAIModels = useMemo(() => {
@@ -462,7 +465,43 @@ export default function ModelConfigurationTab() {
     return matchesSearch;
   });
 
-  const filteredDataSources = realDataSources.filter(source => {
+  // Transform real data sources to match the expected format
+  const transformedDataSources = useMemo(() => {
+    if (!realDataSources || realDataSources.length === 0) {
+      return [];
+    }
+
+    return (realDataSources as any[]).map(source => ({
+      id: source.id,
+      name: source.name,
+      type: source.type || 'Database',
+      category: getCategoryFromType(source.type),
+      status: source.status || 'connected',
+      recordCount: source.recordCount || 0,
+      lastSync: source.lastSync,
+      fields: source.dataSchema ? source.dataSchema.flatMap((table: any) => 
+        table.fields.map((field: any) => ({
+          ...field,
+          tableName: table.table
+        }))
+      ) : [],
+      tables: source.dataSchema || [],
+      sampleData: source.sampleData || {}
+    }));
+  }, [realDataSources]);
+
+  // Helper function to determine category from source type
+  const getCategoryFromType = (type: string): string => {
+    if (type?.toLowerCase().includes('sap')) return 'ERP';
+    if (type?.toLowerCase().includes('salesforce')) return 'CRM';
+    if (type?.toLowerCase().includes('oracle')) return 'Database';
+    if (type?.toLowerCase().includes('pi')) return 'Industrial';
+    if (type?.toLowerCase().includes('manufacturing')) return 'Manufacturing';
+    if (type?.toLowerCase().includes('quality')) return 'Quality';
+    return 'Database';
+  };
+
+  const filteredDataSources = transformedDataSources.filter(source => {
     const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -1978,7 +2017,20 @@ export default function ModelConfigurationTab() {
                     <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
                       <Database className="w-4 h-4 text-green-600" />
                       Data Sources ({filteredDataSources.length})
+                      {isDataSourcesLoading && (
+                        <div className="animate-spin w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                      )}
                     </h4>
+                    
+                    {/* Debug Information */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="mb-3 p-2 bg-gray-100 rounded text-xs">
+                        <div>Raw data sources: {realDataSources?.length || 0}</div>
+                        <div>Transformed: {transformedDataSources.length}</div>
+                        <div>Filtered: {filteredDataSources.length}</div>
+                        <div>Loading: {isDataSourcesLoading ? 'Yes' : 'No'}</div>
+                      </div>
+                    )}
                     <div className="space-y-3">
                       {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
                         const sources = filteredDataSources.filter(s => s.category === category);
