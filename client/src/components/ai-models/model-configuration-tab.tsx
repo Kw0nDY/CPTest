@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -470,6 +471,11 @@ export default function ModelConfigurationTab() {
   } | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<{nodeId: string; inputId: string} | null>(null);
+  
+  // Delete dialog states
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [nodeToDelete, setNodeToDelete] = useState<ModelNode | null>(null);
+  
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -513,14 +519,14 @@ export default function ModelConfigurationTab() {
       inputs: model.inputSpecs ? model.inputSpecs.map((spec: any) => ({
         id: spec.name,
         name: spec.name,
-        type: spec.dataType || 'tensor',
+        type: spec.dataType === 'tensor' ? 'number' : spec.dataType || 'number',
         shape: spec.shape || [],
         description: spec.description || ''
       })) : [],
       outputs: model.outputSpecs ? model.outputSpecs.map((spec: any) => ({
         id: spec.name,
         name: spec.name,
-        type: spec.dataType || 'tensor', 
+        type: spec.dataType === 'tensor' ? 'number' : spec.dataType || 'number', 
         shape: spec.shape || [],
         description: spec.description || ''
       })) : [],
@@ -811,7 +817,7 @@ export default function ModelConfigurationTab() {
   };
 
   // Delete node
-  const deleteNode = (nodeId: string) => {
+  const initiateDeleteNode = (nodeId: string) => {
     const nodeToDelete = nodes.find(n => n.id === nodeId);
     
     // Don't allow deleting final goal if it's the only one
@@ -824,10 +830,29 @@ export default function ModelConfigurationTab() {
       return;
     }
     
-    setNodes(prev => prev.filter(node => node.id !== nodeId));
+    setNodeToDelete(nodeToDelete || null);
+    setShowDeleteDialog(true);
+  };
+
+  const deleteNode = () => {
+    if (!nodeToDelete) return;
+    
+    setNodes(prev => prev.filter(node => node.id !== nodeToDelete.id));
     setConnections(prev => prev.filter(conn => 
-      conn.fromNodeId !== nodeId && conn.toNodeId !== nodeId
+      conn.fromNodeId !== nodeToDelete.id && conn.toNodeId !== nodeToDelete.id
     ));
+    
+    setShowDeleteDialog(false);
+    setNodeToDelete(null);
+    toast({
+      title: "Node Deleted",
+      description: `${nodeToDelete.name} has been removed from the configuration.`,
+    });
+  };
+
+  const cancelDeleteNode = () => {
+    setShowDeleteDialog(false);
+    setNodeToDelete(null);
   };
 
   // Toggle folder expansion
@@ -2221,9 +2246,7 @@ export default function ModelConfigurationTab() {
                         className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`Delete "${node.uniqueName}" from canvas?`)) {
-                            deleteNode(node.id);
-                          }
+                          initiateDeleteNode(node.id);
                         }}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -3045,6 +3068,27 @@ export default function ModelConfigurationTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Node Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Node</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{nodeToDelete?.uniqueName}" from the canvas? This action cannot be undone and will remove all connections to this node.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDeleteNode}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={deleteNode}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
