@@ -454,10 +454,25 @@ export default function DataIntegrationTab() {
     }
   });
 
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetSource, setDeleteTargetSource] = useState<{ id: string; name: string } | null>(null);
+
   const handleDeleteDataSource = (id: string, name: string) => {
-    if (confirm(`"${name}" 데이터 소스를 삭제하시겠습니까?`)) {
-      deleteDataSourceMutation.mutate(id);
+    setDeleteTargetSource({ id, name });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTargetSource) {
+      deleteDataSourceMutation.mutate(deleteTargetSource.id);
+      setDeleteDialogOpen(false);
+      setDeleteTargetSource(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setDeleteTargetSource(null);
   };
 
   const createDataSourceMutation = useMutation({
@@ -1182,6 +1197,58 @@ export default function DataIntegrationTab() {
         }
         onConnect={handleGoogleSheetsSuccess}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              데이터 소스 삭제
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              다음 데이터 소스를 삭제하시겠습니까?
+            </p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="font-medium text-red-800">
+                {deleteTargetSource?.name}
+              </p>
+              <p className="text-sm text-red-600 mt-1">
+                이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={cancelDelete}
+                disabled={deleteDataSourceMutation.isPending}
+              >
+                취소
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                disabled={deleteDataSourceMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleteDataSourceMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    삭제 중...
+                  </div>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    삭제
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

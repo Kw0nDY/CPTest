@@ -1060,21 +1060,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/data-sources/:id", async (req, res) => {
+    console.log(`=== DELETE DATA SOURCE REQUEST ===`);
+    console.log(`Request method: ${req.method}`);
+    console.log(`Request URL: ${req.url}`);
+    console.log(`Request params:`, req.params);
+    
+    // Set proper JSON headers
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
       const { id } = req.params;
       console.log(`Deleting data source with ID: ${id}`);
       
-      const result = await storage.deleteDataSource(id);
-      console.log(`Delete result:`, result);
+      if (!id) {
+        console.log('No ID provided in request');
+        return res.status(400).json({ 
+          success: false,
+          error: "Data source ID is required"
+        });
+      }
       
-      res.status(200).json({ 
+      // Check if data source exists first
+      const existingDataSource = await storage.getDataSource(id);
+      if (!existingDataSource) {
+        console.log(`Data source with ID ${id} not found`);
+        return res.status(404).json({ 
+          success: false,
+          error: "Data source not found",
+          id: id
+        });
+      }
+      
+      console.log(`Found data source: ${existingDataSource.name}`);
+      
+      await storage.deleteDataSource(id);
+      console.log(`Delete operation completed successfully`);
+      
+      return res.status(200).json({ 
         success: true,
         message: "Data source deleted successfully",
-        id: id
+        id: id,
+        name: existingDataSource.name
       });
+      
     } catch (error: any) {
       console.error("Error deleting data source:", error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         success: false,
         error: "Failed to delete data source",
         details: error.message
