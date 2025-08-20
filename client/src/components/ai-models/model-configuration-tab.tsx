@@ -505,7 +505,13 @@ export default function ModelConfigurationTab() {
           lastUpdated: '2025-08-20T07:15:00Z'
         }
       ],
-      sampleData: {}
+      sampleData: {
+        'production_data': [
+          { production_line: 'Line-A1', output_volume: 1250, efficiency_rate: 92.5, defect_rate: 1.2 },
+          { production_line: 'Line-B2', output_volume: 980, efficiency_rate: 88.7, defect_rate: 2.1 },
+          { production_line: 'Line-C3', output_volume: 1400, efficiency_rate: 95.2, defect_rate: 0.8 }
+        ]
+      }
     },
     {
       id: 'sample-quality',
@@ -532,7 +538,157 @@ export default function ModelConfigurationTab() {
           lastUpdated: '2025-08-20T07:10:00Z'
         }
       ],
-      sampleData: {}
+      sampleData: {
+        'quality_metrics': [
+          { batch_id: 'Q001', inspection_score: 9.2, test_results: '{"defects": 2, "pass": true}' },
+          { batch_id: 'Q002', inspection_score: 8.8, test_results: '{"defects": 1, "pass": true}' },
+          { batch_id: 'Q003', inspection_score: 9.5, test_results: '{"defects": 0, "pass": true}' }
+        ]
+      }
+    },
+    {
+      id: 'sample-inventory',
+      name: 'Inventory Management',
+      type: 'ERP System',
+      category: 'ERP',
+      status: 'connected' as const,
+      recordCount: 5670,
+      lastSync: '2025-08-20T07:12:00Z',
+      fields: [
+        { name: 'product_id', type: 'string', description: 'Product identifier', tableName: 'inventory' },
+        { name: 'stock_level', type: 'number', description: 'Current stock quantity', tableName: 'inventory' },
+        { name: 'reorder_point', type: 'number', description: 'Reorder threshold', tableName: 'inventory' },
+        { name: 'location', type: 'string', description: 'Warehouse location', tableName: 'inventory' }
+      ],
+      tables: [
+        {
+          table: 'inventory',
+          fields: [
+            { name: 'product_id', type: 'VARCHAR(50)', description: 'Product identifier' },
+            { name: 'stock_level', type: 'INT', description: 'Current stock quantity' },
+            { name: 'reorder_point', type: 'INT', description: 'Reorder threshold' },
+            { name: 'location', type: 'VARCHAR(100)', description: 'Warehouse location' }
+          ],
+          recordCount: 5670,
+          lastUpdated: '2025-08-20T07:12:00Z'
+        }
+      ],
+      sampleData: {
+        'inventory': [
+          { product_id: 'P001', stock_level: 150, reorder_point: 50, location: 'A-01-03' },
+          { product_id: 'P002', stock_level: 75, reorder_point: 25, location: 'B-02-01' },
+          { product_id: 'P003', stock_level: 200, reorder_point: 75, location: 'C-01-05' }
+        ]
+      }
+    },
+    {
+      id: 'sample-sales',
+      name: 'Sales Analytics',
+      type: 'CRM System',
+      category: 'CRM',
+      status: 'connected' as const,
+      recordCount: 9340,
+      lastSync: '2025-08-20T07:08:00Z',
+      fields: [
+        { name: 'customer_id', type: 'string', description: 'Customer identifier', tableName: 'sales_data' },
+        { name: 'order_value', type: 'number', description: 'Order total value', tableName: 'sales_data' },
+        { name: 'order_date', type: 'date', description: 'Order creation date', tableName: 'sales_data' },
+        { name: 'region', type: 'string', description: 'Sales region', tableName: 'sales_data' }
+      ],
+      tables: [
+        {
+          table: 'sales_data',
+          fields: [
+            { name: 'customer_id', type: 'VARCHAR(20)', description: 'Customer identifier' },
+            { name: 'order_value', type: 'DECIMAL(10,2)', description: 'Order total value' },
+            { name: 'order_date', type: 'DATE', description: 'Order creation date' },
+            { name: 'region', type: 'VARCHAR(50)', description: 'Sales region' }
+          ],
+          recordCount: 9340,
+          lastUpdated: '2025-08-20T07:08:00Z'
+        }
+      ],
+      sampleData: {
+        'sales_data': [
+          { customer_id: 'C001', order_value: 1250.50, order_date: '2025-08-18', region: 'North' },
+          { customer_id: 'C002', order_value: 890.25, order_date: '2025-08-19', region: 'South' },
+          { customer_id: 'C003', order_value: 2100.75, order_date: '2025-08-20', region: 'East' }
+        ]
+      }
+    },
+    {
+      id: 'sample-sensor',
+      name: 'IoT Sensor Data',
+      type: 'Industrial IoT',
+      category: 'Industrial',
+      status: 'connected' as const,
+      recordCount: 25680,
+      lastSync: '2025-08-20T07:20:00Z',
+      fields: [
+        { name: 'sensor_id', type: 'string', description: 'Sensor identifier', tableName: 'sensor_readings' },
+        { name: 'temperature', type: 'number', description: 'Temperature reading', tableName: 'sensor_readings' },
+        { name: 'pressure', type: 'number', description: 'Pressure reading', tableName: 'sensor_readings' },
+        { name: 'vibration', type: 'number', description: 'Vibration level', tableName: 'sensor_readings' },
+        { name: 'timestamp', type: 'datetime', description: 'Reading timestamp', tableName: 'sensor_readings' }
+      ],
+      tables: [
+        {
+          table: 'sensor_readings',
+          fields: [
+            { name: 'sensor_id', type: 'VARCHAR(20)', description: 'Sensor identifier' },
+            { name: 'temperature', type: 'DECIMAL(5,2)', description: 'Temperature reading in Celsius' },
+            { name: 'pressure', type: 'DECIMAL(6,2)', description: 'Pressure reading in PSI' },
+            { name: 'vibration', type: 'DECIMAL(4,2)', description: 'Vibration level in Hz' },
+            { name: 'timestamp', type: 'TIMESTAMP', description: 'Reading timestamp' }
+          ],
+          recordCount: 25680,
+          lastUpdated: '2025-08-20T07:20:00Z'
+        }
+      ],
+      sampleData: {
+        'sensor_readings': [
+          { sensor_id: 'S001', temperature: 75.5, pressure: 14.7, vibration: 2.3, timestamp: '2025-08-20T07:15:00Z' },
+          { sensor_id: 'S002', temperature: 82.1, pressure: 15.2, vibration: 1.8, timestamp: '2025-08-20T07:16:00Z' },
+          { sensor_id: 'S003', temperature: 78.9, pressure: 14.9, vibration: 2.1, timestamp: '2025-08-20T07:17:00Z' }
+        ]
+      }
+    },
+    {
+      id: 'sample-maintenance',
+      name: 'Equipment Maintenance',
+      type: 'Maintenance System',
+      category: 'Database',
+      status: 'connected' as const,
+      recordCount: 3450,
+      lastSync: '2025-08-20T07:05:00Z',
+      fields: [
+        { name: 'equipment_id', type: 'string', description: 'Equipment identifier', tableName: 'maintenance_schedule' },
+        { name: 'maintenance_type', type: 'string', description: 'Type of maintenance', tableName: 'maintenance_schedule' },
+        { name: 'scheduled_date', type: 'date', description: 'Scheduled maintenance date', tableName: 'maintenance_schedule' },
+        { name: 'status', type: 'string', description: 'Maintenance status', tableName: 'maintenance_schedule' },
+        { name: 'cost', type: 'number', description: 'Maintenance cost', tableName: 'maintenance_schedule' }
+      ],
+      tables: [
+        {
+          table: 'maintenance_schedule',
+          fields: [
+            { name: 'equipment_id', type: 'VARCHAR(30)', description: 'Equipment identifier' },
+            { name: 'maintenance_type', type: 'VARCHAR(50)', description: 'Type of maintenance (preventive, corrective, etc.)' },
+            { name: 'scheduled_date', type: 'DATE', description: 'Scheduled maintenance date' },
+            { name: 'status', type: 'VARCHAR(20)', description: 'Maintenance status' },
+            { name: 'cost', type: 'DECIMAL(8,2)', description: 'Maintenance cost in USD' }
+          ],
+          recordCount: 3450,
+          lastUpdated: '2025-08-20T07:05:00Z'
+        }
+      ],
+      sampleData: {
+        'maintenance_schedule': [
+          { equipment_id: 'EQ001', maintenance_type: 'Preventive', scheduled_date: '2025-08-25', status: 'Scheduled', cost: 450.00 },
+          { equipment_id: 'EQ002', maintenance_type: 'Corrective', scheduled_date: '2025-08-22', status: 'In Progress', cost: 1200.00 },
+          { equipment_id: 'EQ003', maintenance_type: 'Preventive', scheduled_date: '2025-08-28', status: 'Scheduled', cost: 380.00 }
+        ]
+      }
     }
   ];
 
