@@ -6,6 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 // Progress component - using div with width styling instead
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -25,8 +32,14 @@ import {
 } from 'lucide-react';
 
 interface ModelUploadProps {
-  isOpen: boolean;
   onClose: () => void;
+  folders?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    color: string;
+    icon: string;
+  }>;
 }
 
 interface ModelFile {
@@ -60,11 +73,12 @@ interface UploadProgress {
   message: string;
 }
 
-export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
+export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps) {
   const [modelFiles, setModelFiles] = useState<ModelFile[]>([]);
   const [modelName, setModelName] = useState('');
   const [modelDescription, setModelDescription] = useState('');
   const [modelType, setModelType] = useState('');
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [parsedConfig, setParsedConfig] = useState<ParsedConfig | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -253,6 +267,10 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
       formData.append('description', modelDescription);
       formData.append('type', modelType);
       
+      if (selectedFolderId) {
+        formData.append('folderId', selectedFolderId);
+      }
+      
       if (parsedConfig) {
         formData.append('parsedConfig', JSON.stringify(parsedConfig));
       }
@@ -313,6 +331,7 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
     setModelName('');
     setModelDescription('');
     setModelType('');
+    setSelectedFolderId('');
     setParsedConfig(null);
     setUploadProgress(null);
   };
@@ -338,7 +357,7 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto z-[9999]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -492,6 +511,30 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
                   className="mt-1"
                   rows={3}
                 />
+              </div>
+
+              {/* Folder Selection */}
+              <div>
+                <Label htmlFor="folder-select">Folder (Optional)</Label>
+                <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                  <SelectTrigger className="mt-1" data-testid="select-folder">
+                    <SelectValue placeholder="Select a folder or leave unorganized" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No folder (Unorganized)</SelectItem>
+                    {folders.map((folder) => (
+                      <SelectItem key={folder.id} value={folder.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-sm" 
+                            style={{ backgroundColor: folder.color }}
+                          />
+                          <span>{folder.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>

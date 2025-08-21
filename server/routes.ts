@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
@@ -3554,6 +3554,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting AI model result:", error);
       res.status(500).json({ error: "Failed to delete AI model result" });
+    }
+  });
+
+  // AI Model Folders API
+
+  // Get all AI model folders
+  app.get("/api/ai-model-folders", async (req, res) => {
+    try {
+      const folders = await storage.getAiModelFolders();
+      res.json(folders);
+    } catch (error) {
+      console.error("Error fetching AI model folders:", error);
+      res.status(500).json({ error: "Failed to fetch AI model folders" });
+    }
+  });
+
+  // Get AI model folder by ID
+  app.get("/api/ai-model-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const folder = await storage.getAiModelFolder(id);
+      
+      if (!folder) {
+        return res.status(404).json({ error: "AI model folder not found" });
+      }
+      
+      res.json(folder);
+    } catch (error) {
+      console.error("Error fetching AI model folder:", error);
+      res.status(500).json({ error: "Failed to fetch AI model folder" });
+    }
+  });
+
+  // Create AI model folder
+  app.post("/api/ai-model-folders", async (req, res) => {
+    try {
+      const validatedData = insertAiModelFolderSchema.parse(req.body);
+      const folder = await storage.createAiModelFolder(validatedData);
+      res.status(201).json(folder);
+    } catch (error) {
+      console.error("Error creating AI model folder:", error);
+      res.status(500).json({ error: "Failed to create AI model folder" });
+    }
+  });
+
+  // Update AI model folder
+  app.put("/api/ai-model-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const folder = await storage.updateAiModelFolder(id, updates);
+      res.json(folder);
+    } catch (error) {
+      console.error("Error updating AI model folder:", error);
+      res.status(500).json({ error: "Failed to update AI model folder" });
+    }
+  });
+
+  // Delete AI model folder
+  app.delete("/api/ai-model-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAiModelFolder(id);
+      res.status(200).json({ message: "AI model folder deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting AI model folder:", error);
+      res.status(500).json({ error: "Failed to delete AI model folder" });
+    }
+  });
+
+  // Get AI models by folder
+  app.get("/api/ai-model-folders/:id/models", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const models = await storage.getAiModelsByFolder(id);
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching AI models by folder:", error);
+      res.status(500).json({ error: "Failed to fetch AI models by folder" });
     }
   });
 

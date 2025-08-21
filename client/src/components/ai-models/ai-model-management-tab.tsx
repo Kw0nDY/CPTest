@@ -1,90 +1,163 @@
 import React, { useState } from 'react';
 import { EnhancedModelUpload } from './enhanced-model-upload';
+import { FolderCreationDialog } from './folder-creation-dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Upload, 
   Plus, 
   FolderOpen,
+  FolderPlus,
   Eye,
   Settings,
   Download,
   MoreVertical,
-  Brain
+  Brain,
+  Search,
+  Edit3,
+  Trash2,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-interface ModelFolder {
+interface AiModelFolder {
   id: string;
   name: string;
   description: string;
-  modelCount: number;
-  models: FolderModel[];
+  color: string;
+  icon: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface FolderModel {
+interface AiModel {
   id: string;
   name: string;
-  status: 'ready' | 'training' | 'draft';
+  fileName: string;
+  fileSize: number;
+  modelType: string;
+  status: string;
+  folderId?: string;
+  uploadedAt: string;
+  analysisStatus: string;
 }
 
-// Sample folder data matching the image
-const sampleFolders: ModelFolder[] = [
-  {
-    id: 'user-models',
-    name: 'User Models',
-    description: 'Your uploaded AI models',
-    modelCount: 0,
-    models: []
-  },
-  {
-    id: 'quality-control',
-    name: 'Quality Control',
-    description: 'Models for product quality prediction',
-    modelCount: 3,
-    models: [
-      { id: 'qc1', name: 'Assembly Line Quality Classifier', status: 'ready' },
-      { id: 'qc2', name: 'Surface Defect Detector', status: 'ready' },
-      { id: 'qc3', name: 'Material Grade Classifier', status: 'draft' }
-    ]
-  },
-  {
-    id: 'predictive-maintenance',
-    name: 'Predictive Maintenance',
-    description: 'Equipment maintenance forecasting models',
-    modelCount: 2,
-    models: [
-      { id: 'pm1', name: 'Vibration Analysis Model', status: 'ready' },
-      { id: 'pm2', name: 'Temperature Trend Predictor', status: 'training' }
-    ]
-  },
-  {
-    id: 'demand-forecasting',
-    name: 'Demand Forecasting',
-    description: 'Sales and inventory prediction models',
-    modelCount: 1,
-    models: [
-      { id: 'df1', name: 'Monthly Demand Forecaster', status: 'ready' }
-    ]
-  }
-];
-
 export default function AIModelManagementTab() {
+  const [showUpload, setShowUpload] = useState(false);
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<AiModelFolder | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('uploaded');
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Query for backend models
-  const { data: backendModels, isLoading } = useQuery({
-    queryKey: ['/api/ai-models'],
-    queryFn: () => fetch('/api/ai-models').then(res => res.json()),
+  // Fetch folders
+  const { data: folders = [], isLoading: foldersLoading } = useQuery({
+    queryKey: ['/api/ai-model-folders'],
+    queryFn: async () => {
+      const response = await fetch('/api/ai-model-folders');
+      if (!response.ok) throw new Error('Failed to fetch folders');
+      return response.json() as AiModelFolder[];
+    }
   });
+
+  // Fetch AI models
+  const { data: models = [], isLoading: modelsLoading } = useQuery({
+    queryKey: ['/api/ai-models'],
+    queryFn: async () => {
+      const response = await fetch('/api/ai-models');
+      if (!response.ok) throw new Error('Failed to fetch models');
+      return response.json() as AiModel[];
+    }
+  });
+
+  // Create folder mutation
+  const createFolderMutation = useMutation({
+    mutationFn: async (folderData: { name: string; description: string; color: string; icon: string }) => {
+      const response = await fetch('/api/ai-model-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(folderData)
+      });
+      if (!response.ok) throw new Error('Failed to create folder');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+      toast({ title: 'Success', description: 'Folder created successfully' });
+      setShowFolderDialog(false);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to create folder', variant: 'destructive' });
+    }
+  });
+
+  // Delete folder mutation
+  const deleteFolderMutation = useMutation({
+    mutationFn: async (folderId: string) => {
+      const response = await fetch(`/api/ai-model-folders/${folderId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete folder');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      toast({ title: 'Success', description: 'Folder deleted successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete folder', variant: 'destructive' });
+    }
+  });
+
+  // Get models for a specific folder
+  const getModelsForFolder = (folderId: string) => {
+    return models.filter(model => model.folderId === folderId);
+  };
+
+  // Get models without folder (unorganized)
+  const getUnorganizedModels = () => {
+    return models.filter(model => !model.folderId);
+  };
+
+  // Filter folders based on search
+  const filteredFolders = folders.filter(folder =>
+    folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    folder.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleCreateFolder = (folderData: { name: string; description: string; color: string; icon: string }) => {
+    createFolderMutation.mutate(folderData);
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    if (confirm('Are you sure you want to delete this folder? Models in this folder will become unorganized.')) {
+      deleteFolderMutation.mutate(folderId);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'uploading': return 'bg-yellow-100 text-yellow-800';
+      case 'error': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   const toggleFolder = (folderId: string) => {
     const newExpanded = new Set(expandedFolders);
@@ -96,22 +169,28 @@ export default function AIModelManagementTab() {
     setExpandedFolders(newExpanded);
   };
 
-  const viewAllModels = (folderId: string) => {
-    toast({ title: "View Models", description: `Viewing all models in ${folderId}` });
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'ready':
-        return <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">ready</Badge>;
-      case 'training':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">training</Badge>;
-      case 'draft':
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">draft</Badge>;
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">completed</Badge>;
+      case 'processing':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">processing</Badge>;
+      case 'uploading':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">uploading</Badge>;
+      case 'error':
+        return <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">error</Badge>;
       default:
         return <Badge variant="secondary" className="text-xs">{status}</Badge>;
     }
   };
+
+  if (foldersLoading || modelsLoading) {
+    return (
+      <div className="p-6">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -122,215 +201,252 @@ export default function AIModelManagementTab() {
             <h1 className="text-2xl font-bold text-gray-900">AI Model Management</h1>
             <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
           </div>
-          <Button 
-            onClick={() => setShowUploadDialog(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            data-testid="button-upload-model"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Model
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowFolderDialog(true)}
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              data-testid="button-new-folder"
+            >
+              <FolderPlus className="w-4 h-4 mr-2" />
+              New Folder
+            </Button>
+            <Button 
+              onClick={() => setShowUpload(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              data-testid="button-upload-model"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Model
+            </Button>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-2 w-80 h-10 bg-gray-100">
-            <TabsTrigger value="uploaded" className="text-sm font-medium">Uploaded Models</TabsTrigger>
-            <TabsTrigger value="prebuilt" className="text-sm font-medium">Pre-built AI Models</TabsTrigger>
-          </TabsList>
+        {/* Search */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search folders and models..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+            data-testid="input-search"
+          />
+        </div>
+      </div>
 
-          <TabsContent value="uploaded" className="space-y-8 mt-6">
-          {/* Central Upload Section */}
-          <div className="flex justify-center">
-            <div className="w-full max-w-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Upload AI Models</h3>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-2 w-80 h-10 bg-gray-100">
+          <TabsTrigger value="uploaded" className="text-sm font-medium">Uploaded Models</TabsTrigger>
+          <TabsTrigger value="prebuilt" className="text-sm font-medium">Pre-built AI Models</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="uploaded" className="space-y-6 mt-6">
+          {/* Unorganized Models */}
+          {getUnorganizedModels().length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-gray-500" />
+                    <CardTitle className="text-lg">Unorganized Models</CardTitle>
+                    <Badge variant="secondary" className="text-xs">
+                      {getUnorganizedModels().length}
+                    </Badge>
+                  </div>
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setShowUploadDialog(true)}
-                  data-testid="button-new-folder"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  New Folder
-                </Button>
-              </div>
-              <p className="text-sm text-gray-600 mb-6">Upload trained AI models in various formats</p>
-              
-              <div 
-                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
-                onClick={() => setShowUploadDialog(true)}
-                data-testid="drag-drop-upload-area"
-              >
-                <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-medium text-gray-900 mb-2">Drag & Drop Model Files</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Supported formats: .pkl, .joblib, .h5, .onnx, .pt, .zip, .pth
-                </p>
-                <p className="text-xs text-gray-500 mb-6">Maximum file size: 500MB</p>
-                <Button 
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2"
-                  data-testid="button-browse-files"
-                >
-                  Browse Files
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* User Models Section */}
-          {backendModels && backendModels.length > 0 && (
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Brain className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">User Models</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {backendModels.length} uploaded
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {backendModels.map((model: any) => (
-                  <Card key={model.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                            <Brain className="w-5 h-5 text-green-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <CardTitle className="text-base font-semibold text-gray-900 truncate">{model.name}</CardTitle>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{model.description || 'No description'}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="outline" className="text-xs">
-                                {model.modelType || 'Unknown'}
-                              </Badge>
-                              {getStatusBadge(model.status)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 ml-2">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                            <Settings className="w-3 h-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                            <Download className="w-3 h-3" />
-                          </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3">
+                  {getUnorganizedModels().map((model) => (
+                    <div key={model.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Brain className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <p className="font-medium text-sm">{model.name}</p>
+                          <p className="text-xs text-gray-500">{model.fileName}</p>
                         </div>
                       </div>
-                    </CardHeader>
-                    
-                    <CardContent className="pt-0">
-                      <div className="space-y-2 text-xs text-gray-600">
-                        <div className="flex justify-between">
-                          <span>File:</span>
-                          <span className="truncate ml-2">{model.fileName}</span>
-                        </div>
-                        {model.fileSize && (
-                          <div className="flex justify-between">
-                            <span>Size:</span>
-                            <span>{(model.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                          </div>
-                        )}
-                        {model.uploadedAt && (
-                          <div className="flex justify-between">
-                            <span>Uploaded:</span>
-                            <span>{new Date(model.uploadedAt).toLocaleDateString()}</span>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(model.status)}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem>
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Settings className="w-4 h-4 mr-2" />
+                              Configure
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Model Folders Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sampleFolders.map((folder) => (
-              <Card key={folder.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <FolderOpen className="w-5 h-5 text-blue-600" />
+          {/* Folders */}
+          {filteredFolders.map((folder) => {
+            const folderModels = getModelsForFolder(folder.id);
+            const isExpanded = expandedFolders.has(folder.id);
+
+            return (
+              <Card key={folder.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div 
+                      className="flex items-center gap-2 cursor-pointer flex-1"
+                      onClick={() => toggleFolder(folder.id)}
+                    >
+                      {isExpanded ? 
+                        <ChevronDown className="w-4 h-4 text-gray-500" /> : 
+                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                      }
+                      <FolderOpen className="w-5 h-5" style={{ color: folder.color }} />
+                      <div>
+                        <CardTitle className="text-lg">{folder.name}</CardTitle>
+                        <p className="text-sm text-gray-500 mt-1">{folder.description}</p>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <CardTitle className="text-base font-semibold text-gray-900 truncate">{folder.name}</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{folder.description}</p>
-                      </div>
+                      <Badge variant="secondary" className="text-xs ml-2">
+                        {folderModels.length}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
-                      <span className="text-sm font-medium text-gray-700">{folder.modelCount}</span>
-                      <span className="text-xs text-gray-500">models</span>
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => viewAllModels(folder.id)}
-                        data-testid={`button-view-all-${folder.id}`}
-                        className="ml-2 h-6 w-6 p-0"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem>
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Edit Folder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteFolder(folder.id)}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Folder
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardHeader>
-                
-                {folder.models.length > 0 && (
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
-                      {folder.models.slice(0, 3).map((model) => (
-                        <div key={model.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <span className="text-sm font-medium text-gray-900 truncate">{model.name}</span>
-                            {getStatusBadge(model.status)}
+                {isExpanded && (
+                  <CardContent>
+                    {folderModels.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">No models in this folder</p>
+                    ) : (
+                      <div className="grid gap-3">
+                        {folderModels.map((model) => (
+                          <div key={model.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Brain className="w-4 h-4 text-blue-600" />
+                              <div>
+                                <p className="font-medium text-sm">{model.name}</p>
+                                <p className="text-xs text-gray-500">{model.fileName}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(model.status)}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Configure
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 ml-2">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                              <Settings className="w-3 h-3" />
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                              <Download className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {folder.models.length > 3 && (
-                        <Button 
-                          variant="link" 
-                          className="text-blue-600 text-sm p-0 h-auto w-full text-center"
-                          onClick={() => viewAllModels(folder.id)}
-                          data-testid={`button-view-all-models-${folder.id}`}
-                        >
-                          View All Models
-                        </Button>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 )}
               </Card>
-            ))}
-          </div>
-          </TabsContent>
+            );
+          })}
 
-          <TabsContent value="prebuilt" className="space-y-6 mt-6">
-            <div className="text-center py-12">
-              <p className="text-gray-500">Pre-built AI models coming soon.</p>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+          {/* Empty State */}
+          {filteredFolders.length === 0 && getUnorganizedModels().length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Brain className="w-12 h-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No AI Models Found</h3>
+                <p className="text-gray-500 text-center mb-6">
+                  Get started by uploading your first AI model or creating a folder to organize your models.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={() => setShowFolderDialog(true)}
+                    variant="outline"
+                    data-testid="button-create-first-folder"
+                  >
+                    <FolderPlus className="w-4 h-4 mr-2" />
+                    Create Folder
+                  </Button>
+                  <Button 
+                    onClick={() => setShowUpload(true)}
+                    data-testid="button-upload-first-model"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Model
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-      {/* Enhanced Upload Dialog */}
-      <EnhancedModelUpload 
-        isOpen={showUploadDialog} 
-        onClose={() => setShowUploadDialog(false)} 
-      />
+        <TabsContent value="prebuilt" className="mt-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Brain className="w-12 h-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Pre-built Models</h3>
+              <p className="text-gray-500 text-center">
+                Pre-built AI models will be available in future updates.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Upload Dialog */}
+      {showUpload && (
+        <EnhancedModelUpload 
+          onClose={() => setShowUpload(false)}
+          folders={folders}
+        />
+      )}
+
+      {/* Folder Creation Dialog */}
+      {showFolderDialog && (
+        <FolderCreationDialog
+          onClose={() => setShowFolderDialog(false)}
+          onCreate={handleCreateFolder}
+        />
+      )}
     </div>
   );
 }

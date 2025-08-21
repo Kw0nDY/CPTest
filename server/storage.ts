@@ -1,11 +1,11 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
-  aiModels, modelConfigurations, aiModelResults,
+  aiModels, modelConfigurations, aiModelResults, aiModelFolders,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration,
-  type AiModelResult, type InsertAiModelResult
+  type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -66,6 +66,14 @@ export interface IStorage {
   createAiModelResult(result: InsertAiModelResult): Promise<AiModelResult>;
   updateAiModelResult(id: string, updates: Partial<AiModelResult>): Promise<AiModelResult>;
   deleteAiModelResult(id: string): Promise<void>;
+  
+  // AI Model Folder methods
+  getAiModelFolders(): Promise<AiModelFolder[]>;
+  getAiModelFolder(id: string): Promise<AiModelFolder | undefined>;
+  createAiModelFolder(folder: InsertAiModelFolder): Promise<AiModelFolder>;
+  updateAiModelFolder(id: string, updates: Partial<AiModelFolder>): Promise<AiModelFolder>;
+  deleteAiModelFolder(id: string): Promise<void>;
+  getAiModelsByFolder(folderId: string): Promise<AiModel[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -683,6 +691,48 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelResult(id: string): Promise<void> {
     await db.delete(aiModelResults).where(eq(aiModelResults.id, id));
+  }
+
+  // AI Model Folder methods
+  async getAiModelFolders(): Promise<AiModelFolder[]> {
+    return await db.select().from(aiModelFolders);
+  }
+
+  async getAiModelFolder(id: string): Promise<AiModelFolder | undefined> {
+    const [folder] = await db.select().from(aiModelFolders).where(eq(aiModelFolders.id, id));
+    return folder || undefined;
+  }
+
+  async createAiModelFolder(folder: InsertAiModelFolder): Promise<AiModelFolder> {
+    const newId = `folder-${Date.now()}`;
+    const [created] = await db
+      .insert(aiModelFolders)
+      .values({
+        id: newId,
+        ...folder
+      })
+      .returning();
+    return created;
+  }
+
+  async updateAiModelFolder(id: string, updates: Partial<AiModelFolder>): Promise<AiModelFolder> {
+    const [updated] = await db
+      .update(aiModelFolders)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(aiModelFolders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiModelFolder(id: string): Promise<void> {
+    await db.delete(aiModelFolders).where(eq(aiModelFolders.id, id));
+  }
+
+  async getAiModelsByFolder(folderId: string): Promise<AiModel[]> {
+    return await db.select().from(aiModels).where(eq(aiModels.folderId, folderId));
   }
 }
 

@@ -90,6 +90,17 @@ Preferred communication style: Korean language communication requested. Always r
 - Upload and parsing system supporting both YAML and JSON formats
 - Config file lifecycle management including updates and modifications
 
+**AI Model Folder Management System (January 2025):**
+- Complete folder-based organization system for AI models with hierarchical database structure
+- Custom folder creation with name, description, color, and icon customization
+- Folder-specific model organization and management capabilities
+- Enhanced model upload with folder selection dropdown functionality
+- Tree-view folder display with expandable/collapsible folder contents
+- Comprehensive folder CRUD operations (Create, Read, Update, Delete)
+- Search functionality across folders and models for efficient organization
+- Unorganized models handling for models without folder assignment
+- Database schema includes ai_model_folders table and folderId field in ai_models table
+
 ## System Architecture
 
 ### Frontend Architecture

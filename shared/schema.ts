@@ -288,8 +288,20 @@ export const aiModels = pgTable('ai_models', {
       config?: Record<string, any>;
     }>;
   }>(),
+  folderId: text('folder_id'), // Reference to model folder
   uploadedAt: timestamp('uploaded_at').defaultNow(),
   analyzedAt: timestamp('analyzed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// AI Model Folders for organization
+export const aiModelFolders = pgTable('ai_model_folders', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').default(''),
+  color: text('color').default('#3B82F6'), // Default blue color
+  icon: text('icon').default('FolderOpen'), // Icon name for display
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
@@ -390,6 +402,11 @@ export const insertAiModelResultSchema = createInsertSchema(aiModelResults).omit
   createdAt: true,
   updatedAt: true
 });
+export const insertAiModelFolderSchema = createInsertSchema(aiModelFolders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -410,3 +427,5 @@ export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
 export type AiModelResult = typeof aiModelResults.$inferSelect;
 export type InsertAiModelResult = z.infer<typeof insertAiModelResultSchema>;
+export type AiModelFolder = typeof aiModelFolders.$inferSelect;
+export type InsertAiModelFolder = z.infer<typeof insertAiModelFolderSchema>;
