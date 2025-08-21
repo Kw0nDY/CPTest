@@ -65,8 +65,8 @@ function getDefaultDataSchema(type: string, id: string) {
           { name: 'customer_id', type: 'STRING', description: 'Customer ID' },
           { name: 'customer_name', type: 'STRING', description: 'Customer name' },
           { name: 'country', type: 'STRING', description: 'Country' },
-          { name: 'credit_limit', type: 'STRING', description: 'Credit limit' },
-          { name: 'created_date', type: 'STRING', description: 'Created date' }
+          { name: 'credit_limit', type: 'NUMBER', description: 'Credit limit' },
+          { name: 'created_date', type: 'DATE', description: 'Created date' }
         ],
         recordCount: 10
       },
@@ -75,8 +75,8 @@ function getDefaultDataSchema(type: string, id: string) {
         fields: [
           { name: 'order_id', type: 'STRING', description: 'Order ID' },
           { name: 'customer_id', type: 'STRING', description: 'Customer ID' },
-          { name: 'order_date', type: 'STRING', description: 'Order date' },
-          { name: 'total_amount', type: 'STRING', description: 'Total amount' },
+          { name: 'order_date', type: 'DATE', description: 'Order date' },
+          { name: 'total_amount', type: 'NUMBER', description: 'Total amount' },
           { name: 'status', type: 'STRING', description: 'Order status' }
         ],
         recordCount: 10
@@ -89,8 +89,8 @@ function getDefaultDataSchema(type: string, id: string) {
           { name: 'sf_id', type: 'STRING', description: 'Salesforce ID' },
           { name: 'name', type: 'STRING', description: 'Account name' },
           { name: 'industry', type: 'STRING', description: 'Industry' },
-          { name: 'annual_revenue', type: 'STRING', description: 'Annual revenue' },
-          { name: 'number_of_employees', type: 'STRING', description: 'Number of employees' }
+          { name: 'annual_revenue', type: 'NUMBER', description: 'Annual revenue' },
+          { name: 'number_of_employees', type: 'NUMBER', description: 'Number of employees' }
         ],
         recordCount: 10
       }
@@ -1142,7 +1142,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Function to detect data type from sample values
                 const detectDataType = (columnIndex: number, sampleSize: number = 10): string => {
-                  // Always return STRING for all data types as requested
+                  const sampleValues = dataRows.slice(0, sampleSize).map(row => row[columnIndex]).filter(val => val && val.toString().trim() !== '');
+                  
+                  if (sampleValues.length === 0) return "STRING";
+                  
+                  // Check if all values are numbers
+                  const isAllNumbers = sampleValues.every(val => {
+                    const num = val.toString().replace(/[,\s]/g, '');
+                    return !isNaN(Number(num)) && !isNaN(parseFloat(num));
+                  });
+                  
+                  if (isAllNumbers) {
+                    return "NUMBER";
+                  }
+                  
+                  // Check if all values are dates
+                  const isAllDates = sampleValues.every(val => {
+                    const dateStr = val.toString().trim();
+                    // Check various date formats
+                    const datePatterns = [
+                      /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+                      /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY
+                      /^\d{4}\/\d{2}\/\d{2}$/, // YYYY/MM/DD
+                      /^\d{4}\.\d{2}\.\d{2}$/, // YYYY.MM.DD
+                      /^\d{2}\.\d{2}\.\d{4}$/, // DD.MM.YYYY
+                    ];
+                    return datePatterns.some(pattern => pattern.test(dateStr)) || !isNaN(Date.parse(dateStr));
+                  });
+                  
+                  if (isAllDates) return "DATE";
+                  
                   return "STRING";
                 };
                 
@@ -1773,11 +1802,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rows = jsonData.slice(1, 6) as any[][];
           
           // Generate field definitions based on actual data
-          const fields = headers.map(header => {
-            // Always use STRING type for all fields as requested
+          const fields = headers.map((header, columnIndex) => {
+            // Detect data type from first few rows
+            const sampleValues = rows.map(row => row[columnIndex]).filter(val => val !== null && val !== undefined && val !== '');
+            
+            let type = 'STRING';
+            
+            if (sampleValues.length > 0) {
+              // Check if all values are numbers
+              const isAllNumbers = sampleValues.every(val => {
+                const num = val.toString().replace(/[,\s]/g, '');
+                return !isNaN(Number(num)) && !isNaN(parseFloat(num));
+              });
+              
+              if (isAllNumbers) {
+                type = 'NUMBER';
+              } else {
+                // Check if all values are dates
+                const isAllDates = sampleValues.every(val => {
+                  const dateStr = val.toString().trim();
+                  const datePatterns = [
+                    /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+                    /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY
+                    /^\d{4}\/\d{2}\/\d{2}$/, // YYYY/MM/DD
+                    /^\d{4}\.\d{2}\.\d{2}$/, // YYYY.MM.DD
+                    /^\d{2}\.\d{2}\.\d{4}$/, // DD.MM.YYYY
+                  ];
+                  return datePatterns.some(pattern => pattern.test(dateStr)) || !isNaN(Date.parse(dateStr));
+                });
+                
+                if (isAllDates) {
+                  type = 'DATE';
+                }
+              }
+            }
+            
             return {
               name: header,
-              type: 'STRING',
+              type,
               description: `${header} field`
             };
           });
@@ -2069,9 +2131,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               fields: [
                 { name: 'SESSION_ID', type: 'STRING', description: 'Unique session identifier' },
                 { name: 'USER_ID', type: 'STRING', description: 'User identifier' },
-                { name: 'LOGIN_TIME', type: 'STRING', description: 'Login timestamp' },
-                { name: 'SESSION_DURATION', type: 'STRING', description: 'Session length in minutes' },
-                { name: 'PAGE_VIEWS', type: 'STRING', description: 'Number of page views' },
+                { name: 'LOGIN_TIME', type: 'DATE', description: 'Login timestamp' },
+                { name: 'SESSION_DURATION', type: 'NUMBER', description: 'Session length in minutes' },
+                { name: 'PAGE_VIEWS', type: 'NUMBER', description: 'Number of page views' },
                 { name: 'USER_TYPE', type: 'STRING', description: 'User category' }
               ],
               sampleData: [
