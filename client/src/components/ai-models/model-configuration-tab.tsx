@@ -408,6 +408,9 @@ export default function ModelConfigurationTab() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<ModelNode | null>(null);
   
+  // Node selection state for general selections
+  const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
+  
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 

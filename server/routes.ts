@@ -2877,7 +2877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         outputSpecs: outputSpecs.length > 0 ? outputSpecs : undefined,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         analyzedAt: configData ? new Date() : undefined,
-        folderId: folderId || undefined  // Add folderId to model data
+        folderId: folderId || null  // Add folderId to model data
       };
 
       const createdModel = await storage.createAiModel(modelData);
