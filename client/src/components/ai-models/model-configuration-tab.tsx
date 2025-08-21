@@ -3516,7 +3516,7 @@ export default function ModelConfigurationTab() {
 
       {/* New Folder Dialog */}
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
-        <DialogContent className="sm:max-w-md z-[9999]" style={{ zIndex: 9999 }}>
+        <DialogContent className="sm:max-w-md z-[1000]" style={{ zIndex: 1000 }}>
           <DialogHeader>
             <DialogTitle>Create New Folder</DialogTitle>
           </DialogHeader>
@@ -3565,7 +3565,7 @@ export default function ModelConfigurationTab() {
 
       {/* New Configuration Dialog */}
       <Dialog open={showNewConfigDialog} onOpenChange={setShowNewConfigDialog}>
-        <DialogContent className="sm:max-w-md z-[9999]" style={{ zIndex: 9999 }}>
+        <DialogContent className="sm:max-w-md z-[1000]" style={{ zIndex: 1000 }}>
           <DialogHeader>
             <DialogTitle>Create New Configuration</DialogTitle>
           </DialogHeader>
@@ -3623,21 +3623,40 @@ export default function ModelConfigurationTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Node Confirmation Dialog */}
+      {/* Delete Node Confirmation Dialog - HIGHEST PRIORITY */}
       {showDeleteDialog && (
-        <div 
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-50"
-          style={{ zIndex: 99999 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-70"
+            style={{ 
+              zIndex: 999999,
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0
+            }}
+            onClick={() => {
+              console.log('🗑️ Background clicked, canceling delete');
               cancelDeleteNode();
-            }
-          }}
-        >
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4">
-            <h2 className="text-lg font-semibold mb-2">Delete Node</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Are you sure you want to delete "{nodeToDelete?.uniqueName}" from the canvas? This action cannot be undone and will remove all connections to this node.
+            }}
+          />
+          <div 
+            className="fixed top-1/2 left-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
+            style={{ 
+              zIndex: 999999,
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              minWidth: '400px'
+            }}
+          >
+            <h2 className="text-xl font-bold mb-3 text-red-600">⚠️ Delete Node</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              Are you sure you want to delete "<strong>{nodeToDelete?.uniqueName}</strong>" from the canvas? 
+              <br/>
+              This action cannot be undone and will remove all connections to this node.
             </p>
             <div className="flex justify-end gap-3">
               <Button 
@@ -3646,6 +3665,7 @@ export default function ModelConfigurationTab() {
                   console.log('🗑️ Cancel button clicked');
                   cancelDeleteNode();
                 }}
+                className="border-gray-300"
               >
                 Cancel
               </Button>
@@ -3655,18 +3675,18 @@ export default function ModelConfigurationTab() {
                   console.log('🗑️ Delete button clicked');
                   deleteNode();
                 }}
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold"
               >
-                Delete
+                🗑️ Delete
               </Button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Configuration Validation Details Modal */}
       <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto z-[9999]" style={{ zIndex: 9999 }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto z-[1000]" style={{ zIndex: 1000 }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
