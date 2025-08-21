@@ -3562,6 +3562,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download model files
+  app.get('/api/ai-models/:id/download', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      if (!model.filePath || !fs.existsSync(model.filePath)) {
+        return res.status(404).json({ error: 'Model file not found' });
+      }
+
+      const stat = fs.statSync(model.filePath);
+      const fileName = model.fileName || path.basename(model.filePath);
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Length', stat.size.toString());
+      
+      const fileStream = fs.createReadStream(model.filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error downloading model file:', error);
+      res.status(500).json({ error: 'Failed to download model file' });
+    }
+  });
+
+  // Get model details
+  app.get('/api/ai-models/:id/details', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+
+      // Get model analysis results if available
+      const analysisResult = await modelAnalysisService.getAnalysisResult(id);
+      
+      const details = {
+        id: model.id,
+        name: model.name,
+        fileName: model.fileName,
+        modelType: model.modelType,
+        status: model.status,
+        analysisStatus: model.analysisStatus,
+        uploadedAt: model.createdAt,
+        fileSize: model.fileSize,
+        accuracy: model.accuracy,
+        inputs: analysisResult?.inputs || [],
+        outputs: analysisResult?.outputs || [],
+        modelInfo: analysisResult?.modelInfo || null,
+        configFilePath: model.configFilePath
+      };
+
+      res.json(details);
+    } catch (error) {
+      console.error('Error getting model details:', error);
+      res.status(500).json({ error: 'Failed to get model details' });
+    }
+  });
+
   app.get('/api/ai-models/:id/config/download', async (req, res) => {
     try {
       const { id } = req.params;

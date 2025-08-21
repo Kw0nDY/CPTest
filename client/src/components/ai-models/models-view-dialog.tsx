@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -24,7 +24,12 @@ import {
   Activity,
   Zap,
   Trash2,
-  MoreVertical
+  MoreVertical,
+  Eye,
+  Download,
+  Settings,
+  FileCode,
+  Archive
 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
@@ -60,6 +65,8 @@ interface ModelsViewDialogProps {
 export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   // Fetch models for this folder
   const { data: models = [], isLoading } = useQuery({
@@ -94,6 +101,36 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
   const handleDeleteModel = (modelId: string, modelName: string) => {
     if (confirm(`정말로 "${modelName}" 모델을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       deleteModelMutation.mutate(modelId);
+    }
+  };
+
+  const handleViewDetails = (model: AiModel) => {
+    setSelectedModel(model);
+    setIsDetailDialogOpen(true);
+  };
+
+  const handleDownloadModel = async (modelId: string, fileName: string) => {
+    try {
+      const response = await fetch(`/api/ai-models/${modelId}/download`);
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: 'Success', description: 'Model downloaded successfully' });
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to download model', 
+        variant: 'destructive' 
+      });
     }
   };
 
@@ -185,6 +222,20 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
                             <DropdownMenuItem 
+                              onClick={() => handleViewDetails(model)}
+                              data-testid={`button-view-details-${model.id}`}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDownloadModel(model.id, model.fileName)}
+                              data-testid={`button-download-model-${model.id}`}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download Files
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
                               className="text-red-600"
                               onClick={() => handleDeleteModel(model.id, model.name)}
                               data-testid={`button-delete-model-${model.id}`}
@@ -239,6 +290,211 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
               ))}
             </div>
           )}
+        </div>
+      </DialogContent>
+      
+      {/* Model Detail Dialog */}
+      <ModelDetailDialog 
+        isOpen={isDetailDialogOpen}
+        onClose={() => setIsDetailDialogOpen(false)}
+        model={selectedModel}
+        onDownload={handleDownloadModel}
+      />
+    </Dialog>
+  );
+}
+
+// Model Detail Dialog Component
+interface ModelDetailDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  model: AiModel | null;
+  onDownload: (modelId: string, fileName: string) => void;
+}
+
+function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDialogProps) {
+  const { data: modelDetails, isLoading } = useQuery({
+    queryKey: ['/api/ai-models', model?.id, 'details'],
+    queryFn: async () => {
+      if (!model) return null;
+      const response = await fetch(`/api/ai-models/${model.id}/details`);
+      if (!response.ok) throw new Error('Failed to fetch model details');
+      return response.json();
+    },
+    enabled: !!model && isOpen
+  });
+
+  if (!model) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <Brain className="w-6 h-6 text-purple-600" />
+            {model.name}
+            <Badge variant="outline">{model.modelType}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                <h3 className="text-lg font-semibold">Basic Information</h3>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">Model Name</label>
+                  <p className="font-medium">{model.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">File Name</label>
+                  <p className="font-mono text-sm bg-gray-50 px-2 py-1 rounded">{model.fileName}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">Model Type</label>
+                  <p className="font-medium">{model.modelType}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${model.status === 'completed' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                    <span>{model.status}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">File Size</label>
+                  <p className="font-medium">{formatBytes(model.fileSize)}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-600">Upload Date</label>
+                  <p className="font-medium">{new Date(model.uploadedAt).toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Model Configuration */}
+          {isLoading ? (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span className="ml-2">Loading model details...</span>
+                </div>
+              </CardContent>
+            </Card>
+          ) : modelDetails && (
+            <>
+              {/* Input/Output Configuration */}
+              {(modelDetails.inputs || modelDetails.outputs) && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <FileCode className="w-5 h-5" />
+                      <h3 className="text-lg font-semibold">Input/Output Configuration</h3>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {modelDetails.inputs && modelDetails.inputs.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-green-600 mb-2">Input Parameters ({modelDetails.inputs.length})</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {modelDetails.inputs.map((input: any, index: number) => (
+                            <div key={index} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-green-800">{input.name}</span>
+                                <Badge variant="outline" className="text-xs">{input.type}</Badge>
+                              </div>
+                              {input.description && (
+                                <p className="text-sm text-green-600">{input.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {modelDetails.outputs && modelDetails.outputs.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-blue-600 mb-2">Output Parameters ({modelDetails.outputs.length})</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {modelDetails.outputs.map((output: any, index: number) => (
+                            <div key={index} className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-blue-800">{output.name}</span>
+                                <Badge variant="outline" className="text-xs">{output.type}</Badge>
+                              </div>
+                              {output.description && (
+                                <p className="text-sm text-blue-600">{output.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Model Information */}
+              {modelDetails.modelInfo && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <Archive className="w-5 h-5" />
+                      <h3 className="text-lg font-semibold">Model Architecture</h3>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {modelDetails.modelInfo.architecture && (
+                        <div className="flex items-center justify-between py-2 border-b">
+                          <span className="font-medium">Architecture</span>
+                          <span>{modelDetails.modelInfo.architecture}</span>
+                        </div>
+                      )}
+                      
+                      {modelDetails.modelInfo.parameters && Object.keys(modelDetails.modelInfo.parameters).length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-2">Parameters</h4>
+                          <div className="grid grid-cols-2 gap-3">
+                            {Object.entries(modelDetails.modelInfo.parameters).map(([key, value]) => (
+                              value !== null && value !== undefined && (
+                                <div key={key} className="flex justify-between py-1 px-3 bg-gray-50 rounded">
+                                  <span className="text-sm text-gray-600">{key}:</span>
+                                  <span className="text-sm font-mono">{String(value)}</span>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t">
+            <Button 
+              onClick={() => onDownload(model.id, model.fileName)}
+              className="flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download Model Files
+            </Button>
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
