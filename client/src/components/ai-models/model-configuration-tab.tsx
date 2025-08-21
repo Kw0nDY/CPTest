@@ -3649,31 +3649,21 @@ export default function ModelConfigurationTab() {
       {/* Delete Node Confirmation Dialog - HIGHEST PRIORITY */}
       {showDeleteDialog && (
         <div 
-          className="fixed inset-0 flex items-center justify-center"
+          className="fixed inset-0 flex items-center justify-center z-[99999]"
           style={{ 
-            zIndex: 9999999,
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0
+            zIndex: 99999,
+            backgroundColor: 'rgba(0,0,0,0.75)'
           }}
+          onClick={() => cancelDeleteNode()}
         >
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black bg-opacity-70"
-            onClick={() => {
-              console.log('🗑️ Background clicked, canceling delete');
-              cancelDeleteNode();
-            }}
-          />
-          
           {/* Dialog Content */}
           <div 
-            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
+            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500 z-[99999]"
             style={{ 
-              minWidth: '400px'
+              minWidth: '400px',
+              zIndex: 99999
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-bold mb-3 text-red-600">⚠️ Delete Node</h2>
             <p className="text-gray-700 dark:text-gray-300 mb-6">
@@ -3684,20 +3674,14 @@ export default function ModelConfigurationTab() {
             <div className="flex justify-end gap-3">
               <Button 
                 variant="outline" 
-                onClick={() => {
-                  console.log('🗑️ Cancel button clicked');
-                  cancelDeleteNode();
-                }}
+                onClick={cancelDeleteNode}
                 className="border-gray-300"
               >
                 Cancel
               </Button>
               <Button 
                 variant="destructive"
-                onClick={() => {
-                  console.log('🗑️ Delete button clicked');
-                  deleteNode();
-                }}
+                onClick={deleteNode}
                 className="bg-red-600 hover:bg-red-700 text-white font-semibold"
               >
                 🗑️ Delete
