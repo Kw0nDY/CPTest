@@ -164,11 +164,14 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
 
   const parseConfigFile = async (file: File) => {
     try {
+      console.log('Parsing config file:', file.name);
       const text = await file.text();
+      console.log('Config file content:', text.substring(0, 200) + '...');
       let config;
       
       if (file.name.toLowerCase().endsWith('.json')) {
         config = JSON.parse(text);
+        console.log('Parsed config:', config);
       } else if (file.name.toLowerCase().endsWith('.yaml') || file.name.toLowerCase().endsWith('.yml')) {
         // For now, we'll handle JSON configs. YAML parsing can be added later
         throw new Error('YAML parsing not implemented yet. Please use JSON config files.');
@@ -184,9 +187,12 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
       };
 
       // Parse based on the config structure from the attached file
+      console.log('Checking config structure, data_meta exists:', !!config.data_meta);
       if (config.data_meta) {
+        console.log('data_meta structure:', config.data_meta);
         // Parse inputs
         if (config.data_meta.input && config.data_meta.input_type) {
+          console.log('Found inputs:', config.data_meta.input);
           config.data_meta.input.forEach((inputName: string, index: number) => {
             parsed.inputs.push({
               name: inputName,
@@ -198,6 +204,7 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
 
         // Parse outputs
         if (config.data_meta.output && config.data_meta.output_type) {
+          console.log('Found outputs:', config.data_meta.output);
           config.data_meta.output.forEach((outputName: string, index: number) => {
             parsed.outputs.push({
               name: outputName,
