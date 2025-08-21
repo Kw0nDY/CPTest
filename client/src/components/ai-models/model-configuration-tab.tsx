@@ -1949,53 +1949,14 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
       }
     });
 
-    // All loaded Data Sources (not just those on canvas)
-    availableDataSources.forEach((source: any) => {
-      if (source.fields) {
-        source.fields.forEach((field: any) => {
-          outputs.push({
-            type: 'data-source',
-            nodeId: `ds-${source.id}`,
-            nodeName: source.name,
-            outputId: field.name,
-            outputName: field.description || field.name,
-            description: `${field.description || field.name} from ${source.name} (Data Source)`
-          });
-        });
-      }
-    });
+    // Only show data sources that are actually on the canvas as data-input nodes
+    // No need to show all available data sources since they can be added as nodes first
 
-    // All loaded Views
-    availableViews.forEach((view: ViewData) => {
-      if (view.outputs) {
-        view.outputs.forEach(output => {
-          outputs.push({
-            type: 'view',
-            nodeId: `view-${view.id}`,
-            nodeName: view.name,
-            outputId: output.id,
-            outputName: output.name,
-            description: `${output.name} from ${view.name} (View)`
-          });
-        });
-      }
-    });
+    // Only show views that are actually on the canvas as view-input nodes  
+    // No need to show all available views since they can be added as nodes first
 
-    // All AI Model outputs (not just those on canvas, including self)
-    availableAIModels.forEach(model => {
-      if (model.outputs) {
-        model.outputs.forEach((output: any) => {
-          outputs.push({
-            type: 'ai-model-output',
-            nodeId: `ai-${model.id}`,
-            nodeName: model.name,
-            outputId: output.id,
-            outputName: output.name,
-            description: `${output.name} from ${model.name} (AI Model)`
-          });
-        });
-      }
-    });
+    // Only show AI models that are actually on the canvas as ai-model nodes
+    // Self-referencing is already handled in the ai-model nodes section above
     
     return outputs.filter(output => 
       output.nodeName.toLowerCase().includes(connectionSearchQuery.toLowerCase()) ||
