@@ -9,6 +9,7 @@ import { Building, TrendingUp, Users, Handshake, Database, FileSpreadsheet, Chec
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { GoogleSheetsDialog } from './google-sheets-dialog';
+import { CSVUploadDialog } from './csv-upload-dialog';
 
 interface SystemSource {
   id: string;
@@ -30,6 +31,7 @@ const systemSources: SystemSource[] = [
   { id: 'hubspot', name: 'HubSpot', type: 'crm', icon: 'Handshake', color: 'orange', description: 'Customer Platform' },
   { id: 'mysql', name: 'MySQL', type: 'database', icon: 'Database', color: 'purple', description: 'Database' },
   { id: 'excel', name: 'Microsoft Excel', type: 'file', icon: 'FileSpreadsheet', color: 'green', description: 'OneDrive/SharePoint Excel Files' },
+  { id: 'csv', name: 'CSV Files', type: 'file', icon: 'FileSpreadsheet', color: 'orange', description: 'Comma-Separated Values Files' },
   { id: 'google-sheets', name: 'Google Sheets', type: 'file', icon: 'FileSpreadsheet', color: 'blue', description: 'Google Drive Spreadsheets' },
 ];
 
@@ -46,6 +48,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const [excelFiles, setExcelFiles] = useState<any[]>([]);
   const [showExcelFiles, setShowExcelFiles] = useState(false);
   const [showGoogleSheetsDialog, setShowGoogleSheetsDialog] = useState(false);
+  const [showCSVUpload, setShowCSVUpload] = useState(false);
 
   const { toast } = useToast();
 
@@ -152,6 +155,9 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     if (selectedSource.id === 'excel') {
       // Handle Microsoft Excel OAuth connection
       await handleExcelOAuthConnection();
+    } else if (selectedSource.id === 'csv') {
+      // Handle CSV file upload
+      await handleCSVFileUpload();
     } else if (selectedSource.id === 'google-sheets') {
       // Handle Google Sheets OAuth connection
       setShowGoogleSheetsDialog(true);
@@ -228,6 +234,11 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
     } finally {
       setIsConnecting(false);
     }
+  };
+
+  const handleCSVFileUpload = async () => {
+    setShowCSVUpload(true);
+    setSelectedSource(null);
   };
 
   const loadExcelFiles = async (dataSourceId: string) => {
@@ -676,6 +687,17 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
           setSelectedSource(null);
           queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
           toast({ title: "Google Sheets 연결됨", description: "Google Sheets connection successful" });
+        }}
+      />
+
+      <CSVUploadDialog 
+        open={showCSVUpload}
+        onOpenChange={setShowCSVUpload}
+        onSuccess={() => {
+          setShowCSVUpload(false);
+          setSelectedSource(null);
+          queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+          toast({ title: "CSV 파일 연결됨", description: "CSV files connected successfully" });
         }}
       />
     </div>
