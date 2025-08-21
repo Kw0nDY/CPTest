@@ -1833,35 +1833,55 @@ export default function ModelConfigurationTab() {
   // Save execution results as data sources
   const saveExecutionResultsAsDataSources = async (results: any[]) => {
     try {
+      console.log('saveExecutionResultsAsDataSources called with:', results);
+      
       for (const result of results) {
-        if (result.output && result.modelName) {
-          const dataSourceName = `AI_Result_${result.modelName}_${Date.now()}`;
+        console.log('Processing result:', result);
+        
+        // Check multiple possible result structures
+        const outputData = result.output || result.outputData || result.predictions || result;
+        const modelName = result.modelName || result.model || 'AI_Model';
+        
+        if (outputData && modelName) {
+          const timestamp = Date.now();
+          const dataSourceName = `AI_Result_${modelName}_${timestamp}`;
           
           // Create data source for the execution result
+          const dataSourceData = {
+            id: `ds-ai-result-${timestamp}`,
+            name: dataSourceName,
+            type: 'ai-result',
+            category: 'ai',
+            vendor: 'AI Model',
+            status: 'connected',
+            config: {
+              modelName: modelName,
+              executedAt: new Date().toISOString(),
+              resultData: outputData,
+              sampleData: Array.isArray(outputData) ? outputData.slice(0, 5) : [outputData],
+              dataSchema: generateSchemaFromResult(outputData)
+            }
+          };
+          
+          console.log('Creating data source with data:', dataSourceData);
+          
           const response = await fetch('/api/data-sources', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             credentials: 'include',
-            body: JSON.stringify({
-              id: `ds-ai-result-${Date.now()}`,
-              name: dataSourceName,
-              type: 'ai-result',
-              description: `AI model execution result from ${result.modelName}`,
-              config: {
-                modelName: result.modelName,
-                executedAt: new Date().toISOString(),
-                resultData: result.output,
-                sampleData: Array.isArray(result.output) ? result.output.slice(0, 5) : [result.output],
-                dataSchema: generateSchemaFromResult(result.output)
-              }
-            })
+            body: JSON.stringify(dataSourceData)
           });
 
           if (response.ok) {
             console.log(`AI result saved as data source: ${dataSourceName}`);
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to save data source:', response.status, errorText);
           }
+        } else {
+          console.log('Skipping result due to missing data:', { outputData, modelName });
         }
       }
       
@@ -1871,6 +1891,11 @@ export default function ModelConfigurationTab() {
       });
     } catch (error) {
       console.error('Error saving execution results:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save execution results as data sources",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1956,6 +1981,13 @@ export default function ModelConfigurationTab() {
       
       if (result.success) {
         console.log('Full execution result:', result);
+        console.log('Result structure check:', {
+          hasResults: !!result.results,
+          resultsLength: result.results?.length,
+          resultsType: typeof result.results,
+          resultKeys: result.results ? Object.keys(result.results) : 'none'
+        });
+        
         setTestResults({
           status: 'success',
           message: 'Model execution completed successfully!',
@@ -1974,8 +2006,12 @@ export default function ModelConfigurationTab() {
         });
         
         // Save execution results as data sources for View Setting
+        console.log('Attempting to save results as data sources...');
         if (result.results && result.results.length > 0) {
-          saveExecutionResultsAsDataSources(result.results);
+          console.log('Calling saveExecutionResultsAsDataSources with:', result.results);
+          await saveExecutionResultsAsDataSources(result.results);
+        } else {
+          console.log('No results to save or results is empty:', result.results);
         }
       } else {
         setTestResults({
