@@ -89,12 +89,18 @@ interface ModelNode {
 interface Connection {
   id: string;
   fromNodeId: string;
-  fromOutputId: string;
+  fromOutputId?: string; // Optional for block connections
   toNodeId: string;
-  toInputId: string;
-  type: string;
+  toInputId?: string; // Optional for block connections
+  type: 'parameter' | 'block'; // New connection type
   sourceOutputName?: string;
   targetInputName?: string;
+  mappings?: Array<{ // Field mappings for block connections
+    sourceField: string;
+    targetField: string;
+    sourceType: string;
+    targetType: string;
+  }>;
 }
 
 interface ConfigurationFolder {
@@ -367,6 +373,10 @@ export default function ModelConfigurationTab() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
+  const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
+  const [blockConnectionMode, setBlockConnectionMode] = useState(false);
+  const [selectedSourceNodeForBlock, setSelectedSourceNodeForBlock] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; outputName?: string; startX: number; startY: number } | null>(null);
@@ -1100,6 +1110,65 @@ export default function ModelConfigurationTab() {
   };
 
   // Connect two nodes with improved validation and management
+  // New block-to-block connection function
+  const connectNodesAsBlocks = (fromNodeId: string, toNodeId: string) => {
+    const sourceNode = nodes.find(n => n.id === fromNodeId);
+    const targetNode = nodes.find(n => n.id === toNodeId);
+    
+    if (!sourceNode || !targetNode) {
+      toast({
+        title: "Connection Failed",
+        description: "Source or target node not found",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Prevent connecting to the same node
+    if (fromNodeId === toNodeId) {
+      toast({
+        title: "Connection Failed",
+        description: "Cannot connect a node to itself",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if connection already exists
+    const existingConnection = connections.find(c => 
+      c.fromNodeId === fromNodeId && c.toNodeId === toNodeId && c.type === 'block'
+    );
+    
+    if (existingConnection) {
+      toast({
+        title: "Connection Exists",
+        description: "These nodes are already connected",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const connectionId = `block-${fromNodeId}-${toNodeId}`;
+    
+    setConnections(prev => [...prev, {
+      id: connectionId,
+      fromNodeId,
+      toNodeId,
+      type: 'block',
+      mappings: [] // Start with empty mappings
+    }]);
+    
+    toast({
+      title: "Block Connection Created",
+      description: `Connected ${sourceNode.name} to ${targetNode.name}. Click the connection to configure field mappings.`,
+    });
+    
+    // Open mapping dialog
+    setSelectedConnection(connectionId);
+    setMappingDialogOpen(true);
+  };
+
+  // Original parameter-to-parameter connection function (kept for compatibility)
   const connectNodes = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
     const sourceNode = nodes.find(n => n.id === fromNodeId);
     const targetNode = nodes.find(n => n.id === toNodeId);
@@ -1125,8 +1194,11 @@ export default function ModelConfigurationTab() {
       return;
     }
     
-    // Check type compatibility
-    if (sourceOutput.type !== targetInput.type) {
+    // For parameter connections, allow flexible type matching for AI models
+    const isAiModelConnection = sourceNode.type === 'data-input' && targetNode.type === 'ai-model';
+    const isCompatible = isAiModelConnection || sourceOutput.type === targetInput.type;
+    
+    if (!isCompatible) {
       toast({
         title: "Connection Failed",
         description: `Cannot connect ${sourceOutput.type} to ${targetInput.type}`,
@@ -1135,7 +1207,7 @@ export default function ModelConfigurationTab() {
       return;
     }
     
-    const connectionId = `${fromNodeId}-${fromOutputId}-${toNodeId}-${toInputId}`;
+    const connectionId = `param-${fromNodeId}-${fromOutputId}-${toNodeId}-${toInputId}`;
     
     setConnections(prev => {
       // Remove existing connection to the same input
@@ -1147,7 +1219,7 @@ export default function ModelConfigurationTab() {
         fromOutputId,
         toNodeId,
         toInputId,
-        type: sourceOutput.type,
+        type: 'parameter',
         sourceOutputName: sourceOutput.name,
         targetInputName: targetInput.name
       }];
@@ -1170,7 +1242,7 @@ export default function ModelConfigurationTab() {
     }));
     
     toast({
-      title: "Connection Created",
+      title: "Parameter Connection Created",
       description: `Connected ${sourceOutput.name} to ${targetInput.name}`,
     });
   };
@@ -1470,8 +1542,53 @@ export default function ModelConfigurationTab() {
   // Render connection lines (SVG paths)
   const renderConnections = () => {
     return connections.map(connection => {
-      const sourcePos = getPortPosition(connection.fromNodeId, connection.fromOutputId, true);
-      const targetPos = getPortPosition(connection.toNodeId, connection.toInputId, false);
+      // Handle block connections differently
+      if (connection.type === 'block') {
+        const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+        const targetNode = nodes.find(n => n.id === connection.toNodeId);
+        if (!sourceNode || !targetNode) return null;
+        
+        const sourcePos = { x: sourceNode.position.x + sourceNode.width, y: sourceNode.position.y + sourceNode.height / 2 };
+        const targetPos = { x: targetNode.position.x, y: targetNode.position.y + targetNode.height / 2 };
+        
+        const midX = (sourcePos.x + targetPos.x) / 2;
+        const path = `M ${sourcePos.x} ${sourcePos.y} C ${midX} ${sourcePos.y}, ${midX} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+        
+        return (
+          <g key={connection.id}>
+            <path
+              d={path}
+              stroke="#6366f1"
+              strokeWidth="3"
+              fill="none"
+              strokeDasharray="5,5"
+              className="cursor-pointer hover:stroke-width-4"
+              onClick={() => {
+                setSelectedConnection(connection.id);
+                setMappingDialogOpen(true);
+              }}
+            />
+            <text
+              x={midX}
+              y={(sourcePos.y + targetPos.y) / 2 - 10}
+              fill="#6366f1"
+              fontSize="12"
+              textAnchor="middle"
+              className="cursor-pointer font-medium"
+              onClick={() => {
+                setSelectedConnection(connection.id);
+                setMappingDialogOpen(true);
+              }}
+            >
+              Block Connection
+            </text>
+          </g>
+        );
+      }
+      
+      // Handle parameter connections
+      const sourcePos = getPortPosition(connection.fromNodeId, connection.fromOutputId!, true);
+      const targetPos = getPortPosition(connection.toNodeId, connection.toInputId!, false);
       
       // Create curved path for better visual appeal
       const midX = (sourcePos.x + targetPos.x) / 2;
@@ -1481,7 +1598,7 @@ export default function ModelConfigurationTab() {
         <path
           key={connection.id}
           d={path}
-          stroke={getTypeColor(connection.type)}
+          stroke="#10b981"
           strokeWidth="2"
           fill="none"
           className="cursor-pointer hover:stroke-width-3"
@@ -1672,7 +1789,7 @@ export default function ModelConfigurationTab() {
       fromOutputId,
       toNodeId,
       toInputId,
-      type: fromOutput.type,
+      type: 'parameter' as const,
       sourceOutputName: fromOutput.name,
       targetInputName: toInput.name
     };
@@ -2493,6 +2610,35 @@ export default function ModelConfigurationTab() {
               }}
             />
 
+            {/* Block Connection Mode Overlay */}
+            {blockConnectionMode && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
+                <div className="bg-blue-900/90 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                  <Link2 className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <div className="text-sm font-medium">Block Connection Mode</div>
+                    <div className="text-xs text-blue-200">
+                      {selectedSourceNodeForBlock ? 
+                        "Click on a target node to create connection" : 
+                        "Click on source node first"
+                      }
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-blue-200 hover:text-white hover:bg-blue-800"
+                    onClick={() => {
+                      setBlockConnectionMode(false);
+                      setSelectedSourceNodeForBlock(null);
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Connection Rendering Layer */}
             <svg 
               className="absolute inset-0 w-full h-full pointer-events-none" 
@@ -2522,54 +2668,72 @@ export default function ModelConfigurationTab() {
                 
                 if (!fromNode || !toNode) return null;
                 
-                // Calculate output port position (right side of source node)
-                const outputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
-                const startX = fromNode.position.x + fromNode.width;
-                const startY = fromNode.position.y + 60 + (outputIndex * 28) + 14;
+                let startX, startY, endX, endY, curve;
                 
-                // Calculate input port position (left side of target node)
-                const inputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
-                const endX = toNode.position.x;
-                const endY = toNode.position.y + 60 + (inputIndex * 28) + 14;
-                
-                // Create bezier curve
-                const controlOffset = Math.abs(endX - startX) * 0.5;
-                const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                if (connection.type === 'block') {
+                  // Block connection: center to center with different styling
+                  startX = fromNode.position.x + fromNode.width / 2;
+                  startY = fromNode.position.y + fromNode.height / 2;
+                  endX = toNode.position.x + toNode.width / 2;
+                  endY = toNode.position.y + toNode.height / 2;
+                  
+                  const controlOffset = Math.abs(endX - startX) * 0.5;
+                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                } else {
+                  // Parameter connection: port to port
+                  const outputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
+                  startX = fromNode.position.x + fromNode.width;
+                  startY = fromNode.position.y + 60 + (outputIndex * 28) + 14;
+                  
+                  const inputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
+                  endX = toNode.position.x;
+                  endY = toNode.position.y + 60 + (inputIndex * 28) + 14;
+                  
+                  const controlOffset = Math.abs(endX - startX) * 0.5;
+                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                }
                 
                 return (
                   <g key={connection.id} className="pointer-events-auto">
                     {/* Connection path */}
                     <path
                       d={curve}
-                      stroke={getTypeColor(connection.type)}
-                      strokeWidth="3"
+                      stroke={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
+                      strokeWidth={connection.type === 'block' ? "4" : "3"}
+                      strokeDasharray={connection.type === 'block' ? "8,4" : "none"}
                       fill="none"
                       markerEnd="url(#arrow)"
                       opacity="0.8"
                       className="hover:opacity-100 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
-                          setConnections(prev => prev.filter(c => c.id !== connection.id));
-                          // Update target node input as disconnected
-                          setNodes(prev => prev.map(node => {
-                            if (node.id === connection.toNodeId) {
-                              return {
-                                ...node,
-                                inputs: node.inputs.map(input => {
-                                  if (input.id === connection.toInputId) {
-                                    return { ...input, connected: false };
-                                  }
-                                  return input;
-                                })
-                              };
-                            }
-                            return node;
-                          }));
-                          toast({
-                            title: "연결 해제",
-                            description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 해제되었습니다`,
-                          });
+                        if (connection.type === 'block') {
+                          // Open mapping dialog for block connections
+                          setSelectedConnection(connection.id);
+                          setMappingDialogOpen(true);
+                        } else {
+                          // Delete parameter connections directly
+                          if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
+                            setConnections(prev => prev.filter(c => c.id !== connection.id));
+                            setNodes(prev => prev.map(node => {
+                              if (node.id === connection.toNodeId) {
+                                return {
+                                  ...node,
+                                  inputs: node.inputs.map(input => {
+                                    if (input.id === connection.toInputId) {
+                                      return { ...input, connected: false };
+                                    }
+                                    return input;
+                                  })
+                                };
+                              }
+                              return node;
+                            }));
+                            toast({
+                              title: "연결 해제",
+                              description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 해제되었습니다`,
+                            });
+                          }
                         }
                       }}
                     />
@@ -2578,17 +2742,29 @@ export default function ModelConfigurationTab() {
                     <circle 
                       cx={startX} 
                       cy={startY} 
-                      r="4" 
-                      fill={getTypeColor(connection.type)}
+                      r={connection.type === 'block' ? "6" : "4"} 
+                      fill={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
                       className="pointer-events-none"
                     />
                     <circle 
                       cx={endX} 
                       cy={endY} 
-                      r="4" 
-                      fill={getTypeColor(connection.type)}
+                      r={connection.type === 'block' ? "6" : "4"} 
+                      fill={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
                       className="pointer-events-none"
                     />
+                    
+                    {/* Block connection label */}
+                    {connection.type === 'block' && (
+                      <text
+                        x={(startX + endX) / 2}
+                        y={(startY + endY) / 2 - 8}
+                        textAnchor="middle"
+                        className="text-xs fill-purple-400 pointer-events-none font-medium"
+                      >
+                        Block ({(connection.mappings || []).length} mappings)
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -2619,6 +2795,14 @@ export default function ModelConfigurationTab() {
                   node.type === 'final-goal' 
                     ? 'bg-purple-900 border-purple-500 ring-2 ring-purple-400' 
                     : 'bg-gray-800 border-gray-600'
+                } ${
+                  blockConnectionMode && selectedSourceNodeForBlock === node.id
+                    ? 'ring-4 ring-blue-400 border-blue-500'
+                    : ''
+                } ${
+                  blockConnectionMode && selectedSourceNodeForBlock && selectedSourceNodeForBlock !== node.id
+                    ? 'ring-2 ring-green-400 border-green-500 hover:ring-green-300'
+                    : ''
                 }`}
                 style={{
                   left: node.position.x,
@@ -2651,6 +2835,64 @@ export default function ModelConfigurationTab() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* Block Connection Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 w-6 p-0 hover:bg-white/20 ${
+                          blockConnectionMode ? 'bg-blue-500/30 text-blue-300' : ''
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!blockConnectionMode) {
+                            setBlockConnectionMode(true);
+                            setSelectedSourceNodeForBlock(node.id);
+                            toast({
+                              title: "Block Connection Mode",
+                              description: "Click on another node to create a block connection",
+                            });
+                          } else if (selectedSourceNodeForBlock === node.id) {
+                            // Cancel block connection mode
+                            setBlockConnectionMode(false);
+                            setSelectedSourceNodeForBlock(null);
+                            toast({
+                              title: "Connection Cancelled",
+                              description: "Block connection mode cancelled",
+                            });
+                          } else if (selectedSourceNodeForBlock) {
+                            // Create block connection
+                            const sourceNode = nodes.find(n => n.id === selectedSourceNodeForBlock);
+                            if (sourceNode && sourceNode.id !== node.id) {
+                              const connection: Connection = {
+                                id: `block-${Date.now()}`,
+                                type: 'block',
+                                fromNodeId: sourceNode.id,
+                                toNodeId: node.id,
+                                sourceOutputName: sourceNode.name,
+                                targetInputName: node.name,
+                                fromOutputId: '',
+                                toInputId: '',
+                                mappings: []
+                              };
+                              
+                              setConnections(prev => [...prev, connection]);
+                              setSelectedConnection(connection.id);
+                              setMappingDialogOpen(true);
+                              setBlockConnectionMode(false);
+                              setSelectedSourceNodeForBlock(null);
+                              
+                              toast({
+                                title: "Block Connection Created",
+                                description: `Connected ${sourceNode.name} to ${node.name}`,
+                              });
+                            }
+                          }
+                        }}
+                        title={blockConnectionMode ? "Cancel connection" : "Create block connection"}
+                      >
+                        <Link2 className="w-3 h-3" />
+                      </Button>
+                      
                       {/* Info button for all node types */}
                       <Button
                         variant="ghost"
@@ -3706,6 +3948,279 @@ export default function ModelConfigurationTab() {
                 Test Again
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block Connection Mapping Dialog */}
+      <Dialog open={mappingDialogOpen} onOpenChange={setMappingDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-blue-600" />
+              Field Mapping Configuration
+            </DialogTitle>
+            <DialogDescription>
+              Configure how fields are mapped between connected nodes
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedConnection && (() => {
+            const connection = connections.find(c => c.id === selectedConnection);
+            if (!connection || connection.type !== 'block') return null;
+            
+            const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+            const targetNode = nodes.find(n => n.id === connection.toNodeId);
+            
+            if (!sourceNode || !targetNode) return null;
+            
+            return (
+              <div className="space-y-6">
+                {/* Connection Overview */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                        {sourceNode.type === 'data-input' ? <Database className="w-6 h-6 text-blue-600" /> : <Brain className="w-6 h-6 text-blue-600" />}
+                      </div>
+                      <div className="text-sm font-medium">{sourceNode.name}</div>
+                      <div className="text-xs text-gray-500">{sourceNode.outputs.length} outputs</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-gray-400" />
+                    
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                        {targetNode.type === 'ai-model' ? <Brain className="w-6 h-6 text-green-600" /> : <Target className="w-6 h-6 text-green-600" />}
+                      </div>
+                      <div className="text-sm font-medium">{targetNode.name}</div>
+                      <div className="text-xs text-gray-500">{targetNode.inputs.length} inputs</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mapping Configuration */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Source Fields */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Circle className="w-3 h-3 text-blue-500" />
+                      Source Fields ({sourceNode.outputs.length})
+                    </h4>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {sourceNode.outputs.map((output) => (
+                        <div key={output.id} className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full bg-blue-500`}></div>
+                            <span className="text-sm font-medium">{output.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {output.type}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Target Fields */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Circle className="w-3 h-3 text-green-500" />
+                      Target Fields ({targetNode.inputs.length})
+                    </h4>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {targetNode.inputs.map((input) => (
+                        <div key={input.id} className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full bg-green-500`}></div>
+                            <span className="text-sm font-medium">{input.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {input.type}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mapping Rules */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-purple-600" />
+                    Field Mappings
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    {(connection.mappings || []).map((mapping, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-blue-700">{mapping.sourceField}</span>
+                          <span className="text-xs text-blue-600 ml-2">({mapping.sourceType})</span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-purple-600" />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-green-700">{mapping.targetField}</span>
+                          <span className="text-xs text-green-600 ml-2">({mapping.targetType})</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const updatedMappings = (connection.mappings || []).filter((_, i) => i !== index);
+                            setConnections(prev => prev.map(c => 
+                              c.id === selectedConnection 
+                                ? { ...c, mappings: updatedMappings }
+                                : c
+                            ));
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {(!connection.mappings || connection.mappings.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Link2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm">No field mappings configured yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Add mappings to connect specific fields between nodes</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Add New Mapping */}
+                  <div className="mt-4 p-3 border border-dashed border-gray-300 rounded-lg">
+                    <div className="grid grid-cols-5 gap-3 items-center">
+                      <Select 
+                        value={selectedConnection ? (() => {
+                          const [selectedSourceField, setSelectedSourceField] = React.useState('');
+                          return selectedSourceField;
+                        })() : ''}
+                        onValueChange={(value) => {
+                          // Handle source field selection
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Source field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sourceNode.outputs.map((output) => (
+                            <SelectItem key={output.id} value={output.id}>
+                              {output.name} ({output.type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <div className="flex justify-center">
+                        <ArrowRight className="w-4 h-4 text-gray-400" />
+                      </div>
+                      
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Target field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {targetNode.inputs.map((input) => (
+                            <SelectItem key={input.id} value={input.id}>
+                              {input.name} ({input.type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Button size="sm" className="w-full" onClick={() => {
+                        // Add manual mapping functionality will be implemented
+                        toast({
+                          title: "Feature Coming Soon",
+                          description: "Manual field mapping is being implemented",
+                        });
+                      }}>
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
+                      </Button>
+                      
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                        // Auto-map compatible fields between source and target
+                        if (selectedConnection) {
+                          const connection = connections.find(c => c.id === selectedConnection);
+                          if (connection) {
+                            const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+                            const targetNode = nodes.find(n => n.id === connection.toNodeId);
+                            
+                            if (sourceNode && targetNode) {
+                              const autoMappings = [];
+                              for (const output of sourceNode.outputs) {
+                                for (const input of targetNode.inputs) {
+                                  if (output.type === input.type || 
+                                      output.name.toLowerCase().includes(input.name.toLowerCase()) ||
+                                      input.name.toLowerCase().includes(output.name.toLowerCase())) {
+                                    autoMappings.push({
+                                      sourceField: output.name,
+                                      targetField: input.name,
+                                      sourceType: output.type,
+                                      targetType: input.type
+                                    });
+                                    break;
+                                  }
+                                }
+                              }
+                              
+                              setConnections(prev => prev.map(c => 
+                                c.id === selectedConnection 
+                                  ? { ...c, mappings: autoMappings }
+                                  : c
+                              ));
+                              
+                              toast({
+                                title: "Auto-mapping Complete",
+                                description: `Created ${autoMappings.length} field mappings`,
+                              });
+                            }
+                          }
+                        }
+                      }}>
+                        Auto Map
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          
+          <div className="flex justify-between pt-4">
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (window.confirm("Delete this block connection? All field mappings will be removed.")) {
+                  setConnections(prev => prev.filter(c => c.id !== selectedConnection));
+                  setMappingDialogOpen(false);
+                  setSelectedConnection(null);
+                  toast({
+                    title: "Connection Deleted",
+                    description: "Block connection and all mappings have been removed",
+                  });
+                }
+              }}
+            >
+              Delete Connection
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setMappingDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                setMappingDialogOpen(false);
+                toast({
+                  title: "Mappings Saved",
+                  description: "Block connection mappings have been saved",
+                });
+              }}>
+                Save Mappings
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
