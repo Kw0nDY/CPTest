@@ -2920,12 +2920,15 @@ export default function ModelConfigurationTab() {
                           placeholder="Enter your prediction request..."
                           value={node.goalInput || ''}
                           onChange={(e) => {
+                            e.stopPropagation();
                             setNodes(prev => prev.map(n => 
                               n.id === node.id 
                                 ? { ...n, goalInput: e.target.value }
                                 : n
                             ));
                           }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
