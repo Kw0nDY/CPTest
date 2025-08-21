@@ -22,6 +22,7 @@ import {
   FileCode, 
   Settings, 
   CheckCircle, 
+  CheckCircle2,
   AlertCircle,
   Loader2,
   Plus,
@@ -498,6 +499,82 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
               )}
             </CardContent>
           </Card>
+
+          {/* Auto-detected Configuration Preview */}
+          {parsedConfig && (
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <CardTitle className="text-lg text-green-800">Auto-detected Configuration</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Input Parameters */}
+                  {parsedConfig.inputs.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-green-700 mb-2">
+                        Input Parameters ({parsedConfig.inputs.length})
+                      </h4>
+                      <div className="space-y-1">
+                        {parsedConfig.inputs.slice(0, 3).map((input, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm">
+                            <span className="font-mono text-green-800">{input.name}</span>
+                            <Badge variant="outline" className="text-xs">{input.type}</Badge>
+                          </div>
+                        ))}
+                        {parsedConfig.inputs.length > 3 && (
+                          <div className="text-sm text-green-600">
+                            +{parsedConfig.inputs.length - 3} more inputs
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Output Parameters */}
+                  {parsedConfig.outputs.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-blue-700 mb-2">
+                        Output Parameters ({parsedConfig.outputs.length})
+                      </h4>
+                      <div className="space-y-1">
+                        {parsedConfig.outputs.slice(0, 3).map((output, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm">
+                            <span className="font-mono text-blue-800">{output.name}</span>
+                            <Badge variant="outline" className="text-xs">{output.type}</Badge>
+                          </div>
+                        ))}
+                        {parsedConfig.outputs.length > 3 && (
+                          <div className="text-sm text-blue-600">
+                            +{parsedConfig.outputs.length - 3} more outputs
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Model Architecture Info */}
+                {parsedConfig.modelInfo && Object.keys(parsedConfig.modelInfo.parameters || {}).length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-green-200">
+                    <h4 className="font-medium text-green-700 mb-2">Model Architecture</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(parsedConfig.modelInfo.parameters).slice(0, 4).map(([key, value]) => (
+                        value !== null && value !== undefined && (
+                          <div key={key} className="bg-white px-2 py-1 rounded text-xs border">
+                            <span className="text-gray-600">{key}:</span>
+                            <span className="ml-1 font-mono">{String(value)}</span>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Model Information */}
           <Card>
