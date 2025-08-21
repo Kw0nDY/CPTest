@@ -57,20 +57,20 @@ export default function AIModelManagementTab() {
   // Fetch folders
   const { data: folders = [], isLoading: foldersLoading } = useQuery({
     queryKey: ['/api/ai-model-folders'],
-    queryFn: async () => {
+    queryFn: async (): Promise<AiModelFolder[]> => {
       const response = await fetch('/api/ai-model-folders');
       if (!response.ok) throw new Error('Failed to fetch folders');
-      return response.json() as AiModelFolder[];
+      return response.json();
     }
   });
 
   // Fetch AI models
   const { data: models = [], isLoading: modelsLoading } = useQuery({
     queryKey: ['/api/ai-models'],
-    queryFn: async () => {
+    queryFn: async (): Promise<AiModel[]> => {
       const response = await fetch('/api/ai-models');
       if (!response.ok) throw new Error('Failed to fetch models');
-      return response.json() as AiModel[];
+      return response.json();
     }
   });
 
@@ -497,7 +497,7 @@ export default function AIModelManagementTab() {
       {showFolderDialog && (
         <FolderCreationDialog
           onClose={() => setShowFolderDialog(false)}
-          onSubmit={handleCreateFolder}
+          onCreate={createFolderMutation.mutate}
         />
       )}
     </div>
