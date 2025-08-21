@@ -371,12 +371,11 @@ export default function ModelConfigurationTab() {
   const [showNewConfigDialog, setShowNewConfigDialog] = useState(false);
   const [nodes, setNodes] = useState<ModelNode[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
+  const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<string | null>(null);
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
-  const [blockConnectionMode, setBlockConnectionMode] = useState(false);
-  const [selectedSourceNodeForBlock, setSelectedSourceNodeForBlock] = useState<string | null>(null);
+
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; outputName?: string; startX: number; startY: number } | null>(null);
@@ -398,19 +397,12 @@ export default function ModelConfigurationTab() {
     details: any;
   } | null>(null);
   const [isTestRunning, setIsTestRunning] = useState(false);
-  const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<{nodeId: string; inputId: string} | null>(null);
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   
   // Click-based connection states  
   const [clickConnectionMode, setClickConnectionMode] = useState(false);
   const [selectedSourceNode, setSelectedSourceNode] = useState<string | null>(null);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
-  const [previewConnection, setPreviewConnection] = useState<{
-    fromNodeId: string;
-    fromOutputId: string;
-    toX: number;
-    toY: number;
-  } | null>(null);
   
   // Delete dialog states
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -1120,144 +1112,159 @@ export default function ModelConfigurationTab() {
     });
   };
 
-  // Click-based connection handlers will be defined later in the file
+  // Simple node connection system
+  const [previewConnection, setPreviewConnection] = useState<{
+    fromNodeId: string;
+    toNodeId: string;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+  } | null>(null);
 
-  // Connect two nodes with improved validation and management
-  // New block-to-block connection function
-  const connectNodesAsBlocks = (fromNodeId: string, toNodeId: string) => {
-    const sourceNode = nodes.find(n => n.id === fromNodeId);
-    const targetNode = nodes.find(n => n.id === toNodeId);
+  // Handle node click for connection
+  const handleNodeClick = (nodeId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     
-    if (!sourceNode || !targetNode) {
-      toast({
-        title: "Connection Failed",
-        description: "Source or target node not found",
-        variant: "destructive"
-      });
-      return;
+    if (!selectedNodeForConnection) {
+      // First click - select source node
+      setSelectedNodeForConnection(nodeId);
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        selected: node.id === nodeId
+      })));
+    } else if (selectedNodeForConnection === nodeId) {
+      // Clicking same node - deselect
+      cancelConnection();
+    } else {
+      // Second click - create connection
+      connectNodesSimple(selectedNodeForConnection, nodeId);
+      cancelConnection();
     }
+  };
 
-    // Prevent connecting to the same node
-    if (fromNodeId === toNodeId) {
+  // Simple connection function
+  const connectNodesSimple = (fromNodeId: string, toNodeId: string) => {
+    const fromNode = nodes.find(n => n.id === fromNodeId);
+    const toNode = nodes.find(n => n.id === toNodeId);
+    
+    if (!fromNode || !toNode) {
       toast({
-        title: "Connection Failed",
-        description: "Cannot connect a node to itself",
+        title: "연결 실패",
+        description: "유효하지 않은 노드입니다",
         variant: "destructive"
       });
       return;
     }
 
     // Check if connection already exists
-    const existingConnection = connections.find(c => 
-      c.fromNodeId === fromNodeId && c.toNodeId === toNodeId && c.type === 'block'
+    const existingConnection = connections.find(conn => 
+      conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId
     );
     
     if (existingConnection) {
       toast({
-        title: "Connection Exists",
-        description: "These nodes are already connected",
+        title: "연결 실패",
+        description: "이미 연결된 노드입니다",
         variant: "destructive"
       });
       return;
     }
-    
-    const connectionId = `block-${fromNodeId}-${toNodeId}`;
-    
-    setConnections(prev => [...prev, {
-      id: connectionId,
-      fromNodeId,
-      toNodeId,
-      type: 'block',
-      mappings: [] // Start with empty mappings
-    }]);
-    
-    toast({
-      title: "Block Connection Created",
-      description: `Connected ${sourceNode.name} to ${targetNode.name}. Click the connection to configure field mappings.`,
-    });
-    
-    // Open mapping dialog
-    setSelectedConnection(connectionId);
-    setMappingDialogOpen(true);
-  };
 
-  // Original parameter-to-parameter connection function (kept for compatibility)
-  const connectNodes = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
-    const sourceNode = nodes.find(n => n.id === fromNodeId);
-    const targetNode = nodes.find(n => n.id === toNodeId);
-    
-    if (!sourceNode || !targetNode) {
+    // Find first available output from source node
+    const availableOutput = fromNode.outputs.find(output => output);
+    if (!availableOutput) {
       toast({
-        title: "Connection Failed",
-        description: "Source or target node not found",
+        title: "연결 실패", 
+        description: `${fromNode.uniqueName}에 사용 가능한 출력이 없습니다`,
         variant: "destructive"
       });
       return;
     }
-    
-    const sourceOutput = sourceNode.outputs.find(o => o.id === fromOutputId);
-    const targetInput = targetNode.inputs.find(i => i.id === toInputId);
-    
-    if (!sourceOutput || !targetInput) {
+
+    // Find first available input on target node
+    const availableInput = toNode.inputs.find(input => !input.connected);
+    if (!availableInput) {
       toast({
-        title: "Connection Failed",
-        description: "Source output or target input not found",
+        title: "연결 실패",
+        description: `${toNode.uniqueName}에 사용 가능한 입력이 없습니다`,
         variant: "destructive"
       });
       return;
     }
-    
-    // For parameter connections, allow flexible type matching for AI models
-    const isAiModelConnection = sourceNode.type === 'data-input' && targetNode.type === 'ai-model';
-    const isCompatible = isAiModelConnection || sourceOutput.type === targetInput.type;
-    
-    if (!isCompatible) {
+
+    // Check type compatibility
+    if (!isTypeCompatible(availableOutput.type, availableInput.type)) {
       toast({
-        title: "Connection Failed",
-        description: `Cannot connect ${sourceOutput.type} to ${targetInput.type}`,
+        title: "연결 실패",
+        description: `출력 타입 ${availableOutput.type}과 입력 타입 ${availableInput.type}이 호환되지 않습니다`,
         variant: "destructive"
       });
       return;
     }
+
+    // Create connection
+    const connectionId = `conn-${Date.now()}`;
+    const newConnection = {
+      id: connectionId,
+      fromNodeId: fromNode.id,
+      fromOutputId: availableOutput.id,
+      toNodeId: toNode.id,
+      toInputId: availableInput.id,
+      type: availableOutput.type,
+      sourceOutputName: availableOutput.name,
+      targetInputName: availableInput.name
+    };
+
+    setConnections(prev => [...prev, newConnection]);
     
-    const connectionId = `param-${fromNodeId}-${fromOutputId}-${toNodeId}-${toInputId}`;
-    
-    setConnections(prev => {
-      // Remove existing connection to the same input
-      const filtered = prev.filter(c => !(c.toNodeId === toNodeId && c.toInputId === toInputId));
-      
-      return [...filtered, {
-        id: connectionId,
-        fromNodeId,
-        fromOutputId,
-        toNodeId,
-        toInputId,
-        type: 'parameter',
-        sourceOutputName: sourceOutput.name,
-        targetInputName: targetInput.name
-      }];
-    });
-    
-    // Update target input as connected
+    // Mark input as connected
     setNodes(prev => prev.map(node => {
-      if (node.id === toNodeId) {
+      if (node.id === toNode.id) {
         return {
           ...node,
-          inputs: node.inputs.map(input => {
-            if (input.id === toInputId) {
-              return { ...input, connected: true };
-            }
-            return input;
-          })
+          inputs: node.inputs.map(input => 
+            input.id === availableInput.id 
+              ? { ...input, connected: true }
+              : input
+          )
         };
       }
       return node;
     }));
-    
+
     toast({
-      title: "Parameter Connection Created",
-      description: `Connected ${sourceOutput.name} to ${targetInput.name}`,
+      title: "연결 완료",
+      description: `${fromNode.uniqueName} → ${toNode.uniqueName}`,
     });
+  };
+
+  // Cancel connection
+  const cancelConnection = () => {
+    setSelectedNodeForConnection(null);
+    setPreviewConnection(null);
+    setNodes(prev => prev.map(node => ({
+      ...node,
+      selected: false
+    })));
+  };
+
+  // Canvas click handler to clear active states
+  const handleCanvasClick = () => {
+    if (selectedNodeForConnection) {
+      cancelConnection();
+    }
+  };
+
+  // Handle mouse move for preview connection
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (selectedNodeForConnection) {
+      const rect = (e.currentTarget as Element).getBoundingClientRect();
+      setMousePosition({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
   };
 
   // Setup complete test workflow with proper connections
@@ -1849,127 +1856,6 @@ export default function ModelConfigurationTab() {
     };
     
     return compatibleTypes[outputType]?.includes(inputType) || false;
-  };
-
-  // Port activation system
-  const [activeOutput, setActiveOutput] = useState<{nodeId: string; outputId: string; type: string; x?: number; y?: number} | null>(null);
-  
-  // Handle output port click - start connection
-  const handleOutputClick = (e: React.MouseEvent, nodeId: string, outputId: string, type: string) => {
-    e.stopPropagation();
-    
-    // Calculate the exact position of the clicked output port
-    const sourceNode = nodes.find(n => n.id === nodeId);
-    if (sourceNode) {
-      const outputIndex = sourceNode.outputs.findIndex(o => o.id === outputId);
-      const portX = sourceNode.position.x + sourceNode.width;
-      const portY = sourceNode.position.y + 60 + (outputIndex * 28) + 14;
-      
-      // Deactivate all ports first
-      setNodes(prev => prev.map(node => ({
-        ...node,
-        inputs: node.inputs.map(input => ({ ...input, active: false })),
-        outputs: node.outputs.map(output => ({ ...output, active: false }))
-      })));
-      
-      if (activeOutput?.nodeId === nodeId && activeOutput?.outputId === outputId) {
-        // Clicking same output - deactivate
-        setActiveOutput(null);
-        return;
-      }
-      
-      // Activate this output and compatible inputs with position info
-      setActiveOutput({ nodeId, outputId, type, x: portX, y: portY });
-      
-      setNodes(prev => prev.map(node => {
-        if (node.id === nodeId) {
-          // Activate clicked output
-          return {
-            ...node,
-            outputs: node.outputs.map(output => ({
-              ...output,
-              active: output.id === outputId
-            }))
-          };
-        } else {
-          // Activate compatible inputs on other nodes
-          return {
-            ...node,
-            inputs: node.inputs.map(input => ({
-              ...input,
-              active: !input.connected && isTypeCompatible(type, input.type)
-            }))
-          };
-        }
-      }));
-    }
-  };
-  
-  // Handle input port click - complete connection
-  const handleInputClick = (e: React.MouseEvent, nodeId: string, inputId: string, inputType: string) => {
-    e.stopPropagation();
-    
-    if (!activeOutput) return;
-    
-    const targetInput = nodes.find(n => n.id === nodeId)?.inputs.find(i => i.id === inputId);
-    if (!targetInput || targetInput.connected || !targetInput.active) {
-      return;
-    }
-    
-    // Create connection
-    const connectionId = `conn-${Date.now()}`;
-    const fromNode = nodes.find(n => n.id === activeOutput.nodeId);
-    const fromOutput = fromNode?.outputs.find(o => o.id === activeOutput.outputId);
-    
-    const newConnection = {
-      id: connectionId,
-      fromNodeId: activeOutput.nodeId,
-      fromOutputId: activeOutput.outputId,
-      toNodeId: nodeId,
-      toInputId: inputId,
-      type: activeOutput.type,
-      sourceOutputName: fromOutput?.name || 'Output',
-      targetInputName: targetInput.name || 'Input'
-    };
-    
-    // Update connections and connected state
-    setConnections(prev => [...prev, newConnection]);
-    setNodes(prev => prev.map(node => {
-      if (node.id === nodeId) {
-        return {
-          ...node,
-          inputs: node.inputs.map(input => ({
-            ...input,
-            connected: input.id === inputId ? true : input.connected,
-            active: false
-          }))
-        };
-      }
-      return {
-        ...node,
-        inputs: node.inputs.map(input => ({ ...input, active: false })),
-        outputs: node.outputs.map(output => ({ ...output, active: false }))
-      };
-    }));
-    
-    setActiveOutput(null);
-    
-    toast({
-      title: "연결 완료",
-      description: `${fromOutput?.name} → ${targetInput.name}`,
-    });
-  };
-
-  // Canvas click handler to clear active states
-  const handleCanvasClick = () => {
-    if (activeOutput) {
-      setActiveOutput(null);
-      setNodes(prev => prev.map(node => ({
-        ...node,
-        inputs: node.inputs.map(input => ({ ...input, active: false })),
-        outputs: node.outputs.map(output => ({ ...output, active: false }))
-      })));
-    }
   };
 
   // Validate configuration before test/save
@@ -2624,17 +2510,14 @@ export default function ModelConfigurationTab() {
             />
 
             {/* Block Connection Mode Overlay */}
-            {blockConnectionMode && (
+            {selectedNodeForConnection && (
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
                 <div className="bg-blue-900/90 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
                   <Link2 className="w-5 h-5 text-blue-400" />
                   <div>
-                    <div className="text-sm font-medium">Block Connection Mode</div>
+                    <div className="text-sm font-medium">Connection Mode</div>
                     <div className="text-xs text-blue-200">
-                      {selectedSourceNodeForBlock ? 
-                        "Click on a target node to create connection" : 
-                        "Click on source node first"
-                      }
+                      Click another node to connect
                     </div>
                   </div>
                   <Button
@@ -2642,8 +2525,7 @@ export default function ModelConfigurationTab() {
                     size="sm"
                     className="h-6 w-6 p-0 text-blue-200 hover:text-white hover:bg-blue-800"
                     onClick={() => {
-                      setBlockConnectionMode(false);
-                      setSelectedSourceNodeForBlock(null);
+                      cancelConnection();
                     }}
                   >
                     <X className="w-4 h-4" />
@@ -2782,12 +2664,15 @@ export default function ModelConfigurationTab() {
                 );
               })}
               
-              {/* Preview connection while dragging */}
-              {activeOutput && (
+              {/* Preview connection for click-based connection mode */}
+              {selectedNodeForConnection && (
                 <g>
                   {(() => {
-                    const startX = activeOutput.x || 0;
-                    const startY = activeOutput.y || 0;
+                    const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
+                    if (!sourceNode) return null;
+                    
+                    const startX = sourceNode.position.x + sourceNode.width / 2;
+                    const startY = sourceNode.position.y + sourceNode.height / 2;
                     const endX = mousePosition.x;
                     const endY = mousePosition.y;
                     const controlOffset = Math.abs(endX - startX) * 0.5;
@@ -2820,11 +2705,11 @@ export default function ModelConfigurationTab() {
                     ? 'bg-purple-900 border-purple-500 ring-2 ring-purple-400' 
                     : 'bg-gray-800 border-gray-600'
                 } ${
-                  blockConnectionMode && selectedSourceNodeForBlock === node.id
+                  selectedNodeForConnection === node.id
                     ? 'ring-4 ring-blue-400 border-blue-500'
                     : ''
                 } ${
-                  blockConnectionMode && selectedSourceNodeForBlock && selectedSourceNodeForBlock !== node.id
+                  selectedNodeForConnection && selectedNodeForConnection !== node.id
                     ? 'ring-2 ring-green-400 border-green-500 hover:ring-green-300'
                     : ''
                 }`}
@@ -2839,44 +2724,55 @@ export default function ModelConfigurationTab() {
                 onDragStart={(e) => e.preventDefault()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Block connection mode - handle node click
-                  if (blockConnectionMode) {
-                    if (selectedSourceNodeForBlock === node.id) {
-                      // Cancel block connection mode
-                      setBlockConnectionMode(false);
-                      setSelectedSourceNodeForBlock(null);
-                      toast({
-                        title: "Connection Cancelled",
-                        description: "Block connection mode cancelled",
-                      });
-                    } else if (selectedSourceNodeForBlock) {
-                      // Create block connection
-                      const sourceNode = nodes.find(n => n.id === selectedSourceNodeForBlock);
+                  
+                  // Simple click-based connection mode
+                  if (selectedNodeForConnection) {
+                    if (selectedNodeForConnection === node.id) {
+                      // Cancel connection mode
+                      cancelConnection();
+                    } else {
+                      // Create connection between selected source and this target node
+                      const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
                       if (sourceNode && sourceNode.id !== node.id) {
-                        const connection: Connection = {
-                          id: `block-${Date.now()}`,
-                          type: 'block',
-                          fromNodeId: sourceNode.id,
-                          toNodeId: node.id,
-                          sourceOutputName: sourceNode.name,
-                          targetInputName: node.name,
-                          fromOutputId: '',
-                          toInputId: '',
-                          mappings: []
-                        };
+                        // Check if connection already exists
+                        const existingConnection = connections.find(c => 
+                          c.fromNodeId === sourceNode.id && c.toNodeId === node.id
+                        );
                         
-                        setConnections(prev => [...prev, connection]);
-                        setSelectedConnection(connection.id);
-                        setMappingDialogOpen(true);
-                        setBlockConnectionMode(false);
-                        setSelectedSourceNodeForBlock(null);
-                        
-                        toast({
-                          title: "Block Connection Created",
-                          description: `Connected ${sourceNode.name} to ${node.name}`,
-                        });
+                        if (existingConnection) {
+                          toast({
+                            title: "Connection Already Exists",
+                            description: `${sourceNode.name} is already connected to ${node.name}`,
+                            variant: "destructive"
+                          });
+                        } else {
+                          // Create new connection
+                          const connection: Connection = {
+                            id: `conn-${Date.now()}`,
+                            type: 'data',
+                            fromNodeId: sourceNode.id,
+                            toNodeId: node.id,
+                            sourceOutputName: sourceNode.name,
+                            targetInputName: node.name,
+                            fromOutputId: sourceNode.outputs[0]?.id || '',
+                            toInputId: node.inputs[0]?.id || '',
+                            mappings: []
+                          };
+                          
+                          setConnections(prev => [...prev, connection]);
+                          cancelConnection();
+                          
+                          toast({
+                            title: "Connection Created",
+                            description: `Connected ${sourceNode.name} to ${node.name}`,
+                          });
+                        }
                       }
                     }
+                  } else {
+                    // Regular click to show details
+                    setSelectedNodeForDetails(node);
+                    setIsRightPanelOpen(true);
                   }
                 }}
               >
@@ -2900,33 +2796,28 @@ export default function ModelConfigurationTab() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {/* Block Connection Button */}
+                      {/* Simple Connection Button */}
                       <Button
                         variant="ghost"
                         size="sm"
                         className={`h-6 w-6 p-0 hover:bg-white/20 ${
-                          blockConnectionMode ? 'bg-blue-500/30 text-blue-300' : ''
+                          selectedNodeForConnection === node.id ? 'bg-blue-500/30 text-blue-300' : ''
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!blockConnectionMode) {
-                            setBlockConnectionMode(true);
-                            setSelectedSourceNodeForBlock(node.id);
+                          if (selectedNodeForConnection === node.id) {
+                            // Cancel connection mode
+                            cancelConnection();
+                          } else {
+                            // Start connection mode
+                            setSelectedNodeForConnection(node.id);
                             toast({
-                              title: "Block Connection Mode",
-                              description: "Click on another node block to create a connection",
-                            });
-                          } else if (selectedSourceNodeForBlock === node.id) {
-                            // Cancel block connection mode
-                            setBlockConnectionMode(false);
-                            setSelectedSourceNodeForBlock(null);
-                            toast({
-                              title: "Connection Cancelled",
-                              description: "Block connection mode cancelled",
+                              title: "Connection Mode",
+                              description: "Click another node to connect",
                             });
                           }
                         }}
-                        title={blockConnectionMode ? "Cancel connection" : "Create block connection"}
+                        title={selectedNodeForConnection === node.id ? "Cancel connection" : "Connect to another node"}
                       >
                         <Link2 className="w-3 h-3" />
                       </Button>
