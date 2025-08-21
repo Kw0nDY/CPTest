@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -3646,22 +3647,27 @@ export default function ModelConfigurationTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Node Confirmation Dialog - HIGHEST PRIORITY */}
-      {showDeleteDialog && (
+      {/* Delete Node Confirmation Dialog - Using Portal */}
+      {showDeleteDialog && createPortal(
         <div 
-          className="fixed inset-0 flex items-center justify-center z-[99999]"
+          className="fixed inset-0 flex items-center justify-center"
           style={{ 
-            zIndex: 99999,
-            backgroundColor: 'rgba(0,0,0,0.75)'
+            zIndex: 999999,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
           }}
           onClick={() => cancelDeleteNode()}
         >
           {/* Dialog Content */}
           <div 
-            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500 z-[99999]"
+            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
             style={{ 
               minWidth: '400px',
-              zIndex: 99999
+              zIndex: 999999
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3688,7 +3694,8 @@ export default function ModelConfigurationTab() {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Configuration Validation Details Modal */}
