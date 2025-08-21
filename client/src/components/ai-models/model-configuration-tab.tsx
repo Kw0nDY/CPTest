@@ -1053,14 +1053,28 @@ export default function ModelConfigurationTab() {
 
   const deleteNode = () => {
     console.log('🗑️ Delete confirmed, nodeToDelete:', nodeToDelete);
-    if (!nodeToDelete) return;
+    if (!nodeToDelete) {
+      console.log('🗑️ No node to delete, returning early');
+      return;
+    }
     
+    console.log('🗑️ Current nodes before deletion:', nodes.length);
     console.log('🗑️ Removing node from nodes array...');
-    setNodes(prev => prev.filter(node => node.id !== nodeToDelete.id));
+    setNodes(prev => {
+      const filtered = prev.filter(node => node.id !== nodeToDelete.id);
+      console.log('🗑️ Nodes after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
+      return filtered;
+    });
+    
+    console.log('🗑️ Current connections before deletion:', connections.length);
     console.log('🗑️ Removing connections...');
-    setConnections(prev => prev.filter(conn => 
-      conn.fromNodeId !== nodeToDelete.id && conn.toNodeId !== nodeToDelete.id
-    ));
+    setConnections(prev => {
+      const filtered = prev.filter(conn => 
+        conn.fromNodeId !== nodeToDelete.id && conn.toNodeId !== nodeToDelete.id
+      );
+      console.log('🗑️ Connections after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
+      return filtered;
+    });
     
     console.log('🗑️ Closing dialog...');
     setShowDeleteDialog(false);
@@ -3556,7 +3570,10 @@ export default function ModelConfigurationTab() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={cancelDeleteNode}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={deleteNode}
+              onClick={() => {
+                console.log('🗑️ Delete button clicked');
+                deleteNode();
+              }}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
