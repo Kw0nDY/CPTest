@@ -312,7 +312,13 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
       return response;
     },
     onSuccess: () => {
+      // Invalidate both models and folders queries to refresh the UI
       queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+      
+      // Force refetch to ensure fresh data
+      queryClient.refetchQueries({ queryKey: ['/api/ai-models'] });
+      queryClient.refetchQueries({ queryKey: ['/api/ai-model-folders'] });
       
       toast({
         title: "Model Uploaded Successfully",

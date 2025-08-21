@@ -363,7 +363,12 @@ export default function AIModelManagementTab() {
       {/* Dialogs */}
       {showUpload && (
         <EnhancedModelUpload 
-          onClose={() => setShowUpload(false)}
+          onClose={() => {
+            setShowUpload(false);
+            // Force refresh data when upload dialog closes
+            queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+          }}
           folders={folders}
         />
       )}
