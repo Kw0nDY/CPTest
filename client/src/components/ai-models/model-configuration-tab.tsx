@@ -2744,7 +2744,7 @@ export default function ModelConfigurationTab() {
                 onClick={(e) => {
                   e.stopPropagation();
                   
-                  // Simple click-based connection mode
+                  // Only handle connection mode when connection is in progress
                   if (selectedNodeForConnection) {
                     if (selectedNodeForConnection === node.id) {
                       // Cancel connection mode
@@ -2788,11 +2788,8 @@ export default function ModelConfigurationTab() {
                         }
                       }
                     }
-                  } else {
-                    // Regular click to show details
-                    setSelectedNodeForDetails(node);
-                    setIsRightPanelOpen(true);
                   }
+                  // Remove automatic details display on node click
                 }}
               >
                 {/* Node Header */}
