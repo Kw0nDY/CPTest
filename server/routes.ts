@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
@@ -3677,6 +3677,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching AI models by folder:", error);
       res.status(500).json({ error: "Failed to fetch AI models by folder" });
+    }
+  });
+
+  // Model Configuration Folders API (separate from AI Model Folders)
+
+  // Get all model configuration folders
+  app.get("/api/model-configuration-folders", async (req, res) => {
+    try {
+      const folders = await storage.getModelConfigurationFolders();
+      res.json(folders);
+    } catch (error) {
+      console.error("Error fetching model configuration folders:", error);
+      res.status(500).json({ error: "Failed to fetch model configuration folders" });
+    }
+  });
+
+  // Get model configuration folder by ID
+  app.get("/api/model-configuration-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const folder = await storage.getModelConfigurationFolder(id);
+      
+      if (!folder) {
+        return res.status(404).json({ error: "Model configuration folder not found" });
+      }
+      
+      res.json(folder);
+    } catch (error) {
+      console.error("Error fetching model configuration folder:", error);
+      res.status(500).json({ error: "Failed to fetch model configuration folder" });
+    }
+  });
+
+  // Create model configuration folder
+  app.post("/api/model-configuration-folders", async (req, res) => {
+    try {
+      const validatedData = insertModelConfigurationFolderSchema.parse(req.body);
+      const folder = await storage.createModelConfigurationFolder(validatedData);
+      res.status(201).json(folder);
+    } catch (error) {
+      console.error("Error creating model configuration folder:", error);
+      res.status(500).json({ error: "Failed to create model configuration folder" });
+    }
+  });
+
+  // Update model configuration folder
+  app.put("/api/model-configuration-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const folder = await storage.updateModelConfigurationFolder(id, updates);
+      res.json(folder);
+    } catch (error) {
+      console.error("Error updating model configuration folder:", error);
+      res.status(500).json({ error: "Failed to update model configuration folder" });
+    }
+  });
+
+  // Delete model configuration folder
+  app.delete("/api/model-configuration-folders/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteModelConfigurationFolder(id);
+      res.status(200).json({ message: "Model configuration folder deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting model configuration folder:", error);
+      res.status(500).json({ error: "Failed to delete model configuration folder" });
     }
   });
 

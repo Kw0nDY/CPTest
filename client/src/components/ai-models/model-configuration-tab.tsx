@@ -442,16 +442,16 @@ export default function ModelConfigurationTab() {
     queryKey: ['/api/ai-models'],
   });
 
-  // Fetch AI model folders
-  const { data: aiModelFolders = [], refetch: refetchFolders } = useQuery({
-    queryKey: ['/api/ai-model-folders'],
+  // Fetch Model Configuration folders (separate from AI Model folders)
+  const { data: modelConfigFolders = [], refetch: refetchFolders } = useQuery({
+    queryKey: ['/api/model-configuration-folders'],
     staleTime: 30000,
   });
 
-  // Create folder mutation
+  // Create model configuration folder mutation
   const createFolderMutation = useMutation({
     mutationFn: async (folderData: { name: string; description: string; color?: string; icon?: string }) => {
-      const response = await fetch('/api/ai-model-folders', {
+      const response = await fetch('/api/model-configuration-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -468,7 +468,7 @@ export default function ModelConfigurationTab() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/model-configuration-folders'] });
       refetchFolders();
     },
   });
@@ -1966,7 +1966,7 @@ export default function ModelConfigurationTab() {
                     
                     <div className="space-y-3">
                       {/* Models organized by folders */}
-                      {aiModelFolders.map((folder) => {
+                      {(modelConfigFolders as any[]).map((folder) => {
                         const folderModels = filteredAIModels.filter(model => model.folderId === folder.id);
                         if (folderModels.length === 0) return null;
                         
@@ -3488,7 +3488,7 @@ export default function ModelConfigurationTab() {
       {!selectedFolder ? (
         // Folder grid view
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(aiModelFolders as any[]).map((folder) => (
+          {(modelConfigFolders as any[]).map((folder) => (
             <Card key={folder.id} className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -3530,10 +3530,10 @@ export default function ModelConfigurationTab() {
             </Button>
             <div>
               <h2 className="text-xl font-bold text-gray-900">
-                {(aiModelFolders as any[]).find(f => f.id === selectedFolder)?.name}
+                {(modelConfigFolders as any[]).find(f => f.id === selectedFolder)?.name}
               </h2>
               <p className="text-gray-600">
-                {(aiModelFolders as any[]).find(f => f.id === selectedFolder)?.description}
+                {(modelConfigFolders as any[]).find(f => f.id === selectedFolder)?.description}
               </p>
             </div>
             <Button 

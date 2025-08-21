@@ -1,11 +1,12 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
-  aiModels, modelConfigurations, aiModelResults, aiModelFolders,
+  aiModels, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration,
-  type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder
+  type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
+  type ModelConfigurationFolder, type InsertModelConfigurationFolder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -74,6 +75,13 @@ export interface IStorage {
   updateAiModelFolder(id: string, updates: Partial<AiModelFolder>): Promise<AiModelFolder>;
   deleteAiModelFolder(id: string): Promise<void>;
   getAiModelsByFolder(folderId: string): Promise<AiModel[]>;
+
+  // Model Configuration Folder methods (separate from AI Model Folders)
+  getModelConfigurationFolders(): Promise<ModelConfigurationFolder[]>;
+  getModelConfigurationFolder(id: string): Promise<ModelConfigurationFolder | undefined>;
+  createModelConfigurationFolder(folder: InsertModelConfigurationFolder): Promise<ModelConfigurationFolder>;
+  updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder>;
+  deleteModelConfigurationFolder(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -733,6 +741,44 @@ export class DatabaseStorage implements IStorage {
 
   async getAiModelsByFolder(folderId: string): Promise<AiModel[]> {
     return await db.select().from(aiModels).where(eq(aiModels.folderId, folderId));
+  }
+
+  // Model Configuration Folder methods (separate from AI Model Folders)
+  async getModelConfigurationFolders(): Promise<ModelConfigurationFolder[]> {
+    return await db.select().from(modelConfigurationFolders);
+  }
+
+  async getModelConfigurationFolder(id: string): Promise<ModelConfigurationFolder | undefined> {
+    const [folder] = await db.select().from(modelConfigurationFolders).where(eq(modelConfigurationFolders.id, id));
+    return folder || undefined;
+  }
+
+  async createModelConfigurationFolder(folder: InsertModelConfigurationFolder): Promise<ModelConfigurationFolder> {
+    const newId = `config-folder-${Date.now()}`;
+    const [created] = await db
+      .insert(modelConfigurationFolders)
+      .values({
+        id: newId,
+        ...folder
+      })
+      .returning();
+    return created;
+  }
+
+  async updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder> {
+    const [updated] = await db
+      .update(modelConfigurationFolders)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(modelConfigurationFolders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteModelConfigurationFolder(id: string): Promise<void> {
+    await db.delete(modelConfigurationFolders).where(eq(modelConfigurationFolders.id, id));
   }
 }
 
