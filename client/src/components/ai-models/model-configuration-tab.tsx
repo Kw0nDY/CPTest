@@ -1059,32 +1059,54 @@ export default function ModelConfigurationTab() {
       return;
     }
     
+    const nodeIdToDelete = nodeToDelete.id;
+    const nodeName = nodeToDelete.name;
+    
     console.log('🗑️ Current nodes before deletion:', nodes.length);
     console.log('🗑️ Removing node from nodes array...');
+    
+    // Update nodes state - remove the deleted node
     setNodes(prev => {
-      const filtered = prev.filter(node => node.id !== nodeToDelete.id);
+      const filtered = prev.filter(node => node.id !== nodeIdToDelete);
       console.log('🗑️ Nodes after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
+      console.log('🗑️ Filtered nodes IDs:', filtered.map(n => n.id));
       return filtered;
     });
     
     console.log('🗑️ Current connections before deletion:', connections.length);
     console.log('🗑️ Removing connections...');
+    
+    // Update connections state - remove connections involving the deleted node
     setConnections(prev => {
       const filtered = prev.filter(conn => 
-        conn.fromNodeId !== nodeToDelete.id && conn.toNodeId !== nodeToDelete.id
+        conn.fromNodeId !== nodeIdToDelete && conn.toNodeId !== nodeIdToDelete
       );
       console.log('🗑️ Connections after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
       return filtered;
     });
     
+    // Clear selected node if it was the deleted one
+    if (selectedNode?.id === nodeIdToDelete) {
+      console.log('🗑️ Clearing selected node as it was the deleted one');
+      setSelectedNode(null);
+    }
+    
     console.log('🗑️ Closing dialog...');
     setShowDeleteDialog(false);
     setNodeToDelete(null);
+    
+    // Show success toast
     toast({
       title: "Node Deleted",
-      description: `${nodeToDelete.name} has been removed from the configuration.`,
+      description: `${nodeName} has been removed from the configuration.`,
     });
+    
     console.log('🗑️ Delete operation completed');
+    
+    // Force a slight delay to ensure state updates are processed
+    setTimeout(() => {
+      console.log('🗑️ Final node count after deletion:', nodes.filter(n => n.id !== nodeIdToDelete).length);
+    }, 100);
   };
 
   const cancelDeleteNode = () => {
@@ -2616,8 +2638,11 @@ export default function ModelConfigurationTab() {
             </svg>
 
             {/* Nodes */}
-            {nodes.map(node => (
-              <div
+            {nodes.map(node => {
+              // Debug logging for node rendering
+              console.log('🎨 Rendering node:', node.id, node.name);
+              return (
+                <div
                 key={node.id}
                 className={`absolute border rounded-lg shadow-lg z-10 ${
                   isDragging && draggedNode?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'
@@ -2775,8 +2800,9 @@ export default function ModelConfigurationTab() {
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
 
             {/* Add Node Menu */}
             {showAddNodeMenu && (
