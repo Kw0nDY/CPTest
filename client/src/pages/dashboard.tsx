@@ -102,17 +102,9 @@ export default function Dashboard() {
       case "automation":
         return <AutomationListTab />;
       case "model-upload":
-        return <AIModelManagementTab activeTab={activeView} />;
+        return <AIModelManagementTab activeTab="model-upload" />;
       case "model-configuration":
-        // Use the first available model or a default model
-        const selectedModel = aiModels.length > 0 ? aiModels[0] : {
-          id: "default",
-          name: "기본 모델",
-          modelType: "unknown",
-          status: "inactive",
-          uploadedAt: new Date().toISOString()
-        };
-        return <ModelConfigurationTab model={selectedModel} />;
+        return <AIModelManagementTab activeTab="model-configuration" />;
       case "boi-overview":
       case "boi-input-setting":
       case "boi-insights":

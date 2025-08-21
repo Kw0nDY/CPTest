@@ -79,29 +79,24 @@ export function SimpleNodeWorkflow({ configurationId, onSave }: SimpleNodeWorkfl
 
   // Get available data sources for adding nodes
   const { data: dataSources = [] } = useQuery({
-    queryKey: ['/api/data-sources'],
-    queryFn: () => apiRequest('/api/data-sources')
+    queryKey: ['/api/data-sources']
   });
 
   const { data: views = [] } = useQuery({
-    queryKey: ['/api/views'],
-    queryFn: () => apiRequest('/api/views')
+    queryKey: ['/api/views']
   });
 
   const { data: aiModels = [] } = useQuery({
-    queryKey: ['/api/ai-models'],
-    queryFn: () => apiRequest('/api/ai-models')
+    queryKey: ['/api/ai-models']
   });
 
   const { data: aiResults = [] } = useQuery({
-    queryKey: ['/api/ai-model-results'],
-    queryFn: () => apiRequest('/api/ai-model-results')
+    queryKey: ['/api/ai-model-results']
   });
 
   // Get possible connections for selected node
   const { data: possibleConnections, refetch: refetchConnections } = useQuery({
     queryKey: ['/api/ai-models', selectedNode, 'possible-connections'],
-    queryFn: () => selectedNode ? apiRequest(`/api/ai-models/${selectedNode}/possible-connections`) : null,
     enabled: false
   });
 
@@ -382,13 +377,13 @@ export function SimpleNodeWorkflow({ configurationId, onSave }: SimpleNodeWorkfl
 
   const renderPossibleConnectionsDialog = () => {
     const selectedNodeData = nodes.find(n => n.id === selectedNode);
-    if (!selectedNodeData || !possibleConnections) return null;
+    if (!selectedNodeData) return null;
 
     const allConnections = [
-      ...possibleConnections.dataSources || [],
-      ...possibleConnections.views || [],
-      ...possibleConnections.aiResults || [],
-      ...possibleConnections.aiModels || []
+      ...dataSources || [],
+      ...views || [],
+      ...aiResults || [],
+      ...aiModels || []
     ];
 
     return (
@@ -425,7 +420,7 @@ export function SimpleNodeWorkflow({ configurationId, onSave }: SimpleNodeWorkfl
                         사용 가능한 출력:
                       </p>
                       <div className="grid gap-2">
-                        {connection.outputs.map((output) => (
+                        {connection.outputs.map((output: any) => (
                           <div
                             key={output.id}
                             className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50 cursor-pointer"
