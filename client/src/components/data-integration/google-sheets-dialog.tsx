@@ -144,7 +144,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
       }
       
       toast({
-        title: "인증 오류",
+        title: "Authentication Error",
         description: errorMessage,
         variant: "destructive"
       });
@@ -164,32 +164,32 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
         // Show a note if sheets are available
         if (result.sheets && result.sheets.length > 0) {
           toast({
-            title: "Google Sheets 로딩 완료",
-            description: `${result.sheets.length}개의 스프레드시트를 찾았습니다.`,
+            title: "Google Sheets Loaded",
+            description: `Found ${result.sheets.length} spreadsheet(s).`,
             variant: "default"
           });
         }
       } else if (result.needsDriveApi) {
         toast({
-          title: "API 제한",
-          description: "Google Drive API가 필요합니다. Google Cloud Console에서 활성화해주세요.",
+          title: "API Limitation",
+          description: "Google Drive API is required. Please enable it in Google Cloud Console.",
           variant: "destructive"
         });
       }
     } catch (error: any) {
       console.error('Failed to load sheets:', error);
       
-      let description = "Google Sheets API 연결에 실패했습니다.";
+      let description = "Failed to connect to Google Sheets API.";
       
       // Handle specific API error responses
       if (error.error && error.needsDriveApi) {
-        description = "Google Sheets API가 비활성화되어 있습니다. Google Cloud Console에서 활성화해주세요.";
+        description = "Google Sheets API is disabled. Please enable it in Google Cloud Console.";
       } else if (error.message) {
         description = error.message;
       }
       
       toast({
-        title: "API 연결 실패", 
+        title: "API Connection Failed", 
         description: description,
         variant: "destructive"
       });
@@ -199,8 +199,8 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
   const handleConnectSheets = async () => {
     if (selectedSheets.length === 0) {
       toast({
-        title: "시트 선택 필요",
-        description: "연결할 Google Sheets를 하나 이상 선택해주세요.",
+        title: "Sheet Selection Required",
+        description: "Please select one or more Google Sheets to connect.",
         variant: "destructive"
       });
       return;
@@ -220,8 +220,8 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
         await queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
         
         toast({
-          title: "Google Sheets 연결 완료",
-          description: result.message || `${selectedSheets.length}개의 스프레드시트가 성공적으로 연결되었습니다.`
+          title: "Google Sheets Connected",
+          description: result.message || `${selectedSheets.length} spreadsheet(s) connected successfully.`
         });
         
         onSuccess?.();
@@ -233,8 +233,8 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
     } catch (error) {
       console.error('Failed to connect sheets:', error);
       toast({
-        title: "연결 실패",
-        description: "Google Sheets 연결에 실패했습니다.",
+        title: "Connection Failed",
+        description: "Failed to connect to Google Sheets.",
         variant: "destructive"
       });
     } finally {
@@ -289,7 +289,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{sheet.name}</p>
                 <p className="text-sm text-gray-600">
-                  {sheet.sheets.length}개 워크시트 • 수정일: {new Date(sheet.lastModified).toLocaleDateString()}
+                  {sheet.sheets.length} worksheet(s) • Modified: {new Date(sheet.lastModified).toLocaleDateString()}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -300,7 +300,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                   className="h-8"
                 >
                   <Eye className="w-3 h-3 mr-1" />
-                  미리보기
+                  Preview
                   {showPreview ? 
                     <ChevronUp className="w-3 h-3 ml-1" /> : 
                     <ChevronDown className="w-3 h-3 ml-1" />
@@ -323,7 +323,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 {/* Worksheet Selection */}
                 {sheet.sheets.length > 1 && (
                   <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium">워크시트:</Label>
+                    <Label className="text-sm font-medium">Worksheet:</Label>
                     <select 
                       value={selectedWorksheet}
                       onChange={(e) => setSelectedWorksheet(e.target.value)}
@@ -342,12 +342,12 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 {isLoadingPreview ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    <span className="text-sm text-gray-600">데이터 로딩 중...</span>
+                    <span className="text-sm text-gray-600">Loading data...</span>
                   </div>
                 ) : previewData?.success ? (
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-gray-700">
-                      "{selectedWorksheet}" 데이터 미리보기 ({previewData.data.totalRows}행)
+                      "{selectedWorksheet}" Data Preview ({previewData.data.totalRows} rows)
                     </div>
                     <div className="bg-gray-50 rounded-md p-3 max-h-48 overflow-auto">
                       <table className="w-full text-xs">
@@ -355,7 +355,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                           <tr className="border-b border-gray-200">
                             {previewData.data.headers?.slice(0, 5).map((header: string, index: number) => (
                               <th key={index} className="text-left p-1 font-medium text-gray-700">
-                                {header || `열${index + 1}`}
+                                {header || `Column${index + 1}`}
                               </th>
                             ))}
                             {previewData.data.headers?.length > 5 && (
@@ -380,7 +380,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                             <tr>
                               <td colSpan={Math.min(previewData.data.headers?.length || 0, 6)} 
                                   className="p-1 text-center text-gray-400 text-xs">
-                                ... {previewData.data.rows.length - 3}개 행 더 있음
+                                ... {previewData.data.rows.length - 3} more rows
                               </td>
                             </tr>
                           )}
@@ -391,9 +391,9 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 ) : (
                   <div className="text-center py-3 text-sm text-red-600">
                     <AlertCircle className="w-4 h-4 mx-auto mb-1" />
-                    미리보기를 불러올 수 없습니다
+                    Cannot load preview
                     <div className="text-xs text-gray-500 mt-1">
-                      {previewData?.error || "데이터를 불러오는 중 오류가 발생했습니다"}
+                      {previewData?.error || "An error occurred while loading data"}
                     </div>
                   </div>
                 )}
@@ -411,7 +411,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-600" />
-            Google Sheets 연결
+            Google Sheets Connection
           </DialogTitle>
         </DialogHeader>
 
@@ -423,13 +423,13 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 <FileSpreadsheet className="w-8 h-8 text-green-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">Google 계정으로 로그인</h3>
+                <h3 className="text-lg font-semibold mb-2">Sign in with Google Account</h3>
                 <p className="text-gray-600 mb-4">
-                  Google Sheets에 액세스하려면 먼저 Google 계정으로 로그인해주세요.
+                  To access Google Sheets, please first sign in with your Google account.
                 </p>
                 <Button onClick={handleGoogleAuth} className="bg-blue-600 hover:bg-blue-700">
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Google 계정으로 로그인
+                  Sign in with Google Account
                 </Button>
               </div>
             </div>
@@ -440,9 +440,9 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
             <div className="text-center space-y-4">
               <Progress value={50} className="w-full" />
               <div>
-                <h3 className="text-lg font-semibold mb-2">인증 진행 중...</h3>
+                <h3 className="text-lg font-semibold mb-2">Authentication in progress...</h3>
                 <p className="text-gray-600">
-                  팝업 창에서 Google 계정 인증을 완료해주세요.
+                  Please complete Google account authentication in the popup window.
                 </p>
               </div>
             </div>
@@ -494,10 +494,10 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
               {/* Sheets Selection */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Google Sheets 선택</h3>
+                  <h3 className="text-lg font-semibold">Select Google Sheets</h3>
                   <Button onClick={loadGoogleSheets} variant="outline" size="sm">
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    새로고침
+                    Refresh
                   </Button>
                 </div>
 
@@ -515,7 +515,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>사용 가능한 Google Sheets가 없습니다.</p>
+                    <p>No available Google Sheets found.</p>
                   </div>
                 )}
               </div>
@@ -523,7 +523,7 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
               {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <Button onClick={onOpenChange.bind(null, false)} variant="outline" className="flex-1">
-                  취소
+                  Cancel
                 </Button>
                 <Button 
                   onClick={handleConnectSheets} 
@@ -533,12 +533,12 @@ export function GoogleSheetsDialog({ open, onOpenChange, onSuccess }: GoogleShee
                   {isConnecting ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      연결 중...
+                      Connecting...
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Google Sheets 연결 ({selectedSheets.length})
+                      Connect Google Sheets ({selectedSheets.length})
                     </>
                   )}
                 </Button>
