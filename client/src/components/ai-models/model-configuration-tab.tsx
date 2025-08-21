@@ -447,14 +447,14 @@ export default function ModelConfigurationTab() {
     staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Transform real AI models to match expected format and combine with samples
+  // Transform real AI models to match expected format - ONLY use real models, no samples
   const availableAIModels = useMemo(() => {
     const transformedRealModels = (realAIModels as any[]).map(model => ({
       id: model.id,
       name: model.name,
       type: model.modelType || 'pytorch',
       category: 'User Models',
-      folderId: 'user-models',
+      folderId: model.folderId || null, // Use actual folder ID from database
       inputs: model.inputSpecs ? model.inputSpecs.map((spec: any) => ({
         id: spec.name,
         name: spec.name,
@@ -476,8 +476,8 @@ export default function ModelConfigurationTab() {
       fileSize: model.fileSize
     }));
 
-    // Combine real models with sample models
-    return [...transformedRealModels, ...sampleAIModels];
+    // Return ONLY real models - no sample/hardcoded models
+    return transformedRealModels;
   }, [realAIModels]);
 
   // Helper function to determine category from source type
