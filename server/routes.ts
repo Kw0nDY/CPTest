@@ -2442,7 +2442,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fileSize: 100 * 1024 * 1024 // 100MB limit
     },
     fileFilter: (req, file, cb) => {
-      const allowedExtensions = ['.pth', '.pt', '.onnx', '.h5', '.pb', '.tflite', '.pkl', '.pickle'];
+      const allowedExtensions = [
+        '.pth', '.pt', '.onnx', '.h5', '.pb', '.tflite', '.pkl', '.pickle', // Model files
+        '.py', '.ipynb', // Python application files
+        '.json', '.yaml', '.yml', // Config files
+        '.txt', '.md', '.csv', '.xlsx' // Documentation and data files
+      ];
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowedExtensions.includes(ext)) {
         cb(null, true);
@@ -2462,7 +2467,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     fileFilter: (req, file, cb) => {
       const allowedExtensions = [
         '.pth', '.pt', '.onnx', '.h5', '.pb', '.tflite', '.pkl', '.pickle', // Model files
-        '.json', '.yaml', '.yml' // Config files
+        '.json', '.yaml', '.yml', // Config files
+        '.py', '.ipynb', // Python application files
+        '.txt', '.md', '.csv', '.xlsx' // Documentation and data files
       ];
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowedExtensions.includes(ext)) {

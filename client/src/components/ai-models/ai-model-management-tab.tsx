@@ -265,7 +265,8 @@ export default function AIModelManagementTab() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Drag & Drop Model Files</h3>
-                <p className="text-gray-600 mb-1">Supported formats: .pkl, .joblib, .h5, .onnx, .pb, .pt, .pth</p>
+                <p className="text-gray-600 mb-1">Supported formats: .pth, .pt, .onnx, .h5, .pkl, .py, .json, .yaml, .csv, .xlsx</p>
+                <p className="text-xs text-gray-400">Includes: Model files, Python scripts, Config files, Data files</p>
                 <p className="text-xs text-gray-400 mt-2">Maximum file size: 500MB</p>
               </div>
               <div className="flex gap-3">
