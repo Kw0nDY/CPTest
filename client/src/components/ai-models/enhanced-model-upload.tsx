@@ -533,30 +533,27 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
                   Available folders: {folders?.length || 0} 
                   {folders?.length > 0 && ` (${folders.map((f: any) => f.name).join(', ')})`}
                 </p>
-                <Select value={selectedFolderId || ""} onValueChange={setSelectedFolderId} required>
-                  <SelectTrigger className="mt-1" data-testid="select-folder">
-                    <SelectValue placeholder="Select a folder (required)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {folders && folders.length > 0 ? (
-                      folders.map((folder: any) => (
-                        <SelectItem key={folder.id} value={folder.id}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-sm" 
-                              style={{ backgroundColor: folder.color }}
-                            />
-                            <span>{folder.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="p-2 text-sm text-gray-500 text-center">
-                        No folders available. Create a folder first.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={selectedFolderId || ""}
+                  onChange={(e) => {
+                    console.log('Folder selected:', e.target.value);
+                    setSelectedFolderId(e.target.value);
+                  }}
+                  required
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  data-testid="select-folder"
+                >
+                  <option value="" disabled>Select a folder (required)</option>
+                  {folders && folders.length > 0 ? (
+                    folders.map((folder: any) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No folders available. Create a folder first.</option>
+                  )}
+                </select>
                 {(!folders || folders.length === 0) && (
                   <p className="text-xs text-red-500 mt-1">
                     You must create at least one folder before uploading models.
