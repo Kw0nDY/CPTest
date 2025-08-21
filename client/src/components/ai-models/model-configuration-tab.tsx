@@ -2114,7 +2114,7 @@ export default function ModelConfigurationTab() {
   };
 
   // Save configuration
-  const saveConfiguration = () => {
+  const saveConfiguration = async () => {
     if (!currentConfig) return;
 
     const validation = validateConfiguration();
@@ -2127,18 +2127,46 @@ export default function ModelConfigurationTab() {
       return;
     }
     
-    const updatedConfig = {
-      ...currentConfig,
-      nodes,
-      connections,
-      lastModified: new Date().toISOString()
-    };
-    
-    // In real implementation, save to backend
-    toast({
-      title: "Configuration Saved",
-      description: `${currentConfig.name} has been saved successfully`
-    });
+    try {
+      const updatedConfig = {
+        ...currentConfig,
+        nodes,
+        connections,
+        lastModified: new Date().toISOString()
+      };
+      
+      // Save to backend
+      const response = await fetch(`/api/model-configurations/${currentConfig.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(updatedConfig)
+      });
+
+      if (response.ok) {
+        // Update local state
+        setCurrentConfig(updatedConfig);
+        
+        // Invalidate and refetch the configurations list
+        queryClient.invalidateQueries({ queryKey: ['/api/model-configurations'] });
+        
+        toast({
+          title: "Configuration Saved",
+          description: `${currentConfig.name} has been saved successfully`
+        });
+      } else {
+        throw new Error('Failed to save configuration');
+      }
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save configuration. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getFilteredConfigs = (folderId: string) => {
