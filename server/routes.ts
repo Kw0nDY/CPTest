@@ -4091,7 +4091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Process each AI model
       for (const aiModelNode of aiModelNodes) {
-        const modelId = aiModelNode.data?.modelId;
+        const modelId = aiModelNode.modelId || aiModelNode.data?.modelId;
         if (!modelId) {
           console.warn('AI model node missing modelId:', aiModelNode);
           continue;

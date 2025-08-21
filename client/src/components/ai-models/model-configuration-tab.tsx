@@ -1329,61 +1329,86 @@ export default function ModelConfigurationTab() {
     setIsTestRunning(true);
     
     try {
-      // Simulate comprehensive test execution
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Generate test data based on connections
-      const testData = {
-        workflow: {
-          totalNodes: nodes.length,
-          aiModels: nodes.filter(n => n.type === 'ai-model').length,
-          dataSources: nodes.filter(n => n.type === 'data-input').length,
-          finalGoals: finalGoalNodes.length,
-          activeConnections: connections.length
-        },
-        validation: {
-          allInputsConnected: finalGoalNodes.every(goal => 
-            goal.inputs.every(input => input.connected)
-          ),
-          typeCompatibility: true,
-          circularDependencies: false
-        },
-        performance: {
-          executionTime: '2.1s',
-          memoryUsage: '45MB',
-          throughput: '1.2k ops/sec'
-        }
-      };
-      
-      setTestResults({
-        status: 'success',
-        message: 'Complete workflow test passed successfully',
-        details: testData
+      // Collect goal inputs from Final Goal nodes
+      const goalInputs = finalGoalNodes.map(goalNode => ({
+        nodeId: goalNode.id,
+        nodeName: goalNode.name,
+        goalRequest: goalNode.goalRequest || ''
+      }));
+
+      console.log('Executing model configuration with:', {
+        configurationId: selectedConfiguration?.id,
+        nodes: nodes.length,
+        connections: connections.length,
+        goalInputs: goalInputs.length
       });
-      
-      toast({
-        title: "✅ Test Completed Successfully",
-        description: `Workflow with ${nodes.length} nodes and ${connections.length} connections validated`,
+
+      // Call the real API execution endpoint
+      const response = await fetch('/api/model-configuration/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          configurationId: selectedConfiguration?.id,
+          nodes: nodes,
+          connections: connections,
+          goalInputs: goalInputs
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error(`API execution failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Model execution result:', result);
+
+      if (result.success && result.results && result.results.length > 0) {
+        setTestResults({
+          status: 'success',
+          message: `${result.results.length} AI model(s) executed successfully`,
+          details: {
+            configurationId: result.configurationId,
+            executedAt: result.executedAt,
+            results: result.results,
+            workflow: {
+              totalNodes: nodes.length,
+              aiModels: nodes.filter(n => n.type === 'ai-model').length,
+              dataSources: nodes.filter(n => n.type === 'data-input').length,
+              finalGoals: finalGoalNodes.length,
+              activeConnections: connections.length
+            }
+          }
+        });
+
+        toast({
+          title: "✅ Model Execution Success",
+          description: `${result.results.length} AI model(s) executed successfully. View results below.`,
+        });
+      } else {
+        throw new Error(result.error || 'Unknown execution error');
+      }
       
-      // Update node status to indicate successful test
+      // Update node status to indicate successful execution
       setNodes(prev => prev.map(node => ({
         ...node,
         status: 'ready' as const
       })));
       
     } catch (error) {
+      console.error('Model execution error:', error);
       setTestResults({
         status: 'error',
-        message: 'Test execution failed',
+        message: 'Model execution failed',
         details: {
-          error: 'Workflow validation failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString()
         }
       });
       
       toast({
-        title: "❌ Test Failed",
+        title: "❌ Execution Failed",
         description: "Please check your configuration and try again",
         variant: "destructive"
       });
@@ -2918,12 +2943,12 @@ export default function ModelConfigurationTab() {
                         <textarea
                           className="w-full h-16 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
                           placeholder="Enter your prediction request..."
-                          value={node.goalInput || ''}
+                          value={node.goalRequest || ''}
                           onChange={(e) => {
                             e.stopPropagation();
                             setNodes(prev => prev.map(n => 
                               n.id === node.id 
-                                ? { ...n, goalInput: e.target.value }
+                                ? { ...n, goalRequest: e.target.value }
                                 : n
                             ));
                           }}
@@ -3100,6 +3125,147 @@ export default function ModelConfigurationTab() {
               </div>
             )}
           </div>
+          
+          {/* Test Results Panel */}
+          {testResults && (
+            <div className="border-t border-gray-300 bg-white">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    {testResults.status === 'success' ? (
+                      <Check className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <X className="w-5 h-5 text-red-600" />
+                    )}
+                    Execution Results
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTestResults(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-4">
+                  {testResults.status === 'success' && testResults.details?.results ? (
+                    <>
+                      <div className="text-sm text-gray-600 mb-4">
+                        {testResults.message} • Executed at {new Date(testResults.details.executedAt).toLocaleTimeString()}
+                      </div>
+                      
+                      {testResults.details.results.map((result: any, index: number) => (
+                        <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-green-900 flex items-center gap-2">
+                              <Brain className="w-4 h-4" />
+                              {result.modelName}
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-green-800 border-green-300">
+                                {result.status}
+                              </Badge>
+                              <span className="text-xs text-green-600">
+                                {result.outputData?.processingTime}ms
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Input Data Sources */}
+                          {result.inputDataSources && result.inputDataSources.length > 0 && (
+                            <div className="mb-3">
+                              <div className="text-sm font-medium text-gray-700 mb-1">Input Sources:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {result.inputDataSources.map((source: string, idx: number) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {source}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Predictions */}
+                          {result.outputData?.predictions && (
+                            <div className="mb-3">
+                              <div className="text-sm font-medium text-gray-700 mb-2">Model Predictions:</div>
+                              <div className="bg-white rounded border p-3 overflow-x-auto">
+                                <div className="grid gap-2 min-w-[600px]">
+                                  {Array.isArray(result.outputData.predictions) ? (
+                                    result.outputData.predictions.slice(0, 3).map((pred: any, predIdx: number) => (
+                                      <div key={predIdx} className="flex items-center gap-4 text-xs">
+                                        <span className="font-medium text-gray-600">#{predIdx + 1}</span>
+                                        {Object.entries(pred).map(([key, value]: [string, any]) => (
+                                          <span key={key} className="flex items-center gap-1">
+                                            <span className="text-gray-500">{key}:</span>
+                                            <span className="font-medium">
+                                              {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-sm text-gray-600">
+                                      {JSON.stringify(result.outputData.predictions, null, 2)}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Goal Responses */}
+                          {result.outputData?.goalResponses && result.outputData.goalResponses.length > 0 && (
+                            <div className="mb-3">
+                              <div className="text-sm font-medium text-gray-700 mb-2">Goal Analysis:</div>
+                              {result.outputData.goalResponses.map((response: any, respIdx: number) => (
+                                <div key={respIdx} className="bg-blue-50 border border-blue-200 rounded p-3 mb-2">
+                                  <div className="text-sm font-medium text-blue-900 mb-2">
+                                    Request: "{response.userRequest}"
+                                  </div>
+                                  <div className="text-sm text-blue-800 whitespace-pre-line">
+                                    {response.aiResponse}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Model Performance */}
+                          {result.outputData?.modelPerformance && (
+                            <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+                              {Object.entries(result.outputData.modelPerformance).map(([key, value]: [string, any]) => (
+                                <span key={key} className="flex items-center gap-1">
+                                  <span className="capitalize">{key}:</span>
+                                  <span className="font-medium">
+                                    {typeof value === 'number' ? value.toFixed(3) : String(value)}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="text-red-800 font-medium mb-2">Execution Failed</div>
+                      <div className="text-red-700 text-sm">
+                        {testResults.message}
+                      </div>
+                      {testResults.details?.error && (
+                        <div className="text-red-600 text-xs mt-2 font-mono">
+                          {testResults.details.error}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Right Panel - Node Details */}
