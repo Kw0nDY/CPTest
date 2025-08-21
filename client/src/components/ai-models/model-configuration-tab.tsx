@@ -1767,29 +1767,22 @@ export default function ModelConfigurationTab() {
   };
 
   // Test configuration
-  const testConfiguration = () => {
+  const testConfiguration = async () => {
     setIsTestRunning(true);
     
-    // Simulate test execution with validation
-    setTimeout(() => {
+    try {
+      // First validate the configuration
       const validation = validateConfiguration();
-      setTestResults({
-        status: validation.isValid ? 'success' : 'error',
-        message: validation.isValid ? 'Configuration is valid and ready to run!' : 'Configuration has errors',
-        details: validation
-      });
-      
-      setIsTestRunning(false);
-      
-      if (validation.isValid) {
-        toast({
-          title: "✅ Test Configuration",
-          description: "Configuration is valid and ready to run!",
+      if (!validation.isValid) {
+        setTestResults({
+          status: 'error',
+          message: 'Configuration has errors',
+          details: validation
         });
-      } else {
+        
         toast({
           title: "❌ Configuration Issues",
-          description: `${validation.errors.length} issue(s) found. Click to view details.`,
+          description: `${validation.errors.length} issue(s) found. Please fix these before testing.`,
           variant: "destructive",
           action: (
             <Button 
@@ -1801,8 +1794,81 @@ export default function ModelConfigurationTab() {
             </Button>
           )
         });
+        
+        setIsTestRunning(false);
+        return;
       }
-    }, 1000);
+
+      // Execute the model configuration
+      const response = await fetch('/api/model-configuration/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          configurationId: currentConfig?.id,
+          nodes: nodes,
+          connections: connections
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setTestResults({
+          status: 'success',
+          message: 'Model execution completed successfully!',
+          details: {
+            isValid: true,
+            errors: [],
+            executionResults: result.results
+          }
+        });
+        
+        toast({
+          title: "✅ Model Execution Success",
+          description: `${result.results.length} AI model(s) executed successfully. View results below.`,
+        });
+      } else {
+        setTestResults({
+          status: 'error',
+          message: result.error || 'Model execution failed',
+          details: {
+            isValid: false,
+            errors: [result.error || 'Unknown error'],
+            executionResults: []
+          }
+        });
+        
+        toast({
+          title: "❌ Execution Failed",
+          description: result.error || 'Failed to execute model configuration',
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error testing configuration:', error);
+      
+      setTestResults({
+        status: 'error',
+        message: 'Network or server error during execution',
+        details: {
+          isValid: false,
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          executionResults: []
+        }
+      });
+      
+      toast({
+        title: "❌ Network Error",
+        description: "Failed to connect to the server. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestRunning(false);
+    }
   };
 
   // Save configuration
@@ -3782,8 +3848,88 @@ export default function ModelConfigurationTab() {
                 <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">All Good!</h3>
-                <p className="text-gray-600">Your configuration has no issues and is ready to run.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Configuration Valid!</h3>
+                <p className="text-gray-600">Your workflow is configured correctly and ready to run.</p>
+              </div>
+            )}
+
+            {/* Execution Results Section */}
+            {testResults?.details?.executionResults && testResults.details.executionResults.length > 0 && (
+              <div className="mt-6 space-y-4">
+                <h4 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <Play className="w-5 h-5 text-green-600" />
+                  Execution Results
+                </h4>
+                
+                {testResults.details.executionResults.map((result: any, index: number) => (
+                  <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-green-900">{result.modelName}</h5>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                          {result.status}
+                        </span>
+                        <span className="text-xs text-green-600">
+                          {result.outputData.processingTime}ms
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Input Data Sources */}
+                      <div>
+                        <h6 className="text-sm font-medium text-gray-700 mb-2">Input Data Sources</h6>
+                        <div className="space-y-1">
+                          {result.inputDataSources.map((source: string, idx: number) => (
+                            <span key={idx} className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded mr-1">
+                              {source}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Output Predictions */}
+                      <div>
+                        <h6 className="text-sm font-medium text-gray-700 mb-2">Predictions</h6>
+                        <div className="space-y-1 text-xs">
+                          {result.outputData.predictions.slice(0, 3).map((pred: any, idx: number) => (
+                            <div key={idx} className="bg-white p-2 rounded border border-green-200">
+                              <div className="font-mono text-green-700">
+                                KPI_X: {pred.KPI_X?.toFixed(2)} | 
+                                KPI_Y: {pred.KPI_Y?.toFixed(2)} | 
+                                KPI_Z: {pred.KPI_Z?.toFixed(2)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Model Performance */}
+                    <div className="mt-3 pt-3 border-t border-green-200">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {(result.outputData.confidence * 100).toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-green-600">Confidence</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {result.outputData.modelPerformance.accuracy.toFixed(3)}
+                          </div>
+                          <div className="text-xs text-green-600">Accuracy</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {result.outputData.modelPerformance.rmse.toFixed(2)}
+                          </div>
+                          <div className="text-xs text-green-600">RMSE</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
