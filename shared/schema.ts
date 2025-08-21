@@ -29,7 +29,7 @@ export const views = pgTable("views", {
 // Type definitions for layout structure
 export interface UIComponent {
   id: string;
-  type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline';
+  type: 'chart' | 'table' | 'metric' | 'text' | 'image' | 'map' | 'gauge' | 'timeline' | 'ai-result' | 'kpi-optimization';
   gridPosition: number;
   order?: number;
   visible?: boolean;
@@ -47,6 +47,16 @@ export interface UIComponent {
     showLegend?: boolean;
     showGrid?: boolean;
     animation?: boolean;
+    // AI Model Result specific config
+    aiModelResultId?: string;
+    configurationId?: string;
+    configurationName?: string;
+    displayType?: 'summary' | 'detailed' | 'chart' | 'table';
+    kpiOptimization?: {
+      showRecommendations?: boolean;
+      showConfidenceScore?: boolean;
+      highlightChanges?: boolean;
+    };
   };
 }
 
@@ -315,6 +325,40 @@ export const modelConfigurations = pgTable('model_configurations', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// AI Model Execution Results for View Integration
+export const aiModelResults = pgTable('ai_model_results', {
+  id: text('id').primaryKey(),
+  configurationId: text('configuration_id').references(() => modelConfigurations.id),
+  configurationName: text('configuration_name'), // Store configuration name for easy reference
+  modelId: text('model_id').references(() => aiModels.id).notNull(),
+  executionType: text('execution_type').notNull(), // 'test', 'kpi_optimization', 'prediction'
+  inputData: json('input_data').$type<Record<string, any>>(), // Input data used for execution
+  results: json('results').$type<{
+    predictions?: any[];
+    kpiOptimization?: {
+      kpiName: string;
+      currentValue?: number;
+      targetValue?: number;
+      optimizedParameters?: Record<string, number>;
+      confidenceScore?: number;
+      recommendations?: Array<{
+        parameter: string;
+        currentValue: number;
+        suggestedValue: number;
+        impact: string;
+        confidence: number;
+      }>;
+    };
+    analysis?: any;
+    executionTime?: number;
+    errors?: string[];
+  }>().notNull(),
+  status: text('status').notNull().default('completed'), // 'running', 'completed', 'error'
+  executionTime: integer('execution_time'), // Milliseconds
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -341,6 +385,11 @@ export const insertModelConfigurationSchema = createInsertSchema(modelConfigurat
   createdAt: true,
   updatedAt: true
 });
+export const insertAiModelResultSchema = createInsertSchema(aiModelResults).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -359,3 +408,5 @@ export type AiModel = typeof aiModels.$inferSelect;
 export type InsertAiModel = z.infer<typeof insertAiModelSchema>;
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
+export type AiModelResult = typeof aiModelResults.$inferSelect;
+export type InsertAiModelResult = z.infer<typeof insertAiModelResultSchema>;

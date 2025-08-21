@@ -21,15 +21,21 @@ import {
   Gauge,
   Eye,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Brain,
+  TrendingUp,
+  Settings,
+  Database
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ViewEditor from "./view-editor-embedded";
-import type { View, UIComponent, GridRow } from "@shared/schema";
+import type { View, UIComponent, GridRow, AiModelResult } from "@shared/schema";
 
 export default function ViewSettingTab() {
   const [editingView, setEditingView] = useState<View | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("views");
   const [newView, setNewView] = useState({
     name: '',
     description: '',
@@ -47,6 +53,16 @@ export default function ViewSettingTab() {
     queryFn: async () => {
       const response = await fetch('/api/views');
       if (!response.ok) throw new Error('Failed to fetch views');
+      return response.json();
+    }
+  });
+
+  // Fetch AI Model Results
+  const { data: aiModelResults = [], isLoading: isLoadingResults } = useQuery<AiModelResult[]>({
+    queryKey: ['/api/ai-model-results'],
+    queryFn: async () => {
+      const response = await fetch('/api/ai-model-results');
+      if (!response.ok) throw new Error('Failed to fetch AI model results');
       return response.json();
     }
   });
@@ -342,17 +358,37 @@ export default function ViewSettingTab() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">View Setting</h1>
-          <p className="text-gray-600 mt-1">Create and manage dynamic views for your dashboard</p>
+          <p className="text-gray-600 mt-1">Create and manage dynamic views and AI model results for your dashboard</p>
         </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center space-x-2" data-testid="create-view-button">
-              <Plus className="h-4 w-4" />
-              <span>Create View</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="views" className="flex items-center space-x-2">
+            <Eye className="h-4 w-4" />
+            <span>Dashboard Views</span>
+          </TabsTrigger>
+          <TabsTrigger value="ai-results" className="flex items-center space-x-2">
+            <Brain className="h-4 w-4" />
+            <span>AI Model Results</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="views" className="mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Dashboard Views</h2>
+              <p className="text-gray-600 text-sm">Create and manage dynamic dashboard views</p>
+            </div>
+            
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center space-x-2" data-testid="create-view-button">
+                  <Plus className="h-4 w-4" />
+                  <span>Create View</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Create New View</DialogTitle>
               <DialogDescription>Set up a new dashboard view with dynamic UI components</DialogDescription>
@@ -533,7 +569,120 @@ export default function ViewSettingTab() {
             </CardContent>
           </Card>
         ))}
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="ai-results" className="mt-6">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">AI Model Results</h2>
+                <p className="text-gray-600 text-sm">View and manage AI model execution results for dashboard integration</p>
+              </div>
+            </div>
+
+            {isLoadingResults ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-gray-600">Loading AI model results...</p>
+                </div>
+              </div>
+            ) : aiModelResults.length === 0 ? (
+              <Card className="border-dashed border-2 border-gray-300">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Brain className="h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No AI Model Results</h3>
+                  <p className="text-gray-600 text-center mb-4">
+                    Execute AI models from the AI Fac section to see results here.
+                  </p>
+                  <Button variant="outline" className="flex items-center space-x-2">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>Go to AI Configuration</span>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {aiModelResults.map((result) => (
+                  <Card key={result.id} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4 flex-1">
+                          <div className="p-2 bg-purple-100 rounded-lg">
+                            <Brain className="h-6 w-6 text-purple-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="text-lg font-semibold text-gray-900">
+                                {result.configurationName || `Result ${result.id.slice(-8)}`}
+                              </h3>
+                              <Badge className={result.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                {result.status}
+                              </Badge>
+                              <Badge variant="outline">{result.executionType}</Badge>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <span className="text-gray-500">Execution Time:</span>
+                                <p className="font-medium">{result.executionTime}ms</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Created:</span>
+                                <p className="font-medium">{new Date(result.createdAt).toLocaleDateString()}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Model ID:</span>
+                                <p className="font-medium text-xs">{result.modelId.slice(-8)}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Results:</span>
+                                <p className="font-medium">
+                                  {result.results?.predictions ? 
+                                    `${Array.isArray(result.results.predictions) ? result.results.predictions.length : 1} items` : 
+                                    'No data'
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {result.results?.predictions && (
+                              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                                <h4 className="text-sm font-medium text-gray-700 mb-2">Prediction Results:</h4>
+                                <pre className="text-xs text-gray-600 max-h-32 overflow-y-auto">
+                                  {JSON.stringify(result.results.predictions, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="flex items-center space-x-2"
+                            onClick={() => {
+                              // Add to dashboard view functionality here
+                              toast({
+                                title: "Adding to View",
+                                description: "AI model result will be added to dashboard view",
+                              });
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add to View</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

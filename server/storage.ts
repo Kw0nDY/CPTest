@@ -1,10 +1,11 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
-  aiModels, modelConfigurations,
+  aiModels, modelConfigurations, aiModelResults,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
-  type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration
+  type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration,
+  type AiModelResult, type InsertAiModelResult
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -57,6 +58,14 @@ export interface IStorage {
   createModelConfiguration(config: InsertModelConfiguration): Promise<ModelConfiguration>;
   updateModelConfiguration(id: string, updates: Partial<ModelConfiguration>): Promise<ModelConfiguration>;
   deleteModelConfiguration(id: string): Promise<void>;
+  
+  // AI Model Result methods
+  getAiModelResults(): Promise<AiModelResult[]>;
+  getAiModelResult(id: string): Promise<AiModelResult | undefined>;
+  getAiModelResultsByConfiguration(configurationId: string): Promise<AiModelResult[]>;
+  createAiModelResult(result: InsertAiModelResult): Promise<AiModelResult>;
+  updateAiModelResult(id: string, updates: Partial<AiModelResult>): Promise<AiModelResult>;
+  deleteAiModelResult(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -632,6 +641,48 @@ export class DatabaseStorage implements IStorage {
 
   async deleteModelConfiguration(id: string): Promise<void> {
     await db.delete(modelConfigurations).where(eq(modelConfigurations.id, id));
+  }
+
+  // AI Model Result methods
+  async getAiModelResults(): Promise<AiModelResult[]> {
+    return await db.select().from(aiModelResults);
+  }
+
+  async getAiModelResult(id: string): Promise<AiModelResult | undefined> {
+    const [result] = await db.select().from(aiModelResults).where(eq(aiModelResults.id, id));
+    return result || undefined;
+  }
+
+  async getAiModelResultsByConfiguration(configurationId: string): Promise<AiModelResult[]> {
+    return await db.select().from(aiModelResults).where(eq(aiModelResults.configurationId, configurationId));
+  }
+
+  async createAiModelResult(result: InsertAiModelResult): Promise<AiModelResult> {
+    const newId = `result-${Date.now()}`;
+    const [created] = await db
+      .insert(aiModelResults)
+      .values({
+        id: newId,
+        ...result
+      })
+      .returning();
+    return created;
+  }
+
+  async updateAiModelResult(id: string, updates: Partial<AiModelResult>): Promise<AiModelResult> {
+    const [updated] = await db
+      .update(aiModelResults)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(aiModelResults.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiModelResult(id: string): Promise<void> {
+    await db.delete(aiModelResults).where(eq(aiModelResults.id, id));
   }
 }
 

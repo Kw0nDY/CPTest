@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
@@ -3111,7 +3111,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         modelPath,
         inputData,
         inputSpecs: model.inputs || [],
-        outputSpecs: model.outputs || []
+        outputSpecs: model.outputs || [],
+        modelId,
+        configurationId: configId
       };
       
       console.log('🤖 Executing AI model:', {
@@ -3220,6 +3222,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to test AI model",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  });
+
+  // AI Model Results API
+  
+  // Get all AI model results
+  app.get("/api/ai-model-results", async (req, res) => {
+    try {
+      const results = await storage.getAiModelResults();
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching AI model results:", error);
+      res.status(500).json({ error: "Failed to fetch AI model results" });
+    }
+  });
+
+  // Get AI model result by ID
+  app.get("/api/ai-model-results/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await storage.getAiModelResult(id);
+      
+      if (!result) {
+        return res.status(404).json({ error: "AI model result not found" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching AI model result:", error);
+      res.status(500).json({ error: "Failed to fetch AI model result" });
+    }
+  });
+
+  // Get AI model results by configuration
+  app.get("/api/ai-model-results/configuration/:configId", async (req, res) => {
+    try {
+      const { configId } = req.params;
+      const results = await storage.getAiModelResultsByConfiguration(configId);
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching AI model results by configuration:", error);
+      res.status(500).json({ error: "Failed to fetch AI model results by configuration" });
+    }
+  });
+
+  // Create AI model result
+  app.post("/api/ai-model-results", async (req, res) => {
+    try {
+      const validatedData = insertAiModelResultSchema.parse(req.body);
+      const result = await storage.createAiModelResult(validatedData);
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error creating AI model result:", error);
+      res.status(500).json({ error: "Failed to create AI model result" });
+    }
+  });
+
+  // Update AI model result
+  app.put("/api/ai-model-results/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const result = await storage.updateAiModelResult(id, updates);
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating AI model result:", error);
+      res.status(500).json({ error: "Failed to update AI model result" });
+    }
+  });
+
+  // Delete AI model result
+  app.delete("/api/ai-model-results/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAiModelResult(id);
+      res.status(200).json({ message: "AI model result deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting AI model result:", error);
+      res.status(500).json({ error: "Failed to delete AI model result" });
     }
   });
 

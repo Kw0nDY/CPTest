@@ -2,6 +2,8 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import { storage } from './storage';
+import type { InsertAiModelResult } from '@shared/schema';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +21,8 @@ export interface ModelExecutionConfig {
     type: string;
     description?: string;
   }>;
+  modelId?: string;
+  configurationId?: string;
 }
 
 export interface ModelExecutionResult {
@@ -60,6 +64,17 @@ export class ModelExecutionService {
       const result = await this.runPythonScript(JSON.stringify(pythonConfig));
       
       const executionTime = Date.now() - startTime;
+      
+      // Save result to database if model execution was successful and we have model/config IDs
+      if (result.success && config.modelId) {
+        try {
+          await this.saveExecutionResult(config, result, executionTime);
+          console.log('✅ Execution result saved to database');
+        } catch (error) {
+          console.error('❌ Failed to save execution result to database:', error);
+          // Don't fail the execution if saving to DB fails
+        }
+      }
       
       return {
         ...result,
@@ -231,6 +246,31 @@ print(json.dumps(result))
         reject(new Error(`Failed to run environment check: ${error.message}`));
       });
     });
+  }
+
+  /**
+   * Save execution result to database
+   */
+  private async saveExecutionResult(
+    config: ModelExecutionConfig, 
+    result: ModelExecutionResult, 
+    executionTime: number
+  ): Promise<void> {
+    const resultData: InsertAiModelResult = {
+      modelId: config.modelId!,
+      configurationId: config.configurationId || null,
+      configurationName: config.configurationId ? `Config-${config.configurationId}` : null,
+      executionType: 'prediction',
+      inputData: config.inputData,
+      results: {
+        predictions: result.results,
+        executionTime: executionTime
+      },
+      status: result.success ? 'completed' : 'error',
+      executionTime: executionTime
+    };
+
+    await storage.createAiModelResult(resultData);
   }
 }
 
