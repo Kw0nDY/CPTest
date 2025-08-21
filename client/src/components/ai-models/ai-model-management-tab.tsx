@@ -4,67 +4,77 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { 
+  Upload, 
   Plus, 
-  Play,
+  FolderOpen,
+  Eye,
   Settings,
   Download,
-  Search,
-  Filter
+  MoreVertical
 } from 'lucide-react';
 
-interface AIModel {
+interface ModelFolder {
   id: string;
   name: string;
   description: string;
-  type: string;
-  status: 'ready' | 'training' | 'pending';
-  accuracy?: number;
-  size: string;
-  createdAt: string;
+  modelCount: number;
+  models: FolderModel[];
 }
 
-// Sample data matching the image design
-const sampleModels: AIModel[] = [
+interface FolderModel {
+  id: string;
+  name: string;
+  status: 'ready' | 'training' | 'draft';
+}
+
+// Sample folder data matching the image
+const sampleFolders: ModelFolder[] = [
   {
-    id: '1',
-    name: 'Traffic Flow Predictor',
-    description: 'Predicts traffic flow patterns based on historical data',
-    type: 'LSTM Time Series',
-    status: 'ready',
-    accuracy: 94.2,
-    size: '45.2 MB',
-    createdAt: '2024-01-15'
+    id: 'user-models',
+    name: 'User Models',
+    description: 'Your uploaded AI models',
+    modelCount: 0,
+    models: []
   },
   {
-    id: '2', 
-    name: 'Demand Forecasting Model',
-    description: 'Forecasts product demand using multiple variables',
-    type: 'Random Forest + LSTM',
-    status: 'training',
-    size: '78.6 MB',
-    createdAt: '2024-01-14'
+    id: 'quality-control',
+    name: 'Quality Control',
+    description: 'Models for product quality prediction',
+    modelCount: 3,
+    models: [
+      { id: 'qc1', name: 'Assembly Line Quality Classifier', status: 'ready' },
+      { id: 'qc2', name: 'Surface Defect Detector', status: 'ready' },
+      { id: 'qc3', name: 'Material Grade Classifier', status: 'draft' }
+    ]
   },
   {
-    id: '3',
-    name: 'Anomaly Detection',
-    description: 'Detects anomalies in sensor data streams',
-    type: 'Autoencoder + SVM',
-    status: 'pending',
-    size: '67.4 MB',
-    createdAt: '2024-01-13'
+    id: 'predictive-maintenance',
+    name: 'Predictive Maintenance',
+    description: 'Equipment maintenance forecasting models',
+    modelCount: 2,
+    models: [
+      { id: 'pm1', name: 'Vibration Analysis Model', status: 'ready' },
+      { id: 'pm2', name: 'Temperature Trend Predictor', status: 'training' }
+    ]
+  },
+  {
+    id: 'demand-forecasting',
+    name: 'Demand Forecasting',
+    description: 'Sales and inventory prediction models',
+    modelCount: 1,
+    models: [
+      { id: 'df1', name: 'Monthly Demand Forecaster', status: 'ready' }
+    ]
   }
 ];
 
 export default function AIModelManagementTab() {
   const [activeTab, setActiveTab] = useState('uploaded');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All Categories');
-  const [statusFilter, setStatusFilter] = useState('All Status');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -75,60 +85,31 @@ export default function AIModelManagementTab() {
     queryFn: () => fetch('/api/ai-models').then(res => res.json()),
   });
 
-  // Combine backend data with sample data
-  const allModels = React.useMemo(() => {
-    const realModels = (backendModels || []).map((model: any) => ({
-      id: model.id,
-      name: model.name,
-      description: model.description || '',
-      type: model.modelType || 'Unknown',
-      status: model.trainingStatus === 'ready' ? 'ready' : 
-              model.trainingStatus === 'training' ? 'training' : 'pending',
-      accuracy: model.accuracy ? Math.round(model.accuracy * 10) / 10 : undefined,
-      size: `${(model.fileSize / (1024 * 1024)).toFixed(1)} MB`,
-      createdAt: model.createdAt
-    }));
-    
-    return [...realModels, ...sampleModels];
-  }, [backendModels]);
+  const toggleFolder = (folderId: string) => {
+    const newExpanded = new Set(expandedFolders);
+    if (newExpanded.has(folderId)) {
+      newExpanded.delete(folderId);
+    } else {
+      newExpanded.add(folderId);
+    }
+    setExpandedFolders(newExpanded);
+  };
 
-  const filteredModels = allModels.filter(model => {
-    const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         model.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All Status' || model.status === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
-  });
+  const viewAllModels = (folderId: string) => {
+    toast({ title: "View Models", description: `Viewing all models in ${folderId}` });
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ready':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">ready</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">ready</Badge>;
       case 'training':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">training</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">pending</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">training</Badge>;
+      case 'draft':
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">draft</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="text-xs">{status}</Badge>;
     }
-  };
-
-  const getAccuracyDisplay = (accuracy?: number) => {
-    if (accuracy) {
-      return `Accuracy: ${accuracy}%`;
-    }
-    return '';
-  };
-
-  const handleTest = (modelId: string) => {
-    toast({ title: "Test Started", description: `Testing model ${modelId}` });
-  };
-
-  const handleConfig = (modelId: string) => {
-    toast({ title: "Configuration", description: `Opening configuration for model ${modelId}` });
-  };
-
-  const handleDownload = (modelId: string) => {
-    toast({ title: "Download Started", description: `Downloading model ${modelId}` });
   };
 
   return (
@@ -137,142 +118,138 @@ export default function AIModelManagementTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">AI Model Management</h2>
-          <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models for workflow integration</p>
+          <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
         </div>
         <Button 
           onClick={() => setShowUploadDialog(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-upload-new-model"
+          data-testid="button-upload-model"
         >
-          <Plus className="w-4 h-4 mr-2" />
-          Upload New Model
+          <Upload className="w-4 h-4 mr-2" />
+          Upload Model
         </Button>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="uploaded">Uploaded Models</TabsTrigger>
-          <TabsTrigger value="organization">Model Organization</TabsTrigger>
-          <TabsTrigger value="prebuilt">Pre-built Models</TabsTrigger>
+          <TabsTrigger value="prebuilt">Pre-built AI Models</TabsTrigger>
         </TabsList>
 
         <TabsContent value="uploaded" className="space-y-6">
-          {/* Search and Filters */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search models..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search-models"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <select 
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
-                data-testid="select-category-filter"
-              >
-                <option>All Categories</option>
-                <option>Classification</option>
-                <option>Regression</option>
-                <option>Time Series</option>
-                <option>Deep Learning</option>
-              </select>
-              <select 
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
-                data-testid="select-status-filter"
-              >
-                <option>All Status</option>
-                <option>Ready</option>
-                <option>Training</option>
-                <option>Pending</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Model Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredModels.map((model) => (
-              <Card key={model.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-semibold mb-1">{model.name}</CardTitle>
-                      <p className="text-sm text-gray-600 mb-2">{model.type}</p>
-                      <p className="text-sm text-gray-500 line-clamp-2">{model.description}</p>
-                    </div>
-                    <div className="ml-2">
-                      {getStatusBadge(model.status)}
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Upload Section */}
+            <Card className="h-fit">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-blue-600" />
+                    <CardTitle className="text-lg">Upload AI Models</CardTitle>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-600">
-                      {getAccuracyDisplay(model.accuracy)}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {model.size}
-                    </div>
-                    <div className="flex items-center gap-2 pt-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleTest(model.id)}
-                        disabled={model.status !== 'ready'}
-                        data-testid={`button-test-${model.id}`}
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        Test
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleConfig(model.id)}
-                        data-testid={`button-config-${model.id}`}
-                      >
-                        <Settings className="w-3 h-3 mr-1" />
-                        Config
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleDownload(model.id)}
-                        data-testid={`button-download-${model.id}`}
-                      >
-                        <Download className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setShowUploadDialog(true)}
+                    data-testid="button-new-folder"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    New Folder
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-600">Upload trained AI models in various formats</p>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                  onClick={() => setShowUploadDialog(true)}
+                  data-testid="drag-drop-upload-area"
+                >
+                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Drag & Drop Model Files</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Supported formats: .pkl, .joblib, .h5, .onnx, .pt, .zip, .pth
+                  </p>
+                  <p className="text-xs text-gray-500 mb-4">Maximum file size: 500MB</p>
+                  <Button 
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="button-browse-files"
+                  >
+                    Browse Files
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-          {filteredModels.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No models found matching your criteria.</p>
+            {/* Model Folders */}
+            <div className="space-y-4">
+              {sampleFolders.map((folder) => (
+                <Card key={folder.id} className="overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <FolderOpen className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <CardTitle className="text-base font-medium">{folder.name}</CardTitle>
+                          <p className="text-sm text-gray-600">{folder.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">{folder.modelCount} models</span>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => viewAllModels(folder.id)}
+                          data-testid={`button-view-all-${folder.id}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  
+                  {folder.models.length > 0 && (
+                    <CardContent className="pt-0">
+                      <div className="space-y-2">
+                        {folder.models.slice(0, 3).map((model) => (
+                          <div key={model.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-900">{model.name}</span>
+                              {getStatusBadge(model.status)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                                <Settings className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                                <Download className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {folder.models.length > 3 && (
+                          <Button 
+                            variant="link" 
+                            className="text-blue-600 text-sm p-0 h-auto"
+                            onClick={() => viewAllModels(folder.id)}
+                            data-testid={`button-view-all-models-${folder.id}`}
+                          >
+                            View All Models
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              ))}
             </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="organization" className="space-y-6">
-          <div className="text-center py-12">
-            <p className="text-gray-500">Model organization features coming soon.</p>
           </div>
         </TabsContent>
 
         <TabsContent value="prebuilt" className="space-y-6">
           <div className="text-center py-12">
-            <p className="text-gray-500">Pre-built models coming soon.</p>
+            <p className="text-gray-500">Pre-built AI models coming soon.</p>
           </div>
         </TabsContent>
       </Tabs>
