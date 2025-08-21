@@ -9,17 +9,13 @@ interface AiModel {
   id: string;
   name: string;
   modelType: string;
-  parameters?: string;
-  status: string;
-  uploadedAt: string;
-  folderId?: string;
 }
 
-interface ModelConfigurationTabProps {
+interface SimpleModelConfigurationTabProps {
   model: AiModel;
 }
 
-export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
+export function SimpleModelConfigurationTab({ model }: SimpleModelConfigurationTabProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'configuration' | 'execution' | 'results'>('configuration');
 
@@ -99,21 +95,9 @@ export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델 ID:</span>
-                    <span className="text-sm text-muted-foreground">{model.id}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델 타입:</span>
-                    <Badge variant="outline">{model.modelType}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">상태:</span>
-                    <Badge variant={model.status === 'active' ? 'default' : 'secondary'}>
-                      {model.status}
-                    </Badge>
-                  </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">모델 ID: {model.id}</p>
+                  <p className="text-sm text-muted-foreground">모델 타입: {model.modelType}</p>
                 </div>
                 
                 <div className="flex gap-2">
@@ -173,23 +157,11 @@ export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델:</span>
-                    <span className="text-sm text-muted-foreground">{model.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">설정:</span>
-                    <span className="text-sm text-muted-foreground">기본 설정</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">실행 파일:</span>
-                    <span className="text-sm text-muted-foreground">업로드 필요</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">연결된 데이터 소스:</span>
-                    <span className="text-sm text-muted-foreground">0 개</span>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium">모델: {model.name}</p>
+                  <p className="text-sm text-muted-foreground">설정: 기본 설정</p>
+                  <p className="text-sm text-muted-foreground">실행 파일: 업로드 필요</p>
+                  <p className="text-sm text-muted-foreground">연결된 데이터 소스: 0 개</p>
                 </div>
               </div>
 
@@ -222,9 +194,6 @@ export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
                 <p className="text-muted-foreground">
                   아직 실행 결과가 없습니다.
                 </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  모델을 실행하면 여기에 결과가 표시됩니다.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -234,4 +203,4 @@ export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
   );
 }
 
-export default ModelConfigurationTab;
+export default SimpleModelConfigurationTab;
