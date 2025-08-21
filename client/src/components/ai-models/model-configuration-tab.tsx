@@ -507,6 +507,17 @@ export default function ModelConfigurationTab() {
     return colors[type as keyof typeof colors] || '#6b7280';
   };
 
+  // Helper functions for node type checking
+  const getNodeOutputType = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    return node?.outputs?.[0]?.type || 'string';
+  };
+
+  const getNodeInputType = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    return node?.inputs?.[0]?.type || 'string';
+  };
+
   // Port connection handlers
   const handlePortClick = (nodeId: string, portId: string, portType: 'input' | 'output', dataType: string, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -565,34 +576,50 @@ export default function ModelConfigurationTab() {
   };
 
   const createPortConnection = (source: any, target: any) => {
+    // Determine which is output and which is input
+    const fromNode = source.portType === 'output' ? source : target;
+    const toNode = source.portType === 'output' ? target : source;
+    
+    const fromNodeData = nodes.find(n => n.id === fromNode.nodeId);
+    const toNodeData = nodes.find(n => n.id === toNode.nodeId);
+    
+    if (!fromNodeData || !toNodeData) return;
+    
+    const outputPort = fromNodeData.outputs.find(o => o.id === fromNode.portId);
+    const inputPort = toNodeData.inputs.find(i => i.id === toNode.portId);
+    
+    if (!outputPort || !inputPort) return;
+
     const newConnection: Connection = {
       id: `conn-${Date.now()}`,
-      sourceNodeId: source.portType === 'output' ? source.nodeId : target.nodeId,
-      targetNodeId: source.portType === 'output' ? target.nodeId : source.nodeId,
-      sourcePortId: source.portType === 'output' ? source.portId : target.portId,
-      targetPortId: source.portType === 'output' ? target.portId : source.portId,
-      dataType: source.dataType
+      fromNodeId: fromNode.nodeId,
+      toNodeId: toNode.nodeId,
+      fromOutputId: fromNode.portId,
+      toInputId: toNode.portId,
+      type: source.dataType,
+      sourceOutputName: outputPort.name,
+      targetInputName: inputPort.name
     };
 
     setConnections(prev => [...prev, newConnection]);
     
     // Update node connection status
     setNodes(prev => prev.map(node => {
-      if (node.id === newConnection.sourceNodeId) {
+      if (node.id === fromNode.nodeId) {
         return {
           ...node,
           outputs: node.outputs.map(output => 
-            output.id === newConnection.sourcePortId 
+            output.id === fromNode.portId 
               ? { ...output, connected: true }
               : output
           )
         };
       }
-      if (node.id === newConnection.targetNodeId) {
+      if (node.id === toNode.nodeId) {
         return {
           ...node,
           inputs: node.inputs.map(input => 
-            input.id === newConnection.targetPortId 
+            input.id === toNode.portId 
               ? { ...input, connected: true }
               : input
           )
@@ -605,8 +632,8 @@ export default function ModelConfigurationTab() {
     markChanges();
 
     toast({
-      title: "Connection Created",
-      description: "Nodes connected successfully",
+      title: "Port Connection Created",
+      description: `${outputPort.name} → ${inputPort.name}`,
     });
   };
 
@@ -3122,106 +3149,54 @@ export default function ModelConfigurationTab() {
               </defs>
               
               {/* Render existing port connections */}
-              {connections.filter(c => c.sourceNodeId && c.targetNodeId).map((connection) => {
-                const sourceNode = nodes.find(n => n.id === connection.sourceNodeId);
-                const targetNode = nodes.find(n => n.id === connection.targetNodeId);
+              {connections.filter(c => c.fromNodeId && c.toNodeId).map((connection) => {
+                const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+                const targetNode = nodes.find(n => n.id === connection.toNodeId);
                 
                 if (!sourceNode || !targetNode) return null;
                 
                 // Find output port position
-                const outputIndex = sourceNode.outputs.findIndex(o => o.id === connection.sourcePortId);
+                const outputIndex = sourceNode.outputs.findIndex(o => o.id === connection.fromOutputId);
                 if (outputIndex === -1) return null;
                 
-                // Find input port position
-                const inputIndex = targetNode.inputs.findIndex(i => i.id === connection.targetPortId);
+                // Find input port position  
+                const inputIndex = targetNode.inputs.findIndex(i => i.id === connection.toInputId);
                 if (inputIndex === -1) return null;
                 
-                // Calculate port positions
-                const startX = sourceNode.position.x + 250; // Right side of source node
-                const startY = sourceNode.position.y + 60 + (outputIndex * 20) + 10; // Port position
+                // Calculate precise port positions
+                const outputPortY = 60 + (sourceNode.type === 'final-goal' ? 140 : 0) + (outputIndex * 24) + 12;
+                const inputPortY = 60 + (targetNode.type === 'final-goal' ? 140 : 0) + (inputIndex * 24) + 12;
                 
-                const endX = targetNode.position.x; // Left side of target node
-                const endY = targetNode.position.y + 60 + (inputIndex * 20) + 10; // Port position
+                const startX = sourceNode.position.x + sourceNode.width - 8; // Right edge with port offset
+                const startY = sourceNode.position.y + outputPortY;
                 
-                const controlOffset = Math.abs(endX - startX) * 0.5;
+                const endX = targetNode.position.x + 8; // Left edge with port offset  
+                const endY = targetNode.position.y + inputPortY;
+                
+                const controlOffset = Math.max(50, Math.abs(endX - startX) * 0.4);
                 const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                
+                const connectionColor = getTypeColor(connection.type || 'string');
                 
                 return (
                   <g key={connection.id} className="pointer-events-auto">
                     {/* Connection path */}
                     <path
                       d={curve}
-                      stroke={getTypeColor(connection.dataType)}
-                      strokeWidth="2"
+                      stroke={connectionColor}
+                      strokeWidth="2.5"
                       strokeDasharray="none"
                       fill="none"
                       markerEnd="url(#arrow)"
-                      opacity="0.8"
-                      className="hover:opacity-100 cursor-pointer hover:stroke-4"
+                      opacity="0.85"
+                      className="hover:opacity-100 cursor-pointer transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
-                        const sourceOutput = sourceNode.outputs.find(o => o.id === connection.sourcePortId);
-                        const targetInput = targetNode.inputs.find(i => i.id === connection.targetPortId);
-                        if (window.confirm(`Remove connection: ${sourceOutput?.name} → ${targetInput?.name}?`)) {
-                          setConnections(prev => prev.filter(c => c.id !== connection.id));
-                          setNodes(prev => prev.map(node => {
-                            if (node.id === connection.sourceNodeId) {
-                              return {
-                                ...node,
-                                outputs: node.outputs.map(output => 
-                                  output.id === connection.sourcePortId 
-                                    ? { ...output, connected: false }
-                                    : output
-                                )
-                              };
-                            }
-                            if (node.id === connection.targetNodeId) {
-                              return {
-                                ...node,
-                                inputs: node.inputs.map(input => 
-                                  input.id === connection.targetPortId 
-                                    ? { ...input, connected: false }
-                                    : input
-                                )
-                              };
-                            }
-                            return node;
-                          }));
-                          toast({
-                            title: "Connection Removed",
-                            description: `${sourceOutput?.name} → ${targetInput?.name} connection removed`,
-                          });
+                        if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
+                          disconnectNodes(connection.id);
                         }
                       }}
                     />
-                    
-                    {/* Connection endpoints */}
-                    <circle 
-                      cx={startX} 
-                      cy={startY} 
-                      r="4" 
-                      fill="#3b82f6"
-                      className="pointer-events-none"
-                    />
-                    <circle 
-                      cx={endX} 
-                      cy={endY} 
-                      r="4" 
-                      fill="#3b82f6"
-                      className="pointer-events-none"
-                    />
-                    
-                    {/* Block connection label */}
-                    {connection.type === 'block' && (
-                      <text
-                        x={(startX + endX) / 2}
-                        y={(startY + endY) / 2 - 8}
-                        textAnchor="middle"
-                        className="text-xs fill-blue-400 pointer-events-none font-medium"
-                      >
-                        Block ({(connection.mappings || []).length} mappings)
-                      </text>
-                    )}
                   </g>
                 );
               })}
@@ -3504,32 +3479,37 @@ export default function ModelConfigurationTab() {
                   )}
                   
                   {/* Inputs */}
-                  {node.inputs.map((input, index) => (
-                    <div key={input.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div
-                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
-                            input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
-                          } ${
-                            input.connected ? 'animate-pulse' : ''
-                          } ${
-                            isConnecting && connectionSource?.portType === 'output' && isDataTypeCompatible(connectionSource.dataType, input.type) 
-                              ? 'ring-2 ring-green-400 scale-125' : ''
-                          }`}
-                          style={{ 
-                            backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
-                            borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
-                          }}
-                          onClick={(e) => handlePortClick(node.id, input.id, 'input', input.type, e)}
-                          title={`${input.name} (${input.type})`}
-                        />
-                        <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
-                          {input.name}
-                        </span>
+                  {node.inputs.map((input, index) => {
+                    const isConnected = connections.some(conn => conn.toNodeId === node.id && conn.toInputId === input.id);
+                    const connectionColor = isConnected ? getTypeColor(input.type) : '#6b7280';
+                    
+                    return (
+                      <div key={input.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div
+                            className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                              selectedPort?.nodeId === node.id && selectedPort?.portId === input.id 
+                                ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
+                            } ${
+                              selectedNodeForConnection && isDataTypeCompatible(getNodeOutputType(selectedNodeForConnection), input.type) 
+                                ? 'ring-2 ring-green-400 scale-125' : ''
+                            }`}
+                            style={{ 
+                              backgroundColor: isConnected ? connectionColor : 'transparent',
+                              borderColor: connectionColor,
+                              borderWidth: '2px'
+                            }}
+                            onClick={(e) => handlePortClick(node.id, input.id, 'input', input.type, e)}
+                            title={`${input.name} (${input.type})`}
+                          />
+                          <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
+                            {input.name}
+                          </span>
+                        </div>
+                        <span className="text-gray-500 text-xs flex-shrink-0 ml-1">{input.type}</span>
                       </div>
-                      <span className="text-gray-500 text-xs flex-shrink-0 ml-1">{input.type}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Separator if both inputs and outputs exist */}
                   {node.inputs.length > 0 && node.outputs.length > 0 && (
@@ -3537,29 +3517,37 @@ export default function ModelConfigurationTab() {
                   )}
 
                   {/* Outputs */}
-                  {node.outputs.map((output, index) => (
-                    <div key={output.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
-                      <span className="text-gray-500 text-xs flex-shrink-0 mr-1">{output.type}</span>
-                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
-                        <span className="text-gray-300 truncate flex-1 min-w-0 text-right" title={output.name}>
-                          {output.name}
-                        </span>
-                        <div
-                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
-                            output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
-                          } ${
-                            isConnecting && connectionSource?.portType === 'input' && isDataTypeCompatible(connectionSource.dataType, output.type)
-                              ? 'ring-2 ring-green-400 scale-125' : ''
-                          }`}
-                          style={{ 
-                            backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
-                          }}
-                          onClick={(e) => handlePortClick(node.id, output.id, 'output', output.type, e)}
-                          title={`${output.name} (${output.type})`}
-                        />
+                  {node.outputs.map((output, index) => {
+                    const isConnected = connections.some(conn => conn.fromNodeId === node.id && conn.fromOutputId === output.id);
+                    const connectionColor = isConnected ? getTypeColor(output.type) : '#6b7280';
+                    
+                    return (
+                      <div key={output.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                        <span className="text-gray-500 text-xs flex-shrink-0 mr-1">{output.type}</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                          <span className="text-gray-300 truncate flex-1 min-w-0 text-right" title={output.name}>
+                            {output.name}
+                          </span>
+                          <div
+                            className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                              selectedPort?.nodeId === node.id && selectedPort?.portId === output.id 
+                                ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
+                            } ${
+                              selectedNodeForConnection && isDataTypeCompatible(output.type, getNodeInputType(selectedNodeForConnection))
+                                ? 'ring-2 ring-green-400 scale-125' : ''
+                            }`}
+                            style={{ 
+                              backgroundColor: isConnected ? connectionColor : 'transparent',
+                              borderColor: connectionColor,
+                              borderWidth: '2px'
+                            }}
+                            onClick={(e) => handlePortClick(node.id, output.id, 'output', output.type, e)}
+                            title={`${output.name} (${output.type})`}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 </div>
             ))}
