@@ -3818,16 +3818,14 @@ export default function ModelConfigurationTab() {
               <Button 
                 onClick={async () => {
                   try {
-                    const newConfigData: Configuration = {
+                    const newConfigData = {
                       id: `config-${Date.now()}`,
                       name: newConfig.name,
                       description: newConfig.description,
-                      folderId: selectedFolder?.id || '',
+                      folderId: selectedFolder || null,
+                      status: 'draft',
                       nodes: [],
-                      connections: [],
-                      createdAt: new Date().toISOString(),
-                      lastModified: new Date().toISOString(),
-                      status: 'draft'
+                      connections: []
                     };
 
                     // Save to server

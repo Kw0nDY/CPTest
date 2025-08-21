@@ -317,13 +317,35 @@ export const modelConfigurationFolders = pgTable('model_configuration_folders', 
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-// Model Configuration for AI Fac settings
+// Model Configuration for AI Fac settings (node-based workflow)
 export const modelConfigurations = pgTable('model_configurations', {
   id: text('id').primaryKey(),
-  modelId: text('model_id').references(() => aiModels.id).notNull(),
   folderId: text('folder_id').references(() => modelConfigurationFolders.id), // Reference to configuration folder
   name: text('name').notNull(),
   description: text('description'),
+  status: text('status').notNull().default('draft'), // 'draft', 'active', 'testing', 'error'
+  // Node-based workflow data
+  nodes: json('nodes').$type<Array<{
+    id: string;
+    type: 'data-integration' | 'ai-model' | 'final-goal';
+    position: { x: number; y: number };
+    data: any;
+  }>>().default([]),
+  connections: json('connections').$type<Array<{
+    id: string;
+    type: 'parameter' | 'block';
+    fromNodeId: string;
+    toNodeId: string;
+    fromOutputId?: string;
+    toInputId?: string;
+    mappings?: Array<{
+      sourceField: string;
+      targetField: string;
+      transformation?: string;
+    }>;
+  }>>().default([]),
+  // Legacy fields for backward compatibility
+  modelId: text('model_id').references(() => aiModels.id), // Optional for single-model configs
   isActive: integer('is_active').notNull().default(0), // 0 = false, 1 = true
   inputMappings: json('input_mappings').$type<Array<{
     modelInput: string;
