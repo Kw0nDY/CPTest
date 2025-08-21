@@ -650,10 +650,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateModelConfiguration(id: string, updates: Partial<ModelConfiguration>): Promise<ModelConfiguration> {
+    // Ensure proper timestamp handling
+    const updateData = { ...updates };
+    
+    // Convert string dates to Date objects if needed
+    if (updateData.createdAt && typeof updateData.createdAt === 'string') {
+      updateData.createdAt = new Date(updateData.createdAt);
+    }
+    if (updateData.updatedAt && typeof updateData.updatedAt === 'string') {
+      updateData.updatedAt = new Date(updateData.updatedAt);
+    }
+    
     const [updated] = await db
       .update(modelConfigurations)
       .set({ 
-        ...updates, 
+        ...updateData, 
         updatedAt: new Date()
       })
       .where(eq(modelConfigurations.id, id))

@@ -429,9 +429,70 @@ export default function ModelConfigurationTab() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Auto-save functionality
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [newFolder, setNewFolder] = useState({ name: '', description: '' });
   const [newConfig, setNewConfig] = useState({ name: '', description: '', folderId: '' });
+
+  // Auto-save debounced function
+  const debouncedAutoSave = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      if (hasUnsavedChanges && selectedConfiguration && !isSaving) {
+        await performAutoSave();
+      }
+    }, 2000); // Auto-save 2 seconds after last change
+  }, [hasUnsavedChanges, selectedConfiguration, isSaving]);
+
+  // Perform the actual auto-save
+  const performAutoSave = async () => {
+    if (!selectedConfiguration || isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      const configurationData = {
+        name: selectedConfiguration.name,
+        description: selectedConfiguration.description,
+        folderId: selectedConfiguration.folderId,
+        modelId: selectedConfiguration.modelId,
+        nodes: JSON.stringify(nodes),
+        connections: JSON.stringify(connections),
+        status: 'draft' as const,
+        updatedAt: new Date().toISOString()
+      };
+
+      await fetch(`/api/model-configurations/${selectedConfiguration.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(configurationData)
+      });
+
+      setHasUnsavedChanges(false);
+      
+      // Silently update cache
+      queryClient.invalidateQueries({ queryKey: ['/api/model-configurations'] });
+      
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      // Don't show toast for auto-save failures to avoid interrupting user
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Mark changes for auto-save
+  const markChanges = useCallback(() => {
+    setHasUnsavedChanges(true);
+    debouncedAutoSave();
+  }, [debouncedAutoSave]);
 
   // Get color for data type
   const getTypeColor = (type: string) => {
@@ -539,6 +600,9 @@ export default function ModelConfigurationTab() {
       }
       return node;
     }));
+
+    // Trigger auto-save
+    markChanges();
 
     toast({
       title: "Connection Created",
@@ -1050,6 +1114,9 @@ export default function ModelConfigurationTab() {
 
     setNodes(prev => [...prev, newNode]);
     setShowAddNodeMenu(false);
+    
+    // Trigger auto-save
+    markChanges();
   };
 
   // New simplified drag system
@@ -1087,6 +1154,9 @@ export default function ModelConfigurationTab() {
       document.body.style.cursor = '';
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      
+      // Trigger auto-save after drag
+      markChanges();
     };
 
     document.body.style.cursor = 'grabbing';
@@ -1137,6 +1207,9 @@ export default function ModelConfigurationTab() {
     if (selectedNodeForDetails?.id === nodeIdToDelete) {
       setSelectedNodeForDetails(null);
     }
+    
+    // Trigger auto-save
+    markChanges();
     
     // Show success toast
     toast({
@@ -1276,6 +1349,9 @@ export default function ModelConfigurationTab() {
       return node;
     }));
 
+    // Trigger auto-save
+    markChanges();
+
     toast({
       title: "연결 완료",
       description: `${fromNode.uniqueName} → ${toNode.uniqueName}`,
@@ -1314,6 +1390,9 @@ export default function ModelConfigurationTab() {
       }
       return node;
     }));
+
+    // Trigger auto-save
+    markChanges();
 
     toast({
       title: "연결 해제됨",
@@ -2353,6 +2432,7 @@ export default function ModelConfigurationTab() {
       if (response.ok) {
         // Update local state
         setCurrentConfig(updatedConfig);
+        setHasUnsavedChanges(false);
         
         // Invalidate and refetch the configurations list
         queryClient.invalidateQueries({ queryKey: ['/api/model-configurations'] });
@@ -2414,13 +2494,40 @@ export default function ModelConfigurationTab() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={saveConfiguration}>
-                <Save className="w-4 h-4 mr-2" />
-                Save
+              <Button 
+                variant="outline" 
+                onClick={saveConfiguration}
+                disabled={isSaving || !hasUnsavedChanges}
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+                    Saving...
+                  </>
+                ) : hasUnsavedChanges ? (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 mr-2 text-green-600" />
+                    Saved
+                  </>
+                )}
               </Button>
-              <Button onClick={testConfiguration}>
-                <Play className="w-4 h-4 mr-2" />
-                Run Test
+              <Button onClick={testConfiguration} disabled={isTestRunning}>
+                {isTestRunning ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Run Test
+                  </>
+                )}
               </Button>
             </div>
           </div>
