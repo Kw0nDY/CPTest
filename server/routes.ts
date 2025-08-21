@@ -4551,6 +4551,234 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload execution file for AI model
+  app.post('/api/ai-models/:modelId/execution-files', upload.single('file'), async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+
+      // Deactivate existing execution files
+      const existingFiles = await storage.getAiModelExecutionFiles(modelId);
+      for (const existingFile of existingFiles) {
+        await storage.updateAiModelExecutionFile(existingFile.id, { isActive: false });
+      }
+
+      const executionFile = await storage.createAiModelExecutionFile({
+        modelId,
+        fileName: file.filename,
+        originalFileName: file.originalname,
+        filePath: file.path,
+        fileType: file.originalname.endsWith('.py') ? 'python' : 'other',
+        fileSize: file.size,
+        mimeType: file.mimetype || 'application/octet-stream'
+      });
+
+      res.json(executionFile);
+    } catch (error) {
+      console.error('Error uploading execution file:', error);
+      res.status(500).json({ error: 'Failed to upload execution file' });
+    }
+  });
+
+  // Get possible connections for a model
+  app.get('/api/ai-models/:modelId/possible-connections', async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      
+      // Get all available data sources
+      const dataSources = await storage.getDataSources();
+      
+      // Get all views
+      const views = await storage.getViews();
+      
+      // Get all AI model results
+      const aiResults = await storage.getAiModelResults();
+      
+      // Get all other AI models (excluding self)
+      const aiModels = await storage.getAiModels();
+      const otherModels = aiModels.filter(model => model.id !== modelId);
+
+      const connections = {
+        dataSources: dataSources.map(ds => ({
+          id: ds.id,
+          name: ds.name,
+          type: 'data-source',
+          outputs: ds.columns?.map((col: any) => ({
+            id: `${ds.id}-${col.name}`,
+            name: col.name,
+            type: col.type || 'string'
+          })) || []
+        })),
+        views: views.map(view => ({
+          id: view.id,
+          name: view.name,
+          type: 'view',
+          outputs: view.layout?.components?.map((comp: any, index: number) => ({
+            id: `${view.id}-comp-${index}`,
+            name: comp.config?.title || `Component ${index + 1}`,
+            type: 'object'
+          })) || []
+        })),
+        aiResults: aiResults.map(result => ({
+          id: result.id,
+          name: `AI Result - ${result.modelName}`,
+          type: 'ai-result',
+          outputs: result.resultData?.dataSchema?.map((schema: any) => ({
+            id: `${result.id}-${schema.name}`,
+            name: schema.name,
+            type: schema.type
+          })) || []
+        })),
+        aiModels: otherModels.map(model => ({
+          id: model.id,
+          name: model.name,
+          type: 'ai-model',
+          outputs: [] // Will be populated from model config
+        }))
+      };
+
+      res.json(connections);
+    } catch (error) {
+      console.error('Error getting possible connections:', error);
+      res.status(500).json({ error: 'Failed to get possible connections' });
+    }
+  });
+
+  // Execute AI model with real data
+  app.post('/api/ai-models/:modelId/execute', async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { configurationId, inputData } = req.body;
+
+      const model = await storage.getAiModel(modelId);
+      if (!model) {
+        return res.status(404).json({ error: 'Model not found' });
+      }
+
+      // Get active execution file
+      const executionFile = await storage.getActiveExecutionFile(modelId);
+      if (!executionFile) {
+        return res.status(400).json({ error: 'No active execution file found for this model' });
+      }
+
+      const executionId = `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create execution result record
+      const executionResult = await storage.createModelExecutionResult({
+        configurationId,
+        executionId,
+        modelId,
+        inputData,
+        executionStatus: 'running'
+      });
+
+      // Execute the Python file asynchronously
+      setTimeout(async () => {
+        try {
+          const { spawn } = require('child_process');
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Create input file for the model
+          const inputFilePath = path.join('uploads', `input_${executionId}.json`);
+          fs.writeFileSync(inputFilePath, JSON.stringify(inputData));
+          
+          const pythonProcess = spawn('python3', [executionFile.filePath], {
+            env: { 
+              ...process.env,
+              INPUT_FILE: inputFilePath,
+              EXECUTION_ID: executionId 
+            }
+          });
+          
+          let output = '';
+          let error = '';
+          
+          pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+          });
+          
+          pythonProcess.stderr.on('data', (data) => {
+            error += data.toString();
+          });
+          
+          pythonProcess.on('close', async (code) => {
+            const executionTime = Date.now() - parseInt(executionId.split('-')[1]);
+            
+            if (code === 0) {
+              // Parse output as JSON result
+              let outputData = {};
+              try {
+                outputData = JSON.parse(output);
+              } catch (e) {
+                outputData = { raw_output: output };
+              }
+              
+              await storage.updateModelExecutionResult(executionResult.id, {
+                outputData,
+                executionStatus: 'completed',
+                executionTime,
+                logs: output
+              });
+            } else {
+              await storage.updateModelExecutionResult(executionResult.id, {
+                executionStatus: 'failed',
+                executionTime,
+                errorMessage: error,
+                logs: output
+              });
+            }
+            
+            // Clean up input file
+            try {
+              fs.unlinkSync(inputFilePath);
+            } catch (e) {
+              console.warn('Failed to clean up input file:', e);
+            }
+          });
+          
+        } catch (error) {
+          console.error('Execution error:', error);
+          await storage.updateModelExecutionResult(executionResult.id, {
+            executionStatus: 'failed',
+            errorMessage: error.message,
+            executionTime: 0
+          });
+        }
+      }, 100);
+
+      res.json({ 
+        executionId,
+        status: 'started',
+        resultId: executionResult.id
+      });
+    } catch (error) {
+      console.error('Error executing model:', error);
+      res.status(500).json({ error: 'Failed to execute model' });
+    }
+  });
+
+  // Get execution result
+  app.get('/api/execution-results/:resultId', async (req, res) => {
+    try {
+      const { resultId } = req.params;
+      const result = await storage.getExecutionResult(resultId);
+      
+      if (!result) {
+        return res.status(404).json({ error: 'Execution result not found' });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error getting execution result:', error);
+      res.status(500).json({ error: 'Failed to get execution result' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
