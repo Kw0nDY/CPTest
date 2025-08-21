@@ -3168,7 +3168,7 @@ export default function ModelConfigurationTab() {
                 </div>
                 
                 <div className="space-y-4">
-                  {testResults.status === 'success' && testResults.details?.results ? (
+                  {testResults.status === 'success' && testResults.details?.results && testResults.details.results.length > 0 ? (
                     <>
                       <div className="text-sm text-gray-600 mb-4">
                         {testResults.message} • Executed at {new Date(testResults.details.executedAt).toLocaleTimeString()}
@@ -3268,6 +3268,16 @@ export default function ModelConfigurationTab() {
                         </div>
                       ))}
                     </>
+                  ) : testResults.status === 'success' ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="text-yellow-800 font-medium mb-2">No Results</div>
+                      <div className="text-yellow-700 text-sm">
+                        {testResults.message}
+                      </div>
+                      <div className="text-yellow-600 text-xs mt-2">
+                        The AI model execution completed successfully but returned no results.
+                      </div>
+                    </div>
                   ) : (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                       <div className="text-red-800 font-medium mb-2">Execution Failed</div>
