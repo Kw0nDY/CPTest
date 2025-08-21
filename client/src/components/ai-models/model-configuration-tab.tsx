@@ -448,6 +448,12 @@ export default function ModelConfigurationTab() {
     staleTime: 30000,
   });
 
+  // Fetch AI Model folders to display available models in the editor
+  const { data: aiModelFolders = [] } = useQuery({
+    queryKey: ['/api/ai-model-folders'],
+    staleTime: 30000,
+  });
+
   // Create model configuration folder mutation
   const createFolderMutation = useMutation({
     mutationFn: async (folderData: { name: string; description: string; color?: string; icon?: string }) => {
@@ -1965,8 +1971,8 @@ export default function ModelConfigurationTab() {
                     </h4>
                     
                     <div className="space-y-3">
-                      {/* Models organized by folders */}
-                      {(modelConfigFolders as any[]).map((folder) => {
+                      {/* Models organized by AI Model folders (not Model Config folders) */}
+                      {(aiModelFolders as any[]).map((folder) => {
                         const folderModels = filteredAIModels.filter(model => model.folderId === folder.id);
                         if (folderModels.length === 0) return null;
                         
@@ -2279,6 +2285,8 @@ export default function ModelConfigurationTab() {
                           </div>
                         );
                       })}
+                      
+
                     </div>
                   </div>
                 )}
