@@ -3559,17 +3559,26 @@ export default function ModelConfigurationTab() {
       </Dialog>
 
       {/* Delete Node Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Node</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Node</DialogTitle>
+            <DialogDescription>
               Are you sure you want to delete "{nodeToDelete?.uniqueName}" from the canvas? This action cannot be undone and will remove all connections to this node.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelDeleteNode}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log('🗑️ Cancel button clicked');
+                cancelDeleteNode();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
               onClick={() => {
                 console.log('🗑️ Delete button clicked');
                 deleteNode();
@@ -3577,10 +3586,10 @@ export default function ModelConfigurationTab() {
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Configuration Validation Details Modal */}
       <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
