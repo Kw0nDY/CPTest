@@ -399,6 +399,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectedWorksheets, setSelectedWorksheets] = useState<Record<string, string[]>>({});
+  const [dataSourceName, setDataSourceName] = useState('');
   const { toast } = useToast();
 
   const handleDrag = (e: React.DragEvent) => {
@@ -625,7 +626,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: 'MS Excel',
+          name: dataSourceName || 'MS Excel',
           type: 'excel',
           category: 'file',
           status: 'connected',
@@ -637,10 +638,14 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
       if (response.ok) {
         toast({
           title: "Excel Files Connected",
-          description: `Successfully connected ${completedFiles.length} Excel file(s) with data to the system.`
+          description: `Successfully connected ${completedFiles.length} Excel file(s) as "${dataSourceName || 'MS Excel'}" to the system.`
         });
         
         await queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+        // Reset form state
+        setDataSourceName('');
+        setUploadedFiles([]);
+        setSelectedWorksheets({});
         onOpenChange(false);
       }
     } catch (error) {
@@ -700,6 +705,24 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
                 Supports .xlsx and .xls files
               </p>
             </div>
+          </div>
+
+          {/* Data Source Name Input */}
+          <div className="space-y-2">
+            <Label htmlFor="data-source-name" className="text-sm font-medium text-gray-700">
+              Data Source Name (Optional)
+            </Label>
+            <Input
+              id="data-source-name"
+              type="text"
+              placeholder="Enter a custom name for your Excel data source (e.g., Sales Data Q1, Customer Database)"
+              value={dataSourceName}
+              onChange={(e) => setDataSourceName(e.target.value)}
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500">
+              If left empty, will default to "MS Excel"
+            </p>
           </div>
 
           {/* Uploaded Files */}
