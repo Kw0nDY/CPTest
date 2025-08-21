@@ -388,7 +388,7 @@ export default function ModelConfigurationTab() {
   const [selectedNodeForDetails, setSelectedNodeForDetails] = useState<ModelNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['user-models', 'quality-models']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['user-models', 'quality-models', 'unorganized']));
   const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'views'>('models');
   const [connectionSearchQuery, setConnectionSearchQuery] = useState('');
   const [testResults, setTestResults] = useState<{
@@ -1939,7 +1939,8 @@ export default function ModelConfigurationTab() {
                     </h4>
                     
                     <div className="space-y-3">
-                      {modelFolders.map((folder) => {
+                      {/* Models organized by folders */}
+                      {aiModelFolders.map((folder) => {
                         const folderModels = filteredAIModels.filter(model => model.folderId === folder.id);
                         if (folderModels.length === 0) return null;
                         
@@ -2065,6 +2066,103 @@ export default function ModelConfigurationTab() {
                           </div>
                         );
                       })}
+                      
+                      {/* Unorganized models (models without folders) */}
+                      {(() => {
+                        const unorganizedModels = filteredAIModels.filter(model => !model.folderId);
+                        if (unorganizedModels.length === 0) return null;
+                        
+                        const isExpanded = expandedFolders.has('unorganized');
+                        
+                        return (
+                          <div key="unorganized">
+                            <div 
+                              className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => toggleFolder('unorganized')}
+                            >
+                              <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <Folder className="w-3 h-3 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-900">Unorganized Models</span>
+                              <Badge variant="secondary" className="text-xs">{unorganizedModels.length}</Badge>
+                            </div>
+                            
+                            {isExpanded && (
+                              <div className="ml-4 mt-2 space-y-2">
+                                {unorganizedModels.map((model) => (
+                                  <div
+                                    key={model.id}
+                                    className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow relative group"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('application/json', JSON.stringify({
+                                        type: 'ai-model',
+                                        modelId: model.id,
+                                        name: model.name
+                                      }));
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
+                                        </div>
+                                        
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {model.inputs.slice(0, 2).map((input: any) => (
+                                            <span
+                                              key={input.id}
+                                              className="inline-block px-1.5 py-0.5 text-xs rounded"
+                                              style={{ 
+                                                backgroundColor: `${getTypeColor(input.type)}20`,
+                                                color: getTypeColor(input.type)
+                                              }}
+                                            >
+                                              {input.name}
+                                            </span>
+                                          ))}
+                                          {model.inputs.length > 2 && (
+                                            <span className="text-xs text-gray-400">+{model.inputs.length - 2} more</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex flex-col gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAddNodePosition({ x: 100, y: 100 });
+                                              createNode('ai-model', { modelId: model.id, name: model.name });
+                                            }}
+                                          >
+                                            Add to Canvas
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedModelForDetails(model);
+                                              setIsRightPanelOpen(true);
+                                            }}
+                                          >
+                                            <Info className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
