@@ -2698,12 +2698,12 @@ export default function ModelConfigurationTab() {
                     {/* Connection path */}
                     <path
                       d={curve}
-                      stroke={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
-                      strokeWidth={connection.type === 'block' ? "4" : "3"}
-                      strokeDasharray={connection.type === 'block' ? "8,4" : "none"}
+                      stroke={connection.type === 'block' ? '#3b82f6' : '#3b82f6'}
+                      strokeWidth="3"
+                      strokeDasharray="none"
                       fill="none"
                       markerEnd="url(#arrow)"
-                      opacity="0.8"
+                      opacity="0.9"
                       className="hover:opacity-100 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2742,15 +2742,15 @@ export default function ModelConfigurationTab() {
                     <circle 
                       cx={startX} 
                       cy={startY} 
-                      r={connection.type === 'block' ? "6" : "4"} 
-                      fill={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
+                      r="4" 
+                      fill="#3b82f6"
                       className="pointer-events-none"
                     />
                     <circle 
                       cx={endX} 
                       cy={endY} 
-                      r={connection.type === 'block' ? "6" : "4"} 
-                      fill={connection.type === 'block' ? '#8b5cf6' : getTypeColor(connection.type)}
+                      r="4" 
+                      fill="#3b82f6"
                       className="pointer-events-none"
                     />
                     
@@ -2760,7 +2760,7 @@ export default function ModelConfigurationTab() {
                         x={(startX + endX) / 2}
                         y={(startY + endY) / 2 - 8}
                         textAnchor="middle"
-                        className="text-xs fill-purple-400 pointer-events-none font-medium"
+                        className="text-xs fill-blue-400 pointer-events-none font-medium"
                       >
                         Block ({(connection.mappings || []).length} mappings)
                       </text>
@@ -2772,15 +2772,26 @@ export default function ModelConfigurationTab() {
               {/* Preview connection while dragging */}
               {activeOutput && (
                 <g>
-                  <path
-                    d={`M ${activeOutput.x || 0} ${activeOutput.y || 0} L ${mousePosition.x} ${mousePosition.y}`}
-                    stroke={getTypeColor(activeOutput.type)}
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                    fill="none"
-                    opacity="0.6"
-                    className="pointer-events-none"
-                  />
+                  {(() => {
+                    const startX = activeOutput.x || 0;
+                    const startY = activeOutput.y || 0;
+                    const endX = mousePosition.x;
+                    const endY = mousePosition.y;
+                    const controlOffset = Math.abs(endX - startX) * 0.5;
+                    const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                    
+                    return (
+                      <path
+                        d={curve}
+                        stroke="#3b82f6"
+                        strokeWidth="3"
+                        strokeDasharray="8,4"
+                        fill="none"
+                        opacity="0.7"
+                        className="pointer-events-none"
+                      />
+                    );
+                  })()}
                 </g>
               )}
             </svg>
@@ -2813,7 +2824,48 @@ export default function ModelConfigurationTab() {
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
                 onDragStart={(e) => e.preventDefault()}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Block connection mode - handle node click
+                  if (blockConnectionMode) {
+                    if (selectedSourceNodeForBlock === node.id) {
+                      // Cancel block connection mode
+                      setBlockConnectionMode(false);
+                      setSelectedSourceNodeForBlock(null);
+                      toast({
+                        title: "Connection Cancelled",
+                        description: "Block connection mode cancelled",
+                      });
+                    } else if (selectedSourceNodeForBlock) {
+                      // Create block connection
+                      const sourceNode = nodes.find(n => n.id === selectedSourceNodeForBlock);
+                      if (sourceNode && sourceNode.id !== node.id) {
+                        const connection: Connection = {
+                          id: `block-${Date.now()}`,
+                          type: 'block',
+                          fromNodeId: sourceNode.id,
+                          toNodeId: node.id,
+                          sourceOutputName: sourceNode.name,
+                          targetInputName: node.name,
+                          fromOutputId: '',
+                          toInputId: '',
+                          mappings: []
+                        };
+                        
+                        setConnections(prev => [...prev, connection]);
+                        setSelectedConnection(connection.id);
+                        setMappingDialogOpen(true);
+                        setBlockConnectionMode(false);
+                        setSelectedSourceNodeForBlock(null);
+                        
+                        toast({
+                          title: "Block Connection Created",
+                          description: `Connected ${sourceNode.name} to ${node.name}`,
+                        });
+                      }
+                    }
+                  }
+                }}
               >
                 {/* Node Header */}
                 <div className={`px-3 py-2 rounded-t-lg text-white text-sm font-medium ${
@@ -2849,7 +2901,7 @@ export default function ModelConfigurationTab() {
                             setSelectedSourceNodeForBlock(node.id);
                             toast({
                               title: "Block Connection Mode",
-                              description: "Click on another node to create a block connection",
+                              description: "Click on another node block to create a connection",
                             });
                           } else if (selectedSourceNodeForBlock === node.id) {
                             // Cancel block connection mode
@@ -2859,33 +2911,6 @@ export default function ModelConfigurationTab() {
                               title: "Connection Cancelled",
                               description: "Block connection mode cancelled",
                             });
-                          } else if (selectedSourceNodeForBlock) {
-                            // Create block connection
-                            const sourceNode = nodes.find(n => n.id === selectedSourceNodeForBlock);
-                            if (sourceNode && sourceNode.id !== node.id) {
-                              const connection: Connection = {
-                                id: `block-${Date.now()}`,
-                                type: 'block',
-                                fromNodeId: sourceNode.id,
-                                toNodeId: node.id,
-                                sourceOutputName: sourceNode.name,
-                                targetInputName: node.name,
-                                fromOutputId: '',
-                                toInputId: '',
-                                mappings: []
-                              };
-                              
-                              setConnections(prev => [...prev, connection]);
-                              setSelectedConnection(connection.id);
-                              setMappingDialogOpen(true);
-                              setBlockConnectionMode(false);
-                              setSelectedSourceNodeForBlock(null);
-                              
-                              toast({
-                                title: "Block Connection Created",
-                                description: `Connected ${sourceNode.name} to ${node.name}`,
-                              });
-                            }
                           }
                         }}
                         title={blockConnectionMode ? "Cancel connection" : "Create block connection"}
