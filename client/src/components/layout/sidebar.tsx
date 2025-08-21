@@ -106,6 +106,7 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
       items: [
         { id: "model-upload", label: "Upload Models" },
         { id: "model-configuration", label: "Model Configuration" },
+        { id: "model-configuration-new", label: "Simple Workflow" },
       ]
     },
     {

@@ -521,7 +521,7 @@ export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps)
                     <SelectValue placeholder="Select a folder or leave unorganized" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No folder (Unorganized)</SelectItem>
+                    <SelectItem value="none">No folder (Unorganized)</SelectItem>
                     {folders.map((folder) => (
                       <SelectItem key={folder.id} value={folder.id}>
                         <div className="flex items-center gap-2">

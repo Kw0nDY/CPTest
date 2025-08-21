@@ -7,6 +7,7 @@ import ViewSettingTab from "@/components/view/view-setting-tab";
 import AutomationListTab from "@/components/automation/automation-list-tab";
 import AIModelManagementTab from "@/components/ai-models/ai-model-management-tab";
 import ModelConfigurationTab from "@/components/ai-models/model-configuration-tab";
+import ModelConfigurationTabNew from "@/components/ai-models/model-configuration-tab-new";
 import BOIOverviewTab from "@/components/boi/boi-overview-tab";
 import SettingPage from "@/pages/setting";
 import ManagementPage from "@/pages/management";
@@ -72,7 +73,7 @@ function DynamicViewRenderer({ viewId }: { viewId: string }) {
   );
 }
 
-type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | string;
+type ViewType = "data-integration" | "view-setting" | "automation" | "model-upload" | "model-configuration" | "model-configuration-new" | "boi-overview" | "boi-input-setting" | "boi-insights" | "boi-reports" | "member" | "apis" | "view-list" | string;
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<ViewType>("data-integration");
@@ -99,6 +100,8 @@ export default function Dashboard() {
         return <AIModelManagementTab activeTab={activeView} />;
       case "model-configuration":
         return <ModelConfigurationTab />;
+      case "model-configuration-new":
+        return <ModelConfigurationTabNew />;
       case "boi-overview":
       case "boi-input-setting":
       case "boi-insights":
