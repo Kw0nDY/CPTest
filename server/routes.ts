@@ -3305,6 +3305,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced AI Model Upload with Config Parsing
+  const enhancedUpload = multer({
+    dest: 'uploads/',
+    limits: {
+      fileSize: 500 * 1024 * 1024, // 500MB
+      files: 10 // Maximum 10 files
+    }
+  });
+
+  app.post("/api/ai-models/upload", enhancedUpload.array('files'), async (req, res) => {
+    try {
+      console.log('Enhanced model upload request received');
+      
+      const files = req.files as Express.Multer.File[];
+      const { name, description, type, parsedConfig } = req.body;
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "At least one file is required" });
+      }
+      
+      if (!name) {
+        return res.status(400).json({ error: "Model name is required" });
+      }
+
+      console.log(`Processing ${files.length} files for model: ${name}`);
+      
+      // Organize files by type
+      const organizedFiles = {
+        model: [] as Express.Multer.File[],
+        config: [] as Express.Multer.File[],
+        source: [] as Express.Multer.File[],
+        documentation: [] as Express.Multer.File[]
+      };
+
+      files.forEach((file, index) => {
+        const fileType = req.body.fileTypes ? req.body.fileTypes[index] : 'model';
+        if (organizedFiles[fileType as keyof typeof organizedFiles]) {
+          organizedFiles[fileType as keyof typeof organizedFiles].push(file);
+        }
+      });
+
+      // Process config file for input/output extraction
+      let extractedConfig = null;
+      if (parsedConfig) {
+        try {
+          extractedConfig = JSON.parse(parsedConfig);
+          console.log('Parsed config:', extractedConfig);
+        } catch (error) {
+          console.error('Error parsing config:', error);
+        }
+      }
+
+      // Create AI model entry
+      const modelData = {
+        name,
+        description: description || '',
+        modelType: type || 'Unknown',
+        fileName: files[0].originalname,
+        fileSize: files.reduce((sum, file) => sum + file.size, 0),
+        filePath: files[0].path,
+        category: 'uploaded',
+        framework: type || 'Unknown',
+        version: '1.0.0',
+        accuracy: null,
+        trainingStatus: 'ready',
+        configFile: organizedFiles.config.length > 0 ? organizedFiles.config[0].path : null,
+        sourceFiles: organizedFiles.source.map(f => f.path).join(','),
+        documentationFiles: organizedFiles.documentation.map(f => f.path).join(','),
+        extractedInputs: extractedConfig ? JSON.stringify(extractedConfig.inputs) : null,
+        extractedOutputs: extractedConfig ? JSON.stringify(extractedConfig.outputs) : null,
+        modelInfo: extractedConfig ? JSON.stringify(extractedConfig.modelInfo) : null,
+        analyzedAt: new Date()
+      };
+
+      const result = await storage.createAiModel(modelData);
+      
+      console.log('Enhanced model upload completed:', result.id);
+      
+      res.status(201).json({
+        ...result,
+        message: 'Model uploaded successfully with enhanced configuration',
+        fileCount: files.length,
+        extractedConfig: extractedConfig ? {
+          inputCount: extractedConfig.inputs?.length || 0,
+          outputCount: extractedConfig.outputs?.length || 0
+        } : null
+      });
+      
+    } catch (error) {
+      console.error("Error in enhanced model upload:", error);
+      res.status(500).json({ 
+        error: "Failed to upload model",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

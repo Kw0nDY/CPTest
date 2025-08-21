@@ -2613,7 +2613,7 @@ export default function ModelConfigurationTab() {
             {nodes.map(node => (
                 <div
                 key={node.id}
-                className={`absolute border rounded-lg shadow-lg z-10 ${
+                className={`absolute border rounded-lg shadow-lg z-0 ${
                   isDragging && draggedNode?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'
                 } ${
                   node.type === 'final-goal' 
@@ -2625,7 +2625,7 @@ export default function ModelConfigurationTab() {
                   top: node.position.y,
                   width: Math.max(node.width, 300), // Minimum width to prevent overflow
                   minHeight: node.height,
-                  zIndex: isDragging && draggedNode?.id === node.id ? 1000 : 100
+                  zIndex: isDragging && draggedNode?.id === node.id ? 50 : 10
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
                 onDragStart={(e) => e.preventDefault()}
