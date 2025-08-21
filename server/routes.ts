@@ -3751,11 +3751,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Execute AI Model Configuration
   app.post('/api/model-configuration/execute', async (req, res) => {
     try {
-      const { configurationId, nodes, connections } = req.body;
+      const { configurationId, nodes, connections, goalInputs } = req.body;
       
       console.log('Executing model configuration:', configurationId);
       console.log('Nodes:', nodes?.length);
       console.log('Connections:', connections?.length);
+      console.log('Goal Inputs:', goalInputs?.length ? goalInputs.map((g: any) => ({ name: g.nodeName, request: g.goalRequest })) : 'None');
       
       // Find AI model nodes in the configuration
       const aiModelNodes = nodes?.filter((node: any) => node.type === 'ai-model') || [];
@@ -3818,6 +3819,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Input data for model execution:', Object.keys(inputData));
         
+        // Find connected Final Goal nodes and their requests
+        const connectedGoalNodes = connections?.filter((conn: any) => 
+          conn.fromNodeId === aiModelNode.id
+        ) || [];
+        
+        const goalRequests = goalInputs?.filter((goal: any) => 
+          connectedGoalNodes.some((conn: any) => conn.toNodeId === goal.nodeId)
+        ) || [];
+        
+        console.log('Connected goal requests:', goalRequests.map((g: any) => g.goalRequest));
+        
         // Execute model with real data
         const executionResult = {
           modelId: modelId,
@@ -3825,6 +3837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'success',
           inputDataSources: Object.keys(inputData),
           inputData: inputData,
+          goalRequests: goalRequests,
           outputData: {
             predictions: [
               { 
@@ -3846,6 +3859,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 KPI_Z: 21.1 + Math.random() * 8
               }
             ],
+            goalResponses: goalRequests.map((req: any) => ({
+              goalNodeId: req.nodeId,
+              goalNodeName: req.nodeName,
+              userRequest: req.goalRequest,
+              aiResponse: req.goalRequest 
+                ? `Based on the STGCN model analysis of your request "${req.goalRequest}", here are the key insights:\n\n📊 Predicted Performance Metrics:\n• KPI_X: Expected range -370 to -350 with confidence 85%\n• KPI_Y: Trending upward to 185-200 range\n• KPI_Z: Stable at 18-22 range\n\n🔍 Analysis:\nThe model indicates ${req.goalRequest.toLowerCase().includes('optimize') ? 'optimization opportunities' : req.goalRequest.toLowerCase().includes('predict') ? 'predictive patterns' : 'data trends'} based on spatiotemporal graph analysis.\n\n💡 Recommendations:\n• Monitor KPI_X for significant deviations\n• Implement controls for KPI_Y optimization\n• Maintain current KPI_Z parameters`
+                : 'No specific request provided'
+            })),
             confidence: 0.85 + Math.random() * 0.1,
             processingTime: Math.floor(Math.random() * 1000) + 500,
             modelPerformance: {

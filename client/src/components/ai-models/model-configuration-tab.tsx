@@ -84,6 +84,7 @@ interface ModelNode {
   height: number;
   sampleData?: any; // Sample data for data input nodes
   dataSchema?: any[]; // Data schema for data input nodes
+  goalInput?: string; // Goal input text for final-goal nodes
 }
 
 interface Connection {
@@ -813,8 +814,9 @@ export default function ModelConfigurationTab() {
           }],
           outputs: [],
           status: 'ready',
-          width: calculateNodeWidth(goalUniqueName, true),
-          height: 100
+          width: Math.max(250, calculateNodeWidth(goalUniqueName, true)),
+          height: 160,
+          goalInput: '' // Initialize with empty string
         };
         break;
     }
@@ -1825,6 +1827,14 @@ export default function ModelConfigurationTab() {
         return;
       }
 
+      // Collect goal inputs from Final Goal nodes
+      const finalGoalNodes = nodes.filter(node => node.type === 'final-goal');
+      const goalInputs = finalGoalNodes.map(node => ({
+        nodeId: node.id,
+        goalRequest: node.goalInput || '',
+        nodeName: node.uniqueName
+      }));
+
       // Execute the model configuration
       const response = await fetch('/api/model-configuration/execute', {
         method: 'POST',
@@ -1835,7 +1845,8 @@ export default function ModelConfigurationTab() {
         body: JSON.stringify({
           configurationId: currentConfig?.id,
           nodes: nodes,
-          connections: connections
+          connections: connections,
+          goalInputs: goalInputs // Include goal inputs from Final Goal nodes
         })
       });
 
@@ -2899,10 +2910,28 @@ export default function ModelConfigurationTab() {
                     </div>
                   )}
                   
-                  {/* Final Goal Icon */}
+                  {/* Final Goal Icon and Input */}
                   {node.type === 'final-goal' && (
-                    <div className="flex items-center justify-center mb-2">
-                      <Target className="w-8 h-8 text-purple-400" />
+                    <div className="mb-3">
+                      <div className="flex items-center justify-center mb-2">
+                        <Target className="w-8 h-8 text-purple-400" />
+                      </div>
+                      <div className="px-1">
+                        <Label className="text-xs text-gray-400 mb-1 block">Goal Request:</Label>
+                        <textarea
+                          className="w-full h-16 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
+                          placeholder="Enter your prediction request..."
+                          value={node.goalInput || ''}
+                          onChange={(e) => {
+                            setNodes(prev => prev.map(n => 
+                              n.id === node.id 
+                                ? { ...n, goalInput: e.target.value }
+                                : n
+                            ));
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                     </div>
                   )}
                   
@@ -3963,6 +3992,36 @@ export default function ModelConfigurationTab() {
                       </div>
                     </div>
                     
+                    {/* Goal Responses Section */}
+                    {result.outputData.goalResponses && result.outputData.goalResponses.length > 0 && (
+                      <div className="mt-4">
+                        <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-purple-600" />
+                          Goal Analysis Results
+                        </h6>
+                        <div className="space-y-3">
+                          {result.outputData.goalResponses.map((response: any, idx: number) => (
+                            <div key={idx} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                              <div className="flex items-start gap-2 mb-2">
+                                <Target className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-purple-900 text-sm mb-1">
+                                    {response.goalNodeName}
+                                  </div>
+                                  <div className="text-xs text-purple-700 bg-purple-100 px-2 py-1 rounded mb-2">
+                                    Request: "{response.userRequest}"
+                                  </div>
+                                  <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                                    {response.aiResponse}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Model Performance */}
                     <div className="mt-3 pt-3 border-t border-green-200">
                       <div className="grid grid-cols-3 gap-4 text-center">
