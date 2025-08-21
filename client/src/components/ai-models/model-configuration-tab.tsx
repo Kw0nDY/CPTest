@@ -1835,15 +1835,27 @@ export default function ModelConfigurationTab() {
     try {
       console.log('saveExecutionResultsAsDataSources called with:', results);
       
+      // Prevent duplicate processing by checking execution timestamps
+      const processedResults = new Set();
+      let savedCount = 0;
+      
       for (const result of results) {
         console.log('Processing result:', result);
         
+        // Create unique identifier to prevent duplicates
+        const resultId = `${result.modelId}_${result.executedAt}`;
+        if (processedResults.has(resultId)) {
+          console.log('Skipping duplicate result');
+          continue;
+        }
+        processedResults.add(resultId);
+        
         // Check multiple possible result structures
-        const outputData = result.output || result.outputData || result.predictions || result;
+        const outputData = result.outputData || result.output || result.predictions || result;
         const modelName = result.modelName || result.model || 'AI_Model';
         
         if (outputData && modelName) {
-          const timestamp = Date.now();
+          const timestamp = Date.now() + savedCount; // Add offset to prevent timestamp collisions
           const dataSourceName = `AI_Result_${modelName}_${timestamp}`;
           
           // Create data source for the execution result
@@ -1858,7 +1870,7 @@ export default function ModelConfigurationTab() {
               modelName: modelName,
               executedAt: new Date().toISOString(),
               resultData: outputData,
-              sampleData: Array.isArray(outputData) ? outputData.slice(0, 5) : [outputData],
+              sampleData: Array.isArray(outputData.predictions) ? outputData.predictions.slice(0, 5) : [outputData],
               dataSchema: generateSchemaFromResult(outputData)
             }
           };
@@ -1876,6 +1888,7 @@ export default function ModelConfigurationTab() {
 
           if (response.ok) {
             console.log(`AI result saved as data source: ${dataSourceName}`);
+            savedCount++;
           } else {
             const errorText = await response.text();
             console.error('Failed to save data source:', response.status, errorText);
@@ -1885,10 +1898,12 @@ export default function ModelConfigurationTab() {
         }
       }
       
-      toast({
-        title: "Results Saved",
-        description: "AI execution results have been saved as data sources for View Setting",
-      });
+      if (savedCount > 0) {
+        toast({
+          title: "Results Saved",
+          description: `${savedCount} AI execution result(s) saved as data sources for View Setting`,
+        });
+      }
     } catch (error) {
       console.error('Error saving execution results:', error);
       toast({
@@ -1903,12 +1918,56 @@ export default function ModelConfigurationTab() {
   const generateSchemaFromResult = (resultData: any) => {
     if (!resultData) return [];
     
+    // Handle parameter optimization results structure
+    if (resultData.predictions && Array.isArray(resultData.predictions)) {
+      const firstPrediction = resultData.predictions[0];
+      if (firstPrediction && typeof firstPrediction === 'object') {
+        const schema = [];
+        
+        // Add parameter fields if present
+        if (firstPrediction.parameters) {
+          Object.keys(firstPrediction.parameters).forEach(param => {
+            schema.push({
+              name: param,
+              type: 'DECIMAL',
+              description: `Optimized ${param} parameter value`
+            });
+          });
+        }
+        
+        // Add predicted KPI fields if present
+        if (firstPrediction.predictedKPIs) {
+          Object.keys(firstPrediction.predictedKPIs).forEach(kpi => {
+            schema.push({
+              name: kpi,
+              type: 'DECIMAL',
+              description: `Predicted ${kpi} value`
+            });
+          });
+        }
+        
+        // Add other fields
+        ['optimizationScore', 'confidence', 'scenario'].forEach(field => {
+          if (firstPrediction[field] !== undefined) {
+            schema.push({
+              name: field,
+              type: typeof firstPrediction[field] === 'number' ? 'DECIMAL' : 'STRING',
+              description: `${field} from optimization result`
+            });
+          }
+        });
+        
+        return schema;
+      }
+    }
+    
+    // Handle standard array results
     if (Array.isArray(resultData) && resultData.length > 0) {
       const firstItem = resultData[0];
       if (typeof firstItem === 'object' && firstItem !== null) {
         return Object.keys(firstItem).map(key => ({
           name: key,
-          type: typeof firstItem[key] === 'number' ? 'NUMBER' : 'STRING',
+          type: typeof firstItem[key] === 'number' ? 'DECIMAL' : 'STRING',
           description: `${key} field from AI model result`
         }));
       }
@@ -1916,7 +1975,7 @@ export default function ModelConfigurationTab() {
     
     return [{
       name: 'result',
-      type: typeof resultData === 'number' ? 'NUMBER' : 'STRING',
+      type: typeof resultData === 'number' ? 'DECIMAL' : 'STRING',
       description: 'AI model result'
     }];
   };
@@ -1958,7 +2017,7 @@ export default function ModelConfigurationTab() {
       const finalGoalNodes = nodes.filter(node => node.type === 'final-goal');
       const goalInputs = finalGoalNodes.map(node => ({
         nodeId: node.id,
-        goalRequest: node.goalInput || '',
+        goalRequest: node.goalRequest || '',
         nodeName: node.uniqueName
       }));
 
@@ -3060,10 +3119,10 @@ export default function ModelConfigurationTab() {
                         <Target className="w-8 h-8 text-purple-400" />
                       </div>
                       <div className="px-1">
-                        <Label className="text-xs text-gray-400 mb-1 block">Goal Request:</Label>
+                        <Label className="text-xs text-gray-400 mb-1 block">Parameter Optimization Goal:</Label>
                         <textarea
-                          className="w-full h-16 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
-                          placeholder="Enter your prediction request..."
+                          className="w-full h-20 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
+                          placeholder="예시:&#10;KPI_X를 전체적으로 10 올렸을 때 최적 파라미터 예측&#10;KPI_Y를 200에 맞추고 싶을 때 최적 파라미터 예측"
                           value={node.goalRequest || ''}
                           onChange={(e) => {
                             e.stopPropagation();
@@ -3077,6 +3136,9 @@ export default function ModelConfigurationTab() {
                           onFocus={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                         />
+                        <div className="text-xs text-gray-500 mt-1">
+                          KPI 목표값을 입력하면 최적 파라미터를 예측합니다
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3359,6 +3421,92 @@ export default function ModelConfigurationTab() {
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          )}
+                          
+                          {/* Parameter Optimization Results & CSV Download */}
+                          {result.outputData?.predictions && result.outputData.predictions.some((p: any) => p.parameters) && (
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-sm font-medium text-gray-700">Parameter Optimization Results:</div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Generate and download CSV
+                                    const csvData = [
+                                      ['Scenario', 'Temperature_A', 'Temperature_B', 'Temperature_C', 'Pressure_A', 'Pressure_B', 'GasFlow_A', 'GasFlow_B', 'KPI_X', 'KPI_Y', 'KPI_Z', 'Optimization_Score'],
+                                      ...result.outputData.predictions.map((pred: any) => [
+                                        pred.scenario || 'Optimized',
+                                        pred.parameters?.Temperature_A?.toFixed(2) || '',
+                                        pred.parameters?.Temperature_B?.toFixed(2) || '',
+                                        pred.parameters?.Temperature_C?.toFixed(2) || '',
+                                        pred.parameters?.Pressure_A?.toFixed(2) || '',
+                                        pred.parameters?.Pressure_B?.toFixed(2) || '',
+                                        pred.parameters?.GasFlow_A?.toFixed(2) || '',
+                                        pred.parameters?.GasFlow_B?.toFixed(2) || '',
+                                        pred.predictedKPIs?.KPI_X?.toFixed(2) || '',
+                                        pred.predictedKPIs?.KPI_Y?.toFixed(2) || '',
+                                        pred.predictedKPIs?.KPI_Z?.toFixed(2) || '',
+                                        pred.optimizationScore?.toFixed(3) || ''
+                                      ])
+                                    ];
+                                    
+                                    const csvContent = csvData.map(row => row.join(',')).join('\n');
+                                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${result.modelName}_optimization_results_${Date.now()}.csv`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    window.URL.revokeObjectURL(url);
+                                    
+                                    toast({
+                                      title: "CSV Downloaded",
+                                      description: "Parameter optimization results saved to CSV file"
+                                    });
+                                  }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download CSV
+                                </Button>
+                              </div>
+                              <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                                {result.outputData.predictions.map((pred: any, predIdx: number) => (
+                                  <div key={predIdx} className="mb-3 last:mb-0">
+                                    <div className="text-sm font-medium text-purple-900 mb-2">
+                                      {pred.scenario} (Optimization Score: {pred.optimizationScore?.toFixed(3)})
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-xs">
+                                      {pred.parameters && (
+                                        <div>
+                                          <div className="font-medium text-gray-700 mb-1">Optimized Parameters:</div>
+                                          {Object.entries(pred.parameters).map(([param, value]: [string, any]) => (
+                                            <div key={param} className="flex justify-between">
+                                              <span className="text-gray-600">{param}:</span>
+                                              <span className="font-medium">{value.toFixed(2)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {pred.predictedKPIs && (
+                                        <div>
+                                          <div className="font-medium text-gray-700 mb-1">Predicted KPIs:</div>
+                                          {Object.entries(pred.predictedKPIs).map(([kpi, value]: [string, any]) => (
+                                            <div key={kpi} className="flex justify-between">
+                                              <span className="text-gray-600">{kpi}:</span>
+                                              <span className="font-medium">{value.toFixed(2)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                           
