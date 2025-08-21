@@ -135,6 +135,14 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   };
 
   const handleSourceSelect = (source: SystemSource) => {
+    if (source.id === 'google-sheets') {
+      setShowGoogleSheetsDialog(true);
+      return;
+    }
+    if (source.id === 'csv') {
+      setShowCSVUpload(true);
+      return;
+    }
     setSelectedSource(source);
     setConnectionForm(prev => ({ ...prev, name: `${source.name} 연결` }));
   };

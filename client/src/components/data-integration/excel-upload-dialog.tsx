@@ -56,15 +56,25 @@ interface ExcelProcessedData {
   }>;
 }
 
-// Real Excel data processing using xlsx library
+// Real Excel/CSV data processing using xlsx library
 const processRealExcelFile = async (file: File): Promise<ExcelProcessedData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        let workbook;
+        const fileName = file.name.toLowerCase();
+        
+        if (fileName.endsWith('.csv')) {
+          // Handle CSV files
+          const csvData = e.target?.result as string;
+          workbook = XLSX.read(csvData, { type: 'string' });
+        } else {
+          // Handle Excel files
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          workbook = XLSX.read(data, { type: 'array' });
+        }
         
         const worksheets = workbook.SheetNames;
         const schema: Record<string, Array<{ name: string; type: string; description: string; }>> = {};
@@ -164,7 +174,13 @@ const processRealExcelFile = async (file: File): Promise<ExcelProcessedData> => 
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsArrayBuffer(file);
+    
+    // Use appropriate reading method based on file type
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
   });
 };
 
@@ -429,22 +445,24 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
   };
 
   const handleFiles = async (files: File[]) => {
-    const excelFiles = files.filter(file => 
+    const supportedFiles = files.filter(file => 
       file.type.includes('spreadsheet') || 
       file.name.endsWith('.xlsx') || 
-      file.name.endsWith('.xls')
+      file.name.endsWith('.xls') ||
+      file.name.endsWith('.csv') ||
+      file.type === 'text/csv'
     );
 
-    if (excelFiles.length === 0) {
+    if (supportedFiles.length === 0) {
       toast({
         title: "Invalid File Type",
-        description: "Please select Excel files (.xlsx or .xls)",
+        description: "Please select Excel (.xlsx, .xls) or CSV files",
         variant: "destructive"
       });
       return;
     }
 
-    for (const file of excelFiles) {
+    for (const file of supportedFiles) {
       await uploadFile(file);
     }
   };
@@ -664,7 +682,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileIcon className="w-5 h-5 text-green-600" />
-            Connect Microsoft Excel Files
+            Connect Excel & CSV Files
           </DialogTitle>
         </DialogHeader>
 
@@ -682,9 +700,9 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
             onDrop={handleDrop}
           >
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Upload Excel Files</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Upload Excel & CSV Files</h3>
             <p className="text-gray-600 mb-4">
-              Drag and drop your Excel files here, or click to browse
+              Drag and drop your Excel or CSV files here, or click to browse
             </p>
             <div className="space-y-2">
               <Label htmlFor="file-upload" className="cursor-pointer">
@@ -695,14 +713,14 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
                     id="file-upload"
                     type="file"
                     multiple
-                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                     onChange={handleFileSelect}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                 </Button>
               </Label>
               <p className="text-sm text-gray-500">
-                Supports .xlsx and .xls files
+                Supports .xlsx, .xls, and .csv files
               </p>
             </div>
           </div>
@@ -715,7 +733,7 @@ export function ExcelUploadDialog({ open, onOpenChange, onSuccess }: ExcelUpload
             <Input
               id="data-source-name"
               type="text"
-              placeholder="Enter a custom name for your Excel data source (e.g., Sales Data Q1, Customer Database)"
+              placeholder="Enter a custom name for your data source (e.g., Sales Data Q1, Customer Database)"
               value={dataSourceName}
               onChange={(e) => setDataSourceName(e.target.value)}
               className="w-full"
