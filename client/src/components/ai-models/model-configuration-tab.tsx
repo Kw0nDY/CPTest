@@ -1065,6 +1065,35 @@ export default function ModelConfigurationTab() {
     })));
   };
 
+  // Disconnect nodes function
+  const disconnectNodes = (connectionId: string) => {
+    const connection = connections.find(conn => conn.id === connectionId);
+    if (!connection) return;
+
+    // Remove connection
+    setConnections(prev => prev.filter(conn => conn.id !== connectionId));
+    
+    // Mark input as disconnected
+    setNodes(prev => prev.map(node => {
+      if (node.id === connection.toNodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === connection.toInputId 
+              ? { ...input, connected: false }
+              : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    toast({
+      title: "연결 해제됨",
+      description: "노드 연결이 성공적으로 해제되었습니다",
+    });
+  };
+
   // Canvas click handler to clear active states
   const handleCanvasClick = () => {
     if (selectedNodeForConnection) {
@@ -1689,43 +1718,34 @@ export default function ModelConfigurationTab() {
       errors.push('At least one AI model is required to create a workflow');
     }
     
-    // Check if AI models have sufficient input connections
+    // Check if AI models have sufficient input connections (relaxed validation)
     aiModels.forEach(model => {
       const modelConnections = connections.filter(conn => conn.toNodeId === model.id);
-      const requiredInputs = model.inputs.filter((input: any) => !(input as any).optional);
-      
-      if (requiredInputs.length > 0 && modelConnections.length === 0) {
-        errors.push(`AI model "${model.uniqueName}" requires input data connections`);
+      // Only warn if no connections, don't block execution
+      if (modelConnections.length === 0) {
+        console.warn(`AI model "${model.uniqueName}" has no input connections. Will use sample data for testing.`);
       }
-      
-      // Check if all required inputs are connected
-      requiredInputs.forEach(input => {
-        const isConnected = modelConnections.some(conn => conn.toInputId === input.id);
-        if (!isConnected) {
-          errors.push(`Required input "${input.name}" in "${model.uniqueName}" is not connected`);
-        }
-      });
     });
     
-    // Check final goal connections
+    // Check final goal connections (relaxed - only warn)
     const finalGoals = nodes.filter(n => n.type === 'final-goal');
     if (finalGoals.length === 0) {
-      errors.push('Add a "Final Goal" node to define the workflow output');
+      console.warn('No "Final Goal" node found - results will be shown in raw format');
     }
     
     finalGoals.forEach(goal => {
       const hasConnections = connections.some(conn => conn.toNodeId === goal.id);
       if (!hasConnections) {
-        errors.push(`Final goal "${goal.uniqueName}" must receive input from AI models or data sources`);
+        console.warn(`Final goal "${goal.uniqueName}" has no input connections`);
       }
     });
     
-    // Check for isolated nodes (nodes with no connections)
+    // Check for isolated nodes (only warn, don't block)
     const dataNodes = nodes.filter(n => n.type === 'data-input');
     dataNodes.forEach(dataNode => {
       const hasOutputConnections = connections.some(conn => conn.fromNodeId === dataNode.id);
       if (!hasOutputConnections) {
-        errors.push(`Data source "${dataNode.uniqueName}" is not connected to any AI models`);
+        console.warn(`Data source "${dataNode.uniqueName}" is not connected to any AI models - will use default data`);
       }
     });
     
