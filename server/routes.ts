@@ -3399,7 +3399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Construct model file path
-      const modelPath = path.join(__dirname, '../uploads', model.filePath);
+      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
       
       // Prepare execution configuration
       const executionConfig = {
@@ -3482,7 +3482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Construct model file path
-      const modelPath = path.join(__dirname, '../uploads', model.filePath);
+      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
       
       // Prepare execution configuration
       const executionConfig = {
