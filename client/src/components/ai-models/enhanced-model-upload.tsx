@@ -291,7 +291,7 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
       setUploadProgress({ stage: 'uploading', progress: 50, message: 'Uploading files...' });
       
       // For FormData uploads, we need to use fetch directly to avoid JSON headers
-      const response = await fetch('/api/ai-models/enhanced-upload', {
+      const response = await fetch('/api/ai-models/upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',

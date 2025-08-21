@@ -2759,13 +2759,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No files provided' });
       }
 
-      const { name, description, type, parsedConfig } = req.body;
+      const { name, description, type, parsedConfig, folderId } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'Model name is required' });
       }
 
       console.log(`Enhanced upload request for model: ${name}`);
       console.log(`Files received: ${req.files.length}`);
+      console.log(`Request body:`, req.body);
+      console.log(`Folder ID received:`, folderId);
 
       const files = req.files as Express.Multer.File[];
       let modelFile: Express.Multer.File | null = null;
