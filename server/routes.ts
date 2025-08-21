@@ -3025,12 +3025,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/model-configurations', async (req, res) => {
     try {
+      console.log('Creating model configuration with data:', req.body);
       const validatedData = insertModelConfigurationSchema.parse(req.body);
+      console.log('Validated data:', validatedData);
       const configuration = await storage.createModelConfiguration(validatedData);
       res.json(configuration);
     } catch (error) {
       console.error('Error creating model configuration:', error);
-      res.status(500).json({ error: 'Failed to create model configuration' });
+      console.error('Request body:', req.body);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      res.status(500).json({ error: 'Failed to create model configuration', details: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 

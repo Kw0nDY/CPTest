@@ -321,6 +321,7 @@ export const modelConfigurationFolders = pgTable('model_configuration_folders', 
 export const modelConfigurations = pgTable('model_configurations', {
   id: text('id').primaryKey(),
   modelId: text('model_id').references(() => aiModels.id).notNull(),
+  folderId: text('folder_id').references(() => modelConfigurationFolders.id), // Reference to configuration folder
   name: text('name').notNull(),
   description: text('description'),
   isActive: integer('is_active').notNull().default(0), // 0 = false, 1 = true
