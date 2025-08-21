@@ -2018,7 +2018,7 @@ export default function ModelConfigurationTab() {
               </Button>
               <Button onClick={testConfiguration}>
                 <Play className="w-4 h-4 mr-2" />
-                Test Configuration
+                Run Test
               </Button>
             </div>
           </div>
