@@ -596,7 +596,14 @@ export default function ViewSettingTab() {
                   <p className="text-gray-600 text-center mb-4">
                     Execute AI models from the AI Fac section to see results here.
                   </p>
-                  <Button variant="outline" className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center space-x-2"
+                    onClick={() => {
+                      // Navigate to AI Configuration page
+                      window.location.href = '/#/ai-models';
+                    }}
+                  >
                     <TrendingUp className="h-4 w-4" />
                     <span>Go to AI Configuration</span>
                   </Button>
@@ -629,7 +636,7 @@ export default function ViewSettingTab() {
                               </div>
                               <div>
                                 <span className="text-gray-500">Created:</span>
-                                <p className="font-medium">{new Date(result.createdAt).toLocaleDateString()}</p>
+                                <p className="font-medium">{result.createdAt ? new Date(result.createdAt).toLocaleDateString() : 'N/A'}</p>
                               </div>
                               <div>
                                 <span className="text-gray-500">Model ID:</span>

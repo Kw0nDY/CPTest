@@ -2619,7 +2619,7 @@ export default function ModelConfigurationTab() {
             {nodes.map(node => (
               <div
                 key={node.id}
-                className={`absolute border rounded-lg shadow-lg ${
+                className={`absolute border rounded-lg shadow-lg z-10 ${
                   isDragging && draggedNode?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'
                 } ${
                   node.type === 'final-goal' 
@@ -2781,7 +2781,7 @@ export default function ModelConfigurationTab() {
             {/* Add Node Menu */}
             {showAddNodeMenu && (
               <div
-                className="absolute bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-48"
+                className="absolute bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-[100] min-w-48"
                 style={{
                   left: addNodePosition.x,
                   top: addNodePosition.y
@@ -3516,7 +3516,7 @@ export default function ModelConfigurationTab() {
 
       {/* New Folder Dialog */}
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md z-[9999]" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle>Create New Folder</DialogTitle>
           </DialogHeader>
@@ -3565,7 +3565,7 @@ export default function ModelConfigurationTab() {
 
       {/* New Configuration Dialog */}
       <Dialog open={showNewConfigDialog} onOpenChange={setShowNewConfigDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md z-[9999]" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle>Create New Configuration</DialogTitle>
           </DialogHeader>
@@ -3625,7 +3625,7 @@ export default function ModelConfigurationTab() {
 
       {/* Delete Node Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="z-[9999]" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle>Delete Node</DialogTitle>
             <DialogDescription>
@@ -3658,7 +3658,7 @@ export default function ModelConfigurationTab() {
 
       {/* Configuration Validation Details Modal */}
       <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto z-[9999]" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
