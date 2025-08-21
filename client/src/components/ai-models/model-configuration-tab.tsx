@@ -436,8 +436,6 @@ export default function ModelConfigurationTab() {
   // Fetch actual AI models from the server with real-time updates
   const { data: realAIModels = [], refetch: refetchModels } = useQuery({
     queryKey: ['/api/ai-models'],
-    refetchInterval: 3000, // Refetch every 3 seconds for real-time analysis status updates
-    staleTime: 1000, // Consider data fresh for only 1 second
   });
 
   // Fetch real data integration sources directly
@@ -2943,7 +2941,7 @@ export default function ModelConfigurationTab() {
                           style={{ 
                             backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
                           }}
-                          onClick={(e) => handleOutputClick(e, node.id, output.id, output.type)}
+                          onClick={(e) => handleInputClick(e, node.id, output.id, output.type)}
                           title={`${output.name} (${output.type}) - Click to start connection`}
                         />
                       </div>
