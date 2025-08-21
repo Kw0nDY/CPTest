@@ -83,7 +83,40 @@ export const dataSources = pgTable('data_sources', {
   category: text('category').notNull(),
   vendor: text('vendor'),
   status: text('status').notNull().default('disconnected'),
-  config: json('config').notNull(),
+  config: json('config').$type<{
+    host?: string;
+    port?: number;
+    database?: string;
+    username?: string;
+    connectionString?: string;
+    apiEndpoint?: string;
+    authentication?: any;
+    // Google Sheets specific
+    spreadsheetId?: string;
+    range?: string;
+    worksheets?: string[];
+    googleApiConfigId?: string;
+    // Excel specific
+    files?: Array<{
+      name: string;
+      url: string;
+      worksheets: string[];
+    }>;
+    sampleData?: Record<string, any[]>;
+    dataSchema?: Array<{
+      table: string;
+      fields: Array<{
+        name: string;
+        type: string;
+        description: string;
+      }>;
+      recordCount?: number;
+    }>;
+    // AI Result specific
+    modelName?: string;
+    executedAt?: string;
+    resultData?: any;
+  }>().notNull(),
   connectionDetails: json('connection_details'),
   credentials: json('credentials').$type<{
     accessToken?: string;

@@ -392,7 +392,7 @@ export class DatabaseStorage implements IStorage {
     console.log('getTableData - dataSource:', JSON.stringify(dataSource, null, 2));
     console.log('getTableData - looking for table:', tableName);
     
-    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel' || dataSource.type === 'Google Sheets')) {
+    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel' || dataSource.type === 'Google Sheets' || dataSource.type === 'ai-result')) {
       // Check if data is stored in the enhanced field (from runtime)
       if ((dataSource as any).sampleData && (dataSource as any).sampleData[tableName]) {
         console.log('Found file data in sampleData field');
@@ -404,6 +404,12 @@ export class DatabaseStorage implements IStorage {
       if (config && config.sampleData && config.sampleData[tableName]) {
         console.log('Found file data in config.sampleData');
         return config.sampleData[tableName];
+      }
+      
+      // Handle AI result data
+      if (dataSource.type === 'ai-result' && config && config.resultData) {
+        console.log('Found AI result data');
+        return Array.isArray(config.resultData) ? config.resultData : [config.resultData];
       }
       
       // Fallback to mock Excel data if no real data found

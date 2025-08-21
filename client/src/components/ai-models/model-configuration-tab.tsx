@@ -1830,6 +1830,72 @@ export default function ModelConfigurationTab() {
     };
   };
 
+  // Save execution results as data sources
+  const saveExecutionResultsAsDataSources = async (results: any[]) => {
+    try {
+      for (const result of results) {
+        if (result.output && result.modelName) {
+          const dataSourceName = `AI_Result_${result.modelName}_${Date.now()}`;
+          
+          // Create data source for the execution result
+          const response = await fetch('/api/data-sources', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              id: `ds-ai-result-${Date.now()}`,
+              name: dataSourceName,
+              type: 'ai-result',
+              description: `AI model execution result from ${result.modelName}`,
+              config: {
+                modelName: result.modelName,
+                executedAt: new Date().toISOString(),
+                resultData: result.output,
+                sampleData: Array.isArray(result.output) ? result.output.slice(0, 5) : [result.output],
+                dataSchema: generateSchemaFromResult(result.output)
+              }
+            })
+          });
+
+          if (response.ok) {
+            console.log(`AI result saved as data source: ${dataSourceName}`);
+          }
+        }
+      }
+      
+      toast({
+        title: "Results Saved",
+        description: "AI execution results have been saved as data sources for View Setting",
+      });
+    } catch (error) {
+      console.error('Error saving execution results:', error);
+    }
+  };
+
+  // Generate schema from AI result
+  const generateSchemaFromResult = (resultData: any) => {
+    if (!resultData) return [];
+    
+    if (Array.isArray(resultData) && resultData.length > 0) {
+      const firstItem = resultData[0];
+      if (typeof firstItem === 'object' && firstItem !== null) {
+        return Object.keys(firstItem).map(key => ({
+          name: key,
+          type: typeof firstItem[key] === 'number' ? 'NUMBER' : 'STRING',
+          description: `${key} field from AI model result`
+        }));
+      }
+    }
+    
+    return [{
+      name: 'result',
+      type: typeof resultData === 'number' ? 'NUMBER' : 'STRING',
+      description: 'AI model result'
+    }];
+  };
+
   // Test configuration
   const testConfiguration = async () => {
     setIsTestRunning(true);
@@ -1889,20 +1955,28 @@ export default function ModelConfigurationTab() {
       const result = await response.json();
       
       if (result.success) {
+        console.log('Full execution result:', result);
         setTestResults({
           status: 'success',
           message: 'Model execution completed successfully!',
           details: {
             isValid: true,
             errors: [],
+            results: result.results || [],
+            executedAt: new Date().toISOString(),
             executionResults: result.results
           }
         });
         
         toast({
           title: "✅ Model Execution Success",
-          description: `${result.results.length} AI model(s) executed successfully. View results below.`,
+          description: `${result.results?.length || 0} AI model(s) executed successfully. View results below.`,
         });
+        
+        // Save execution results as data sources for View Setting
+        if (result.results && result.results.length > 0) {
+          saveExecutionResultsAsDataSources(result.results);
+        }
       } else {
         setTestResults({
           status: 'error',
@@ -3267,6 +3341,17 @@ export default function ModelConfigurationTab() {
                           )}
                         </div>
                       ))}
+                      
+                      {/* Data Sources Saved Message */}
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-blue-700">
+                          <Database className="w-4 h-4" />
+                          <span className="text-sm font-medium">Results Saved as Data Sources</span>
+                        </div>
+                        <div className="text-sm text-blue-600 mt-1">
+                          AI execution results have been automatically saved and are now available in the Data Integration section for use in views and dashboards.
+                        </div>
+                      </div>
                     </>
                   ) : testResults.status === 'success' ? (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
