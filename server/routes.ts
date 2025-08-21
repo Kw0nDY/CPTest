@@ -3619,13 +3619,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             configData = yaml.load(configContent);
           }
 
-          if (configData.inputs) {
-            inputs = configData.inputs;
+          // Handle YAML signature format
+          if (configData.signature) {
+            if (configData.signature.inputs) {
+              inputs = configData.signature.inputs;
+            }
+            if (configData.signature.outputs) {
+              outputs = configData.signature.outputs;
+            }
           }
-          if (configData.outputs) {
-            outputs = configData.outputs;
+          // Handle JSON data_meta format (fallback)
+          else if (configData.data_meta) {
+            if (configData.data_meta.input) {
+              inputs = configData.data_meta.input.map((name: string, index: number) => ({
+                name: name,
+                dtype: configData.data_meta.input_type?.[index] || 'string',
+                required: true
+              }));
+            }
+            if (configData.data_meta.output) {
+              outputs = configData.data_meta.output.map((name: string, index: number) => ({
+                name: name,
+                dtype: configData.data_meta.output_type?.[index] || 'string'
+              }));
+            }
           }
-          if (configData.modelInfo) {
+          // Direct format (legacy)
+          else {
+            if (configData.inputs) {
+              inputs = configData.inputs;
+            }
+            if (configData.outputs) {
+              outputs = configData.outputs;
+            }
+          }
+          
+          if (configData.model) {
+            modelInfo = configData.model;
+          } else if (configData.modelInfo) {
             modelInfo = configData.modelInfo;
           }
         } catch (error) {
