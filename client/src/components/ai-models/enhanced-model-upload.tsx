@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 // Progress component - using div with width styling instead
 import { useToast } from '@/hooks/use-toast';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { 
   Upload, 
