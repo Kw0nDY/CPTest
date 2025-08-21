@@ -1364,14 +1364,14 @@ export default function ModelConfigurationTab() {
       const result = await response.json();
       console.log('Model execution result:', result);
 
-      if (result.success && result.results && result.results.length > 0) {
-        setTestResults({
-          status: 'success',
-          message: `${result.results.length} AI model(s) executed successfully`,
+      if (result.success) {
+        const testResultData = {
+          status: 'success' as const,
+          message: `${result.results?.length || 0} AI model(s) executed successfully`,
           details: {
             configurationId: result.configurationId,
-            executedAt: result.executedAt,
-            results: result.results,
+            executedAt: result.executedAt || new Date().toISOString(),
+            results: result.results || [],
             workflow: {
               totalNodes: nodes.length,
               aiModels: nodes.filter(n => n.type === 'ai-model').length,
@@ -1380,11 +1380,22 @@ export default function ModelConfigurationTab() {
               activeConnections: connections.length
             }
           }
-        });
+        };
+        
+        console.log('Setting test results:', testResultData);
+        setTestResults(testResultData);
+        
+        // Force a re-render by scrolling to results
+        setTimeout(() => {
+          const resultsPanel = document.querySelector('[data-testid="test-results-panel"]');
+          if (resultsPanel) {
+            resultsPanel.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
 
         toast({
           title: "✅ Model Execution Success",
-          description: `${result.results.length} AI model(s) executed successfully. View results below.`,
+          description: `${result.results?.length || 0} AI model(s) executed successfully. Results displayed below.`,
         });
       } else {
         throw new Error(result.error || 'Unknown execution error');
@@ -3128,7 +3139,7 @@ export default function ModelConfigurationTab() {
           
           {/* Test Results Panel */}
           {testResults && (
-            <div className="border-t border-gray-300 bg-white">
+            <div className="border-t border-gray-300 bg-white" data-testid="test-results-panel">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -3146,6 +3157,14 @@ export default function ModelConfigurationTab() {
                   >
                     <X className="w-4 h-4" />
                   </Button>
+                </div>
+                
+                {/* Debug Info */}
+                <div className="mb-4 p-3 bg-gray-50 rounded border text-xs">
+                  <div>Status: {testResults.status}</div>
+                  <div>Message: {testResults.message}</div>
+                  <div>Results Count: {testResults.details?.results?.length || 0}</div>
+                  <div>Has Details: {testResults.details ? 'Yes' : 'No'}</div>
                 </div>
                 
                 <div className="space-y-4">
