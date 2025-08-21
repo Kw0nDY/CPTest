@@ -635,17 +635,34 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
             <CardContent>
               <div className="space-y-4">
                 {dataSources.map((dataSource: any) => (
-                  <div key={dataSource.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={dataSource.id} className={`flex items-center justify-between p-4 border rounded-lg ${
+                    dataSource.type === 'ai-result' ? 'border-purple-200 bg-purple-50' : ''
+                  }`}>
                     <div className="flex items-center space-x-3">
                       <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                        dataSource.status === 'connected' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                        dataSource.type === 'ai-result' 
+                          ? 'bg-purple-100 text-purple-600' 
+                          : dataSource.status === 'connected' 
+                            ? 'bg-green-100 text-green-600' 
+                            : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {dataSource.type === 'excel' ? <FileSpreadsheet className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+                        {dataSource.type === 'ai-result' ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : dataSource.type === 'excel' ? (
+                          <FileSpreadsheet className="w-4 h-4" />
+                        ) : (
+                          <Database className="w-4 h-4" />
+                        )}
                       </div>
                       <div>
                         <h4 className="text-sm font-medium">{dataSource.name}</h4>
                         <p className="text-xs text-gray-500">
-                          {dataSource.type.toUpperCase()} • {dataSource.status}
+                          {dataSource.type === 'ai-result' ? 'AI RESULT' : dataSource.type.toUpperCase()} • {dataSource.status}
+                          {dataSource.type === 'ai-result' && (
+                            <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                              AI Model Output
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -653,15 +670,17 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                       {dataSource.status === 'connected' && (
                         <CheckCircle className="w-4 h-4 text-green-600" />
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTestConnection(dataSource.id)}
-                        disabled={testConnectionMutation.isPending}
-                        data-testid={`button-test-${dataSource.id}`}
-                      >
-                        Test
-                      </Button>
+                      {dataSource.type !== 'ai-result' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleTestConnection(dataSource.id)}
+                          disabled={testConnectionMutation.isPending}
+                          data-testid={`button-test-${dataSource.id}`}
+                        >
+                          Test
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -669,6 +688,7 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
                         disabled={deleteDataSourceMutation.isPending}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         data-testid={`button-delete-${dataSource.id}`}
+                        title={dataSource.type === 'ai-result' ? 'Delete AI Result Data' : 'Delete Data Source'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

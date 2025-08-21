@@ -3150,7 +3150,7 @@ export default function ModelConfigurationTab() {
                         <Label className="text-xs text-gray-400 mb-1 block">Parameter Optimization Goal:</Label>
                         <textarea
                           className="w-full h-20 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
-                          placeholder="예시:&#10;KPI_X를 전체적으로 10 올렸을 때 최적 파라미터 예측&#10;KPI_Y를 200에 맞추고 싶을 때 최적 파라미터 예측"
+                          placeholder=""
                           value={node.goalRequest || ''}
                           onChange={(e) => {
                             e.stopPropagation();
