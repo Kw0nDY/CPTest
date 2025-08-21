@@ -73,7 +73,7 @@ interface UploadProgress {
   message: string;
 }
 
-export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps) {
+export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: ModelUploadProps) {
   const [modelFiles, setModelFiles] = useState<ModelFile[]>([]);
   const [modelName, setModelName] = useState('');
   const [modelDescription, setModelDescription] = useState('');
@@ -85,6 +85,19 @@ export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps)
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Also fetch folders directly to ensure we have the latest data
+  const { data: fetchedFolders = [] } = useQuery({
+    queryKey: ['/api/ai-model-folders'],
+    queryFn: async () => {
+      const response = await fetch('/api/ai-model-folders');
+      if (!response.ok) throw new Error('Failed to fetch folders');
+      return response.json();
+    }
+  });
+
+  // Use the most recent folder data (either from props or fetched)
+  const folders = fetchedFolders.length > 0 ? fetchedFolders : propsFolders;
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -516,23 +529,28 @@ export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps)
               {/* Folder Selection */}
               <div>
                 <Label htmlFor="folder-select">Folder *</Label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Available folders: {folders?.length || 0} 
+                  {folders?.length > 0 && ` (${folders.map((f: any) => f.name).join(', ')})`}
+                </p>
                 <Select value={selectedFolderId || ""} onValueChange={setSelectedFolderId} required>
                   <SelectTrigger className="mt-1" data-testid="select-folder">
                     <SelectValue placeholder="Select a folder (required)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {folders?.map((folder) => (
-                      <SelectItem key={folder.id} value={folder.id}>
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-sm" 
-                            style={{ backgroundColor: folder.color }}
-                          />
-                          <span>{folder.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                    {(!folders || folders.length === 0) && (
+                    {folders && folders.length > 0 ? (
+                      folders.map((folder: any) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded-sm" 
+                              style={{ backgroundColor: folder.color }}
+                            />
+                            <span>{folder.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
                       <div className="p-2 text-sm text-gray-500 text-center">
                         No folders available. Create a folder first.
                       </div>
