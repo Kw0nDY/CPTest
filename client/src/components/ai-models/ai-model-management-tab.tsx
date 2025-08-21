@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { EnhancedModelUpload } from './enhanced-model-upload';
 import { FolderCreationDialog } from './folder-creation-dialog';
+import { FolderEditDialog } from './folder-edit-dialog';
+import { ModelsViewDialog } from './models-view-dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +56,9 @@ interface AiModel {
 export default function AIModelManagementTab() {
   const [showUpload, setShowUpload] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showModelsDialog, setShowModelsDialog] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<AiModelFolder | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -161,6 +166,26 @@ export default function AIModelManagementTab() {
     if (confirm('Are you sure you want to delete this model? This action cannot be undone.')) {
       deleteModelMutation.mutate(modelId);
     }
+  };
+
+  const handleEditFolder = (folder: AiModelFolder) => {
+    setSelectedFolder(folder);
+    setShowEditDialog(true);
+  };
+
+  const handleViewModels = (folder: AiModelFolder) => {
+    setSelectedFolder(folder);
+    setShowModelsDialog(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setShowEditDialog(false);
+    setSelectedFolder(null);
+  };
+
+  const handleCloseModelsDialog = () => {
+    setShowModelsDialog(false);
+    setSelectedFolder(null);
   };
 
   const getIconComponent = (iconName: string) => {
@@ -296,7 +321,7 @@ export default function AIModelManagementTab() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditFolder(folder)}>
                             <Edit3 className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
@@ -329,7 +354,14 @@ export default function AIModelManagementTab() {
                       )}
                     </div>
                     {folderModels.length > 0 && (
-                      <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full mt-3 text-blue-600 hover:bg-blue-50"
+                        onClick={() => handleViewModels(folder)}
+                        data-testid={`button-view-models-${folder.id}`}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
                         View All Models
                       </Button>
                     )}
@@ -379,6 +411,18 @@ export default function AIModelManagementTab() {
           onCreate={createFolderMutation.mutate}
         />
       )}
+
+      <FolderEditDialog
+        isOpen={showEditDialog}
+        onClose={handleCloseEditDialog}
+        folder={selectedFolder}
+      />
+
+      <ModelsViewDialog
+        isOpen={showModelsDialog}
+        onClose={handleCloseModelsDialog}
+        folder={selectedFolder}
+      />
     </div>
   );
 }

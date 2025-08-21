@@ -2084,7 +2084,7 @@ export default function ModelConfigurationTab() {
                     {process.env.NODE_ENV === 'development' && (
                       <div className="mb-3 p-2 bg-gray-100 rounded text-xs">
                         <div>Raw data sources: {Array.isArray(realDataSources) ? realDataSources.length : 0}</div>
-                        <div>Transformed: {transformedDataSources.length}</div>
+                        <div>Available: {availableDataSources.length}</div>
                         <div>Filtered: {filteredDataSources.length}</div>
                         <div>Loading: {isDataSourcesLoading ? 'Yes' : 'No'}</div>
                       </div>
