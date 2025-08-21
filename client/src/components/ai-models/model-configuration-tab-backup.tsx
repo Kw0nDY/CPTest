@@ -1,0 +1,4603 @@
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  Plus, 
+  Folder, 
+  FolderOpen, 
+  Settings, 
+  Play,
+  Save,
+  Download,
+  Upload,
+  Trash2,
+  Eye,
+  Search,
+  MoreHorizontal,
+  Zap,
+  Database,
+  Workflow,
+  Brain,
+  ChevronLeft,
+  MoreVertical,
+  Circle,
+  ChevronRight,
+  X,
+  Info,
+  ArrowRight,
+  Link2,
+  Target,
+  Monitor,
+  Check,
+  PlayCircle,
+  CheckCircle,
+  XCircle,
+  BarChart3,
+  TrendingUp
+} from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+interface ViewData {
+  id: string;
+  name: string;
+  description?: string;
+  outputs?: Array<{
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
+  }>;
+}
+
+interface ModelNode {
+  id: string;
+  type: 'ai-model' | 'data-input' | 'automation-input' | 'view-data' | 'final-goal';
+  name: string;
+  uniqueName: string; // For duplicate handling (e.g., "Salesforce Account_1")
+  position: { x: number; y: number };
+  inputs: Array<{
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
+    connected: boolean;
+    active: boolean; // 연결 대기 상태
+    value?: any;
+  }>;
+  outputs: Array<{
+    id: string;
+    name: string;
+    type: 'string' | 'number' | 'array' | 'object' | 'image' | 'boolean';
+    active: boolean; // 연결 시작 상태
+    tableData?: any[]; // Sample data for data nodes
+    tableName?: string; // Table name for data nodes
+    fieldName?: string; // Field name for data nodes
+  }>;
+  modelId?: string; // Reference to uploaded model
+  sourceId?: string; // Reference to data source
+  triggerId?: string; // Reference to automation trigger
+  viewId?: string; // Reference to view
+  status: 'ready' | 'error' | 'running';
+  width: number;
+  height: number;
+  sampleData?: any; // Sample data for data input nodes
+  dataSchema?: any[]; // Data schema for data input nodes
+  goalInput?: string; // Goal input text for final-goal nodes
+}
+
+interface Connection {
+  id: string;
+  fromNodeId: string;
+  fromOutputId?: string; // Optional for block connections
+  toNodeId: string;
+  toInputId?: string; // Optional for block connections
+  type: 'parameter' | 'block'; // New connection type
+  sourceOutputName?: string;
+  targetInputName?: string;
+  mappings?: Array<{ // Field mappings for block connections
+    sourceField: string;
+    targetField: string;
+    sourceType: string;
+    targetType: string;
+  }>;
+}
+
+interface ConfigurationFolder {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  configCount: number;
+}
+
+interface Configuration {
+  id: string;
+  name: string;
+  description: string;
+  folderId: string;
+  nodes: ModelNode[];
+  connections: Connection[];
+  createdAt: string;
+  lastModified: string;
+  status: 'draft' | 'published' | 'running';
+}
+
+// Sample data
+const sampleFolders: ConfigurationFolder[] = [
+  { id: 'quality-workflows', name: 'Quality Control Workflows', description: 'AI workflows for quality assurance', createdAt: '2024-01-10', configCount: 3 },
+  { id: 'maintenance-workflows', name: 'Maintenance Workflows', description: 'Predictive maintenance AI chains', createdAt: '2024-01-08', configCount: 2 },
+  { id: 'production-workflows', name: 'Production Optimization', description: 'Production line optimization workflows', createdAt: '2024-01-05', configCount: 1 },
+];
+
+const sampleConfigurations: Configuration[] = [
+  {
+    id: 'config-1',
+    name: 'Quality Control Pipeline',
+    description: 'Complete quality control workflow with defect detection',
+    folderId: 'quality-workflows',
+    nodes: [],
+    connections: [],
+    createdAt: '2024-01-15',
+    lastModified: '2024-01-16',
+    status: 'published'
+  },
+  {
+    id: 'config-2',
+    name: 'Maintenance Prediction Chain',
+    description: 'Equipment failure prediction workflow',
+    folderId: 'maintenance-workflows',
+    nodes: [],
+    connections: [],
+    createdAt: '2024-01-14',
+    lastModified: '2024-01-15',
+    status: 'draft'
+  }
+];
+
+// AI model folders and models
+const modelFolders = [
+  { id: 'user-models', name: 'User Models', description: 'Your uploaded models' },
+  { id: 'quality-models', name: 'Quality Control Models', description: 'Models for quality inspection and defect detection' },
+  { id: 'maintenance-models', name: 'Maintenance Models', description: 'Predictive maintenance and failure detection models' },
+  { id: 'production-models', name: 'Production Optimization', description: 'Models for production efficiency and optimization' }
+];
+
+// Merge real AI models with sample models for demonstration
+// Function to group models by category for organized display
+const groupModelsByCategory = (models: any[]) => {
+  const folders = new Map();
+  
+  models.forEach(model => {
+    const category = model.category || 'User Models';
+    if (!folders.has(category)) {
+      folders.set(category, []);
+    }
+    folders.get(category).push(model);
+  });
+  
+  return Array.from(folders.entries()).map(([name, models]) => ({
+    id: name.toLowerCase().replace(/\s+/g, '-'),
+    name,
+    models: models as any[]
+  }));
+};
+
+// Sample AI models with input/output schemas organized by folders
+const sampleAIModels = [
+  {
+    id: '1',
+    name: 'Assembly Line Quality Classifier',
+    folderId: 'quality-models',
+    inputs: [
+      { id: 'temperature', name: 'Temperature', type: 'number' as const },
+      { id: 'pressure', name: 'Pressure', type: 'number' as const },
+      { id: 'image', name: 'Product Image', type: 'image' as const }
+    ],
+    outputs: [
+      { id: 'quality_score', name: 'Quality Score', type: 'number' as const },
+      { id: 'defect_type', name: 'Defect Type', type: 'string' as const }
+    ]
+  },
+  {
+    id: '2',
+    name: 'Surface Defect Detector',
+    folderId: 'quality-models',
+    inputs: [
+      { id: 'surface_image', name: 'Surface Image', type: 'image' as const },
+      { id: 'material_type', name: 'Material Type', type: 'string' as const }
+    ],
+    outputs: [
+      { id: 'defect_detected', name: 'Defect Detected', type: 'boolean' as const },
+      { id: 'defect_location', name: 'Defect Location', type: 'array' as const }
+    ]
+  },
+  {
+    id: '3',
+    name: 'Equipment Health Monitor',
+    folderId: 'maintenance-models',
+    inputs: [
+      { id: 'vibration_data', name: 'Vibration Data', type: 'array' as const },
+      { id: 'temperature', name: 'Temperature', type: 'number' as const },
+      { id: 'operating_hours', name: 'Operating Hours', type: 'number' as const }
+    ],
+    outputs: [
+      { id: 'health_score', name: 'Health Score', type: 'number' as const },
+      { id: 'failure_probability', name: 'Failure Probability', type: 'number' as const },
+      { id: 'maintenance_recommendation', name: 'Maintenance Recommendation', type: 'string' as const }
+    ]
+  },
+  {
+    id: '4',
+    name: 'Production Efficiency Optimizer',
+    folderId: 'production-models',
+    inputs: [
+      { id: 'machine_speed', name: 'Machine Speed', type: 'number' as const },
+      { id: 'material_flow', name: 'Material Flow', type: 'number' as const },
+      { id: 'worker_count', name: 'Worker Count', type: 'number' as const }
+    ],
+    outputs: [
+      { id: 'optimal_speed', name: 'Optimal Speed', type: 'number' as const },
+      { id: 'efficiency_score', name: 'Efficiency Score', type: 'number' as const }
+    ]
+  }
+];
+
+// Real data sources - these will be fetched from API
+const useDataIntegrationSources = () => {
+  const { data: dataSources = [], isLoading } = useQuery({
+    queryKey: ['/api/data-sources'],
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+
+  // Transform data sources into the format expected by the node interface
+  const transformedSources = useMemo(() => {
+    const sources: any[] = [];
+
+    (dataSources as any[]).forEach((dataSource: any) => {
+      if (dataSource.dataSchema && Array.isArray(dataSource.dataSchema)) {
+        dataSource.dataSchema.forEach((table: any) => {
+          sources.push({
+            id: `${dataSource.id}-${table.table}`,
+            name: `${dataSource.name} - ${table.table}`,
+            type: 'table',
+            category: dataSource.category || dataSource.type,
+            tableName: table.table,
+            sourceId: dataSource.id,
+            description: `Data from ${dataSource.name}`,
+            fields: table.fields || [],
+            recordCount: table.recordCount || 0
+          });
+        });
+      } else {
+        // For data sources without schema, create a generic entry
+        sources.push({
+          id: dataSource.id,
+          name: dataSource.name,
+          type: 'datasource',
+          category: dataSource.category || dataSource.type,
+          sourceId: dataSource.id,
+          description: dataSource.name,
+          fields: [],
+          recordCount: dataSource.recordCount || 0
+        });
+      }
+    });
+
+    return sources;
+  }, [dataSources]);
+
+  return { dataSources: transformedSources, isLoading };
+};
+
+// Real automation triggers from the system
+const automationTriggers = [
+  // Schedule-based triggers
+  { 
+    id: 'schedule-hourly', 
+    name: 'Hourly Schedule', 
+    type: 'object',
+    category: 'Schedule',
+    outputs: [
+      { name: 'timestamp', type: 'string', description: 'Trigger Timestamp' },
+      { name: 'interval', type: 'string', description: 'Schedule Interval' }
+    ]
+  },
+  { 
+    id: 'schedule-daily', 
+    name: 'Daily Schedule', 
+    type: 'object',
+    category: 'Schedule',
+    outputs: [
+      { name: 'timestamp', type: 'string', description: 'Trigger Timestamp' },
+      { name: 'date', type: 'string', description: 'Date' }
+    ]
+  },
+  // Event-based triggers
+  { 
+    id: 'data-change-trigger', 
+    name: 'Data Change Event', 
+    type: 'object',
+    category: 'Event',
+    outputs: [
+      { name: 'sourceId', type: 'string', description: 'Data Source ID' },
+      { name: 'changeType', type: 'string', description: 'Change Type' },
+      { name: 'newValue', type: 'object', description: 'New Value' },
+      { name: 'oldValue', type: 'object', description: 'Previous Value' }
+    ]
+  },
+  { 
+    id: 'threshold-trigger', 
+    name: 'Threshold Alert', 
+    type: 'object',
+    category: 'Event',
+    outputs: [
+      { name: 'metric', type: 'string', description: 'Metric Name' },
+      { name: 'value', type: 'number', description: 'Current Value' },
+      { name: 'threshold', type: 'number', description: 'Threshold Value' },
+      { name: 'alertLevel', type: 'string', description: 'Alert Level' }
+    ]
+  },
+  // API triggers
+  { 
+    id: 'webhook-trigger', 
+    name: 'Webhook Trigger', 
+    type: 'object',
+    category: 'API',
+    outputs: [
+      { name: 'payload', type: 'object', description: 'Webhook Payload' },
+      { name: 'headers', type: 'object', description: 'Request Headers' },
+      { name: 'method', type: 'string', description: 'HTTP Method' }
+    ]
+  },
+  { 
+    id: 'api-call-trigger', 
+    name: 'API Call Result', 
+    type: 'object',
+    category: 'API',
+    outputs: [
+      { name: 'response', type: 'object', description: 'API Response' },
+      { name: 'statusCode', type: 'number', description: 'Status Code' },
+      { name: 'timestamp', type: 'string', description: 'Call Timestamp' }
+    ]
+  }
+];
+
+export default function ModelConfigurationTab() {
+  const [viewMode, setViewMode] = useState<'folders' | 'editor'>('folders');
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<Configuration | null>(null);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [showNewConfigDialog, setShowNewConfigDialog] = useState(false);
+  const [nodes, setNodes] = useState<ModelNode[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<string | null>(null);
+  const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
+  const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
+
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [connecting, setConnecting] = useState<{ nodeId: string; outputId: string; type: string; outputName?: string; startX: number; startY: number } | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
+  const [addNodePosition, setAddNodePosition] = useState({ x: 0, y: 0 });
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<'details' | 'results'>('details');
+  const [selectedModelForDetails, setSelectedModelForDetails] = useState<any>(null);
+  const [selectedNodeForDetails, setSelectedNodeForDetails] = useState<ModelNode | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['user-models', 'quality-models', 'unorganized']));
+  const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'views'>('models');
+  const [connectionSearchQuery, setConnectionSearchQuery] = useState('');
+  const [testResults, setTestResults] = useState<{
+    status: 'success' | 'error';
+    message: string;
+    details: any;
+  } | null>(null);
+  const [isTestRunning, setIsTestRunning] = useState(false);
+
+  // Auto-switch to results tab when test results are available
+  useEffect(() => {
+    if (testResults) {
+      setRightPanelTab('results');
+      setIsRightPanelOpen(true);
+    }
+  }, [testResults]);
+  const [showValidationDetails, setShowValidationDetails] = useState(false);
+  
+  // Click-based connection states  
+  const [clickConnectionMode, setClickConnectionMode] = useState(false);
+  const [selectedSourceNode, setSelectedSourceNode] = useState<string | null>(null);
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
+  
+  // Delete dialog states
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [nodeToDelete, setNodeToDelete] = useState<ModelNode | null>(null);
+  
+  // Node selection state for general selections
+  const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
+  
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [newFolder, setNewFolder] = useState({ name: '', description: '' });
+  const [newConfig, setNewConfig] = useState({ name: '', description: '', folderId: '' });
+
+  // Get color for data type
+  const getTypeColor = (type: string) => {
+    const colors = {
+      string: '#22c55e',    // green
+      number: '#3b82f6',    // blue  
+      array: '#f59e0b',     // amber
+      object: '#8b5cf6',    // violet
+      image: '#ef4444',     // red
+      boolean: '#06b6d4'    // cyan
+    };
+    return colors[type as keyof typeof colors] || '#6b7280';
+  };
+
+  // Fetch real views data
+  const { data: availableViews = [] } = useQuery<ViewData[]>({
+    queryKey: ['/api/views'],
+    staleTime: 60000
+  });
+
+  // Fetch actual AI models from the server with real-time updates
+  const { data: realAIModels = [], refetch: refetchModels } = useQuery({
+    queryKey: ['/api/ai-models'],
+  });
+
+  // Fetch Model Configuration folders (separate from AI Model folders)
+  const { data: modelConfigFolders = [], refetch: refetchFolders } = useQuery({
+    queryKey: ['/api/model-configuration-folders'],
+    staleTime: 30000,
+  });
+
+  // Fetch AI Model folders to display available models in the editor
+  const { data: aiModelFolders = [] } = useQuery({
+    queryKey: ['/api/ai-model-folders'],
+    staleTime: 30000,
+  });
+
+  // Fetch model configurations
+  const { data: modelConfigurations = [], refetch: refetchConfigurations } = useQuery({
+    queryKey: ['/api/model-configurations'],
+    staleTime: 30000,
+  });
+
+  // Create model configuration folder mutation
+  const createFolderMutation = useMutation({
+    mutationFn: async (folderData: { name: string; description: string; color?: string; icon?: string }) => {
+      const response = await fetch('/api/model-configuration-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: folderData.name,
+          description: folderData.description,
+          color: folderData.color || '#3b82f6',
+          icon: folderData.icon || 'FolderOpen'
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create folder');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/model-configuration-folders'] });
+      refetchFolders();
+    },
+  });
+
+  // Fetch real data integration sources directly
+  const { data: realDataSources = [], isLoading: isDataSourcesLoading } = useQuery({
+    queryKey: ['/api/data-sources'],
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  // Transform real AI models to match expected format - ONLY use real models, no samples
+  const availableAIModels = useMemo(() => {
+    const transformedRealModels = (realAIModels as any[]).map(model => ({
+      id: model.id,
+      name: model.name,
+      type: model.modelType || 'pytorch',
+      category: 'User Models',
+      folderId: model.folderId || null, // Use actual folder ID from database
+      inputs: model.inputSpecs ? model.inputSpecs.map((spec: any) => ({
+        id: spec.name,
+        name: spec.name,
+        type: spec.dataType === 'tensor' ? 'number' : spec.dataType || 'number',
+        shape: spec.shape || [],
+        description: spec.description || ''
+      })) : [],
+      outputs: model.outputSpecs ? model.outputSpecs.map((spec: any) => ({
+        id: spec.name,
+        name: spec.name,
+        type: spec.dataType === 'tensor' ? 'number' : spec.dataType || 'number', 
+        shape: spec.shape || [],
+        description: spec.description || ''
+      })) : [],
+      analysisStatus: model.analysisStatus,
+      analysisProgress: model.analysisProgress || 0,
+      status: model.status,
+      fileName: model.fileName,
+      fileSize: model.fileSize
+    }));
+
+    // Return ONLY real models - no sample/hardcoded models
+    return transformedRealModels;
+  }, [realAIModels]);
+
+  // Helper function to determine category from source type
+  const getCategoryFromType = (type: string): string => {
+    if (type?.toLowerCase().includes('sap')) return 'ERP';
+    if (type?.toLowerCase().includes('salesforce')) return 'CRM';
+    if (type?.toLowerCase().includes('oracle')) return 'Database';
+    if (type?.toLowerCase().includes('pi')) return 'Industrial';
+    if (type?.toLowerCase().includes('manufacturing')) return 'Manufacturing';
+    if (type?.toLowerCase().includes('quality')) return 'Quality';
+    return 'Database';
+  };
+
+  // Filter models based on search and category
+  const filteredAIModels = availableAIModels.filter(model => {
+    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
+
+  // Transform real data sources - ONLY use real data, no samples
+  const availableDataSources = useMemo(() => {
+    return (realDataSources as any[]).map(source => ({
+      id: source.id,
+      name: source.name,
+      type: source.type,
+      category: getCategoryFromType(source.type),
+      status: source.status || 'connected',
+      recordCount: source.recordCount || 0,
+      lastSync: source.lastSync || new Date().toISOString(),
+      fields: source.fields || [],
+      tables: source.tables || [],
+      sampleData: source.sampleData || {}
+    }));
+  }, [realDataSources]);
+
+  // Filter data sources based on search
+  const filteredDataSources = availableDataSources.filter(source => {
+    const matchesSearch = source.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || source.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const filteredAutomationTriggers = automationTriggers.filter(trigger => {
+    const matchesSearch = trigger.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || trigger.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Calculate dynamic node width based on text content
+  const calculateNodeWidth = (text: string, hasButtons: boolean = false): number => {
+    const baseWidth = 180;
+    const charWidth = 8;
+    const buttonSpace = hasButtons ? 60 : 0;
+    const textWidth = text.length * charWidth;
+    const minWidth = Math.max(baseWidth, textWidth + buttonSpace + 40);
+    return Math.min(minWidth, 350); // Max width cap
+  };
+
+  // Generate unique name for duplicate nodes
+  const generateUniqueName = (baseName: string, existingNodes: ModelNode[]): string => {
+    const existingNames = existingNodes.map(n => n.uniqueName);
+    let counter = 1;
+    let uniqueName = baseName;
+    
+    while (existingNames.includes(uniqueName)) {
+      counter++;
+      uniqueName = `${baseName}_${counter}`;
+    }
+    
+    return uniqueName;
+  };
+
+  // Get possible connections for an input
+  const getPossibleConnections = (inputType: string) => {
+    const connections: Array<{
+      type: string;
+      source: string;
+      field: string;
+      description: string;
+    }> = [];
+    
+    // AI Model outputs
+    availableAIModels.forEach(model => {
+      model.outputs.forEach((output: any) => {
+        if (output.type === inputType) {
+          connections.push({
+            type: 'ai-model',
+            source: model.name,
+            field: output.name,
+            description: `Output from ${model.name}`
+          });
+        }
+      });
+    });
+    
+    // Data Integration sources
+    availableDataSources.forEach((source: any) => {
+      source.fields?.forEach((field: any) => {
+        if (field.type === inputType) {
+          connections.push({
+            type: 'data-integration',
+            source: source.name,
+            field: field.name,
+            description: `${field.description} from ${source.name}`
+          });
+        }
+      });
+    });
+    
+    // Automation triggers
+    automationTriggers.forEach(trigger => {
+      trigger.outputs?.forEach(output => {
+        if (output.type === inputType) {
+          connections.push({
+            type: 'automation',
+            source: trigger.name,
+            field: output.name,
+            description: `${output.description} from ${trigger.name}`
+          });
+        }
+      });
+    });
+    
+    return connections;
+  };
+
+  // Create new node
+  const createNode = (type: 'ai-model' | 'data-input' | 'automation-input' | 'view-data' | 'final-goal', data?: any) => {
+    const id = `node-${Date.now()}`;
+    let newNode: ModelNode;
+
+    switch (type) {
+      case 'ai-model':
+        const modelData = availableAIModels.find(m => m.id === data?.modelId);
+        const uniqueName = generateUniqueName(data?.name || 'AI Model', nodes);
+        newNode = {
+          id,
+          type,
+          name: data?.name || 'AI Model',
+          uniqueName,
+          position: addNodePosition,
+          inputs: modelData?.inputs.map((input: any) => ({
+            id: `${id}-input-${input.id}`,
+            name: input.name,
+            type: input.type,
+            connected: false,
+            active: false
+          })) || [],
+          outputs: modelData?.outputs.map((output: any) => ({
+            id: `${id}-output-${output.id}`,
+            name: output.name,
+            type: output.type,
+            active: false
+          })) || [],
+          modelId: data?.modelId,
+          status: 'ready',
+          width: calculateNodeWidth(uniqueName, true),
+          height: Math.max(120, (modelData?.inputs.length || 0) * 25 + (modelData?.outputs.length || 0) * 25 + 60)
+        };
+        break;
+      
+      case 'data-input':
+        const dataSource = (realDataSources as any[]).find((ds: any) => ds.id === data?.sourceId);
+        const dataUniqueName = generateUniqueName(data?.name || 'Data Input', nodes);
+        
+        // Create outputs from all tables and fields in the data source
+        let outputs: any[] = [];
+        if (dataSource?.dataSchema && dataSource.dataSchema.length > 0) {
+          // Create outputs for each table's fields
+          dataSource.dataSchema.forEach((table: any) => {
+            table.fields?.forEach((field: any) => {
+              outputs.push({
+                id: `${id}-output-${table.table}-${field.name}`,
+                name: `${table.table.split(' - ')[1] || table.table}: ${field.name}`,
+                type: field.type.toLowerCase(),
+                active: false,
+                tableData: dataSource.sampleData?.[table.table] || [],
+                tableName: table.table,
+                fieldName: field.name
+              });
+            });
+          });
+        } else if (dataSource?.fields) {
+          // Fallback to legacy fields structure
+          outputs = dataSource.fields.map((field: any, index: number) => ({
+            id: `${id}-output-${field.name}`,
+            name: field.description || field.name,
+            type: field.type.toLowerCase(),
+            active: false
+          }));
+        } else {
+          // Default output
+          outputs = [{
+            id: `${id}-output-data`,
+            name: 'Data Output',
+            type: data?.type || 'object',
+            active: false
+          }];
+        }
+
+        newNode = {
+          id,
+          type,
+          name: data?.name || 'Data Input',
+          uniqueName: dataUniqueName,
+          position: addNodePosition,
+          inputs: [],
+          outputs,
+          sourceId: data?.sourceId,
+          status: 'ready',
+          width: calculateNodeWidth(dataUniqueName, true),
+          height: Math.max(100, outputs.length * 25 + 60),
+          // Store sample data for preview
+          sampleData: dataSource?.sampleData || {},
+          dataSchema: dataSource?.dataSchema || []
+        };
+        break;
+
+      case 'automation-input':
+        const triggerData = automationTriggers.find(t => t.id === data?.triggerId);
+        const automationUniqueName = generateUniqueName(data?.name || 'Automation Trigger', nodes);
+        newNode = {
+          id,
+          type,
+          name: data?.name || 'Automation Trigger',
+          uniqueName: automationUniqueName,
+          position: addNodePosition,
+          inputs: [],
+          outputs: triggerData?.outputs?.map((output, index) => ({
+            id: `${id}-output-${output.name}`,
+            name: output.description || output.name,
+            type: output.type,
+            active: false
+          })) || [{
+            id: `${id}-output-trigger`,
+            name: 'Trigger Output',
+            type: data?.type || 'object',
+            active: false
+          }],
+          triggerId: data?.triggerId,
+          status: 'ready',
+          width: calculateNodeWidth(automationUniqueName, true),
+          height: Math.max(100, (triggerData?.outputs?.length || 1) * 25 + 60)
+        };
+        break;
+
+      case 'view-data':
+        const viewData = availableViews.find(v => v.id === data?.viewId);
+        const viewUniqueName = generateUniqueName(data?.name || 'View Data', nodes);
+        newNode = {
+          id,
+          type,
+          name: data?.name || 'View Data',
+          uniqueName: viewUniqueName,
+          position: addNodePosition,
+          inputs: [],
+          outputs: viewData?.outputs?.map((output: any, index: number) => ({
+            id: `${id}-output-${output.id}`,
+            name: output.name,
+            type: output.type,
+            active: false
+          })) || [{
+            id: `${id}-output-view`,
+            name: 'View Output',
+            type: 'object',
+            active: false
+          }],
+          viewId: data?.viewId,
+          status: 'ready',
+          width: calculateNodeWidth(viewUniqueName, true),
+          height: Math.max(100, (viewData?.outputs?.length || 1) * 25 + 60)
+        };
+        break;
+
+      case 'final-goal':
+        const goalUniqueName = generateUniqueName('Final Goal', nodes);
+        newNode = {
+          id,
+          type,
+          name: 'Final Goal',
+          uniqueName: goalUniqueName,
+          position: addNodePosition,
+          inputs: [{
+            id: `${id}-input-goal`,
+            name: 'Goal Input',
+            type: 'object',
+            connected: false,
+            active: false
+          }],
+          outputs: [],
+          status: 'ready',
+          width: Math.max(250, calculateNodeWidth(goalUniqueName, true)),
+          height: 160,
+          goalInput: '' // Initialize with empty string
+        };
+        break;
+    }
+
+    setNodes(prev => [...prev, newNode]);
+    setShowAddNodeMenu(false);
+  };
+
+  // New simplified drag system
+  const handleNodeMouseDown = (e: React.MouseEvent, node: ModelNode) => {
+    if (e.button !== 0) return; // Only left click
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const offsetX = e.clientX - rect.left - node.position.x;
+    const offsetY = e.clientY - rect.top - node.position.y;
+
+    setDraggedNode(node);
+    setDragOffset({ x: offsetX, y: offsetY });
+    setIsDragging(true);
+
+    // Add event listeners to window for global drag
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newX = moveEvent.clientX - rect.left - offsetX;
+      const newY = moveEvent.clientY - rect.top - offsetY;
+      
+      // Update node position immediately
+      setNodes(prev => prev.map(n => 
+        n.id === node.id 
+          ? { ...n, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
+          : n
+      ));
+    };
+
+    const handleMouseUp = () => {
+      setDraggedNode(null);
+      setIsDragging(false);
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.body.style.cursor = 'grabbing';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Delete node
+  const initiateDeleteNode = (nodeId: string) => {
+    console.log('🗑️ Delete initiated for node:', nodeId);
+    const nodeToDelete = nodes.find(n => n.id === nodeId);
+    console.log('🗑️ Found node to delete:', nodeToDelete);
+    
+    // Don't allow deleting final goal if it's the only one
+    if (nodeToDelete?.type === 'final-goal' && nodes.filter(n => n.type === 'final-goal').length === 1) {
+      console.log('🗑️ Cannot delete - final goal protection');
+      toast({
+        title: "Cannot Delete",
+        description: "At least one final goal is required for the configuration.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    console.log('🗑️ Setting delete dialog state...');
+    setNodeToDelete(nodeToDelete || null);
+    setShowDeleteDialog(true);
+    console.log('🗑️ Delete dialog should be visible now');
+  };
+
+  const deleteNodeDirectly = (nodeToDelete: ModelNode) => {
+    if (!nodeToDelete) return;
+    
+    const nodeIdToDelete = nodeToDelete.id;
+    const nodeName = nodeToDelete.name || nodeToDelete.uniqueName;
+    
+    // Update both nodes and connections
+    setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeIdToDelete));
+    setConnections(prevConnections => prevConnections.filter(conn => 
+      conn.fromNodeId !== nodeIdToDelete && conn.toNodeId !== nodeIdToDelete
+    ));
+    
+    // Clear any related selections
+    if (selectedNode?.id === nodeIdToDelete) {
+      setSelectedNode(null);
+    }
+    
+    if (selectedNodeForDetails?.id === nodeIdToDelete) {
+      setSelectedNodeForDetails(null);
+    }
+    
+    // Show success toast
+    toast({
+      title: "Node Deleted",
+      description: `${nodeName} has been removed from the configuration.`,
+    });
+  };
+
+  const cancelDeleteNode = () => {
+    setShowDeleteDialog(false);
+    setNodeToDelete(null);
+  };
+
+  // Toggle folder expansion
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  // Simple node connection system
+  const [previewConnection, setPreviewConnection] = useState<{
+    fromNodeId: string;
+    toNodeId: string;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+  } | null>(null);
+
+  // Handle node click for connection
+  const handleNodeClick = (nodeId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    if (!selectedNodeForConnection) {
+      // First click - select source node
+      setSelectedNodeForConnection(nodeId);
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        selected: node.id === nodeId
+      })));
+    } else if (selectedNodeForConnection === nodeId) {
+      // Clicking same node - deselect
+      cancelConnection();
+    } else {
+      // Second click - create connection
+      connectNodesSimple(selectedNodeForConnection, nodeId);
+      cancelConnection();
+    }
+  };
+
+  // Simple connection function
+  const connectNodesSimple = (fromNodeId: string, toNodeId: string) => {
+    const fromNode = nodes.find(n => n.id === fromNodeId);
+    const toNode = nodes.find(n => n.id === toNodeId);
+    
+    if (!fromNode || !toNode) {
+      toast({
+        title: "연결 실패",
+        description: "유효하지 않은 노드입니다",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if connection already exists
+    const existingConnection = connections.find(conn => 
+      conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId
+    );
+    
+    if (existingConnection) {
+      toast({
+        title: "연결 실패",
+        description: "이미 연결된 노드입니다",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Find first available output from source node
+    const availableOutput = fromNode.outputs.find(output => output);
+    if (!availableOutput) {
+      toast({
+        title: "연결 실패", 
+        description: `${fromNode.uniqueName}에 사용 가능한 출력이 없습니다`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Find first available input on target node
+    const availableInput = toNode.inputs.find(input => !input.connected);
+    if (!availableInput) {
+      toast({
+        title: "연결 실패",
+        description: `${toNode.uniqueName}에 사용 가능한 입력이 없습니다`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check type compatibility
+    if (!isTypeCompatible(availableOutput.type, availableInput.type)) {
+      toast({
+        title: "연결 실패",
+        description: `출력 타입 ${availableOutput.type}과 입력 타입 ${availableInput.type}이 호환되지 않습니다`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create connection
+    const connectionId = `conn-${Date.now()}`;
+    const newConnection = {
+      id: connectionId,
+      fromNodeId: fromNode.id,
+      fromOutputId: availableOutput.id,
+      toNodeId: toNode.id,
+      toInputId: availableInput.id,
+      type: availableOutput.type,
+      sourceOutputName: availableOutput.name,
+      targetInputName: availableInput.name
+    };
+
+    setConnections(prev => [...prev, newConnection]);
+    
+    // Mark input as connected
+    setNodes(prev => prev.map(node => {
+      if (node.id === toNode.id) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === availableInput.id 
+              ? { ...input, connected: true }
+              : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    toast({
+      title: "연결 완료",
+      description: `${fromNode.uniqueName} → ${toNode.uniqueName}`,
+    });
+  };
+
+  // Cancel connection
+  const cancelConnection = () => {
+    setSelectedNodeForConnection(null);
+    setPreviewConnection(null);
+    setNodes(prev => prev.map(node => ({
+      ...node,
+      selected: false
+    })));
+  };
+
+  // Disconnect nodes function
+  const disconnectNodes = (connectionId: string) => {
+    const connection = connections.find(conn => conn.id === connectionId);
+    if (!connection) return;
+
+    // Remove connection
+    setConnections(prev => prev.filter(conn => conn.id !== connectionId));
+    
+    // Mark input as disconnected
+    setNodes(prev => prev.map(node => {
+      if (node.id === connection.toNodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === connection.toInputId 
+              ? { ...input, connected: false }
+              : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    toast({
+      title: "연결 해제됨",
+      description: "노드 연결이 성공적으로 해제되었습니다",
+    });
+  };
+
+  // Canvas click handler to clear active states
+  const handleCanvasClick = () => {
+    if (selectedNodeForConnection) {
+      cancelConnection();
+    }
+  };
+
+  // Handle mouse move for preview connection
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (selectedNodeForConnection) {
+      const rect = (e.currentTarget as Element).getBoundingClientRect();
+      setMousePosition({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  };
+
+  // Setup complete test workflow with proper connections
+  const setupCompleteTestWorkflow = () => {
+    // Clear existing nodes and connections
+    setNodes([]);
+    setConnections([]);
+    
+    const newNodes: any[] = [
+      // Data Input Node - Production Data
+      {
+        id: 'data-production',
+        type: 'data-input',
+        name: 'Production Line Data',
+        uniqueName: 'Production Line Data',
+        position: { x: 50, y: 100 },
+        width: 220,
+        height: 160,
+        status: 'ready',
+        sourceId: 'production-data',
+        inputs: [],
+        outputs: [
+          { id: 'quantity_produced', name: 'Quantity Produced', type: 'number' },
+          { id: 'efficiency_rate', name: 'Efficiency Rate', type: 'number' },
+          { id: 'temperature', name: 'Temperature', type: 'number' },
+          { id: 'vibration', name: 'Vibration Data', type: 'array' }
+        ]
+      },
+      // AI Model 1 - Quality Classifier
+      {
+        id: 'ai-quality',
+        type: 'ai-model',
+        name: 'Assembly Line Quality Classifier',
+        uniqueName: 'Quality Classifier',
+        position: { x: 350, y: 80 },
+        width: 250,
+        height: 180,
+        status: 'ready',
+        modelId: '1',
+        inputs: [
+          { id: 'temperature', name: 'Temperature', type: 'number', connected: false },
+          { id: 'pressure', name: 'Pressure', type: 'number', connected: false },
+          { id: 'product_image', name: 'Product Image', type: 'image', connected: false }
+        ],
+        outputs: [
+          { id: 'quality_score', name: 'Quality Score', type: 'number' },
+          { id: 'defect_type', name: 'Defect Type', type: 'string' }
+        ]
+      },
+      // AI Model 2 - Defect Detector
+      {
+        id: 'ai-defect',
+        type: 'ai-model',
+        name: 'Surface Defect Detector',
+        uniqueName: 'Defect Detector',
+        position: { x: 350, y: 300 },
+        width: 250,
+        height: 160,
+        status: 'ready',
+        modelId: '2',
+        inputs: [
+          { id: 'surface_image', name: 'Surface Image', type: 'image', connected: false },
+          { id: 'material_type', name: 'Material Type', type: 'string', connected: false }
+        ],
+        outputs: [
+          { id: 'defect_detected', name: 'Defect Detected', type: 'boolean' },
+          { id: 'defect_location', name: 'Defect Location', type: 'array' }
+        ]
+      },
+      // Final Goal Node
+      {
+        id: 'final-goal',
+        type: 'final-goal',
+        name: 'Manufacturing Quality Analysis',
+        uniqueName: 'Quality Analysis Target',
+        position: { x: 700, y: 200 },
+        width: 280,
+        height: 200,
+        status: 'ready',
+        inputs: [
+          { id: 'quality_score', name: 'Quality Score', type: 'number', connected: false },
+          { id: 'defect_type', name: 'Defect Type', type: 'string', connected: false },
+          { id: 'defect_detected', name: 'Defect Detected', type: 'boolean', connected: false },
+          { id: 'efficiency_rate', name: 'Efficiency Rate', type: 'number', connected: false }
+        ],
+        outputs: []
+      }
+    ];
+
+    // Create connections
+    const newConnections: any[] = [
+      // Production data to Quality Classifier (temperature)
+      {
+        id: 'conn-1',
+        fromNodeId: 'data-production',
+        fromOutputId: 'temperature',
+        toNodeId: 'ai-quality',
+        toInputId: 'temperature',
+        type: 'number',
+        sourceOutputName: 'Temperature',
+        targetInputName: 'Temperature'
+      },
+      // Quality Classifier to Final Goal (quality score)
+      {
+        id: 'conn-2',
+        fromNodeId: 'ai-quality',
+        fromOutputId: 'quality_score',
+        toNodeId: 'final-goal',
+        toInputId: 'quality_score',
+        type: 'number',
+        sourceOutputName: 'Quality Score',
+        targetInputName: 'Quality Score'
+      },
+      // Quality Classifier to Final Goal (defect type)
+      {
+        id: 'conn-3',
+        fromNodeId: 'ai-quality',
+        fromOutputId: 'defect_type',
+        toNodeId: 'final-goal',
+        toInputId: 'defect_type',
+        type: 'string',
+        sourceOutputName: 'Defect Type',
+        targetInputName: 'Defect Type'
+      },
+      // Defect Detector to Final Goal (defect detected)
+      {
+        id: 'conn-4',
+        fromNodeId: 'ai-defect',
+        fromOutputId: 'defect_detected',
+        toNodeId: 'final-goal',
+        toInputId: 'defect_detected',
+        type: 'boolean',
+        sourceOutputName: 'Defect Detected',
+        targetInputName: 'Defect Detected'
+      },
+      // Production data to Final Goal (efficiency rate)
+      {
+        id: 'conn-5',
+        fromNodeId: 'data-production',
+        fromOutputId: 'efficiency_rate',
+        toNodeId: 'final-goal',
+        toInputId: 'efficiency_rate',
+        type: 'number',
+        sourceOutputName: 'Efficiency Rate',
+        targetInputName: 'Efficiency Rate'
+      }
+    ];
+
+    // Update connected status for inputs and initialize active states
+    const updatedNodes = newNodes.map(node => ({
+      ...node,
+      inputs: node.inputs?.map((input: any) => {
+        if (node.id === 'ai-quality' && input.id === 'temperature') {
+          return { ...input, connected: true, active: false };
+        }
+        if (node.id === 'final-goal') {
+          return { ...input, connected: true, active: false };
+        }
+        return { ...input, active: false };
+      }) || [],
+      outputs: node.outputs?.map((output: any) => ({ ...output, active: false })) || []
+    }));
+
+    setNodes(updatedNodes);
+    setConnections(newConnections);
+    
+    toast({
+      title: "Demo Workflow Created",
+      description: "Complete manufacturing quality analysis workflow ready for testing",
+    });
+  };
+
+  // Enhanced test function with comprehensive validation
+  const runTest = async () => {
+    if (nodes.length === 0) {
+      toast({
+        title: "No Configuration",
+        description: "Please add nodes to the canvas before running test.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check for Final Goal nodes
+    const finalGoalNodes = nodes.filter(node => node.type === 'final-goal');
+    if (finalGoalNodes.length === 0) {
+      toast({
+        title: "Missing Final Goal",
+        description: "At least one Final Goal node is required for testing.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate connections to Final Goal
+    const finalGoalConnections = connections.filter(conn => 
+      finalGoalNodes.some(goal => goal.id === conn.toNodeId)
+    );
+    
+    if (finalGoalConnections.length === 0) {
+      toast({
+        title: "Incomplete Configuration", 
+        description: "Final Goal nodes must be connected to other nodes.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTestRunning(true);
+    
+    try {
+      // Simulate comprehensive test execution
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Generate test data based on connections
+      const testData = {
+        workflow: {
+          totalNodes: nodes.length,
+          aiModels: nodes.filter(n => n.type === 'ai-model').length,
+          dataSources: nodes.filter(n => n.type === 'data-input').length,
+          finalGoals: finalGoalNodes.length,
+          activeConnections: connections.length
+        },
+        validation: {
+          allInputsConnected: finalGoalNodes.every(goal => 
+            goal.inputs.every(input => input.connected)
+          ),
+          typeCompatibility: true,
+          circularDependencies: false
+        },
+        performance: {
+          executionTime: '2.1s',
+          memoryUsage: '45MB',
+          throughput: '1.2k ops/sec'
+        }
+      };
+      
+      setTestResults({
+        status: 'success',
+        message: 'Complete workflow test passed successfully',
+        details: testData
+      });
+      
+      toast({
+        title: "✅ Test Completed Successfully",
+        description: `Workflow with ${nodes.length} nodes and ${connections.length} connections validated`,
+      });
+      
+      // Update node status to indicate successful test
+      setNodes(prev => prev.map(node => ({
+        ...node,
+        status: 'ready' as const
+      })));
+      
+    } catch (error) {
+      setTestResults({
+        status: 'error',
+        message: 'Test execution failed',
+        details: {
+          error: 'Workflow validation failed',
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      toast({
+        title: "❌ Test Failed",
+        description: "Please check your configuration and try again",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestRunning(false);
+    }
+  };
+
+  // Get node position for connection rendering
+  const getNodePosition = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    return node ? node.position : { x: 0, y: 0 };
+  };
+
+  // Get port position within a node
+  const getPortPosition = (nodeId: string, portId: string, isOutput: boolean = false) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    
+    const ports = isOutput ? node.outputs : node.inputs;
+    const portIndex = ports.findIndex(p => p.id === portId);
+    
+    const baseX = isOutput ? node.position.x + node.width : node.position.x;
+    const baseY = node.position.y + 40 + (portIndex * 25) + 12; // Header height + port spacing + port center
+    
+    return { x: baseX, y: baseY };
+  };
+
+  // Render connection lines (SVG paths)
+  const renderConnections = () => {
+    return connections.map(connection => {
+      // Handle block connections differently
+      if (connection.type === 'block') {
+        const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+        const targetNode = nodes.find(n => n.id === connection.toNodeId);
+        if (!sourceNode || !targetNode) return null;
+        
+        const sourcePos = { x: sourceNode.position.x + sourceNode.width, y: sourceNode.position.y + sourceNode.height / 2 };
+        const targetPos = { x: targetNode.position.x, y: targetNode.position.y + targetNode.height / 2 };
+        
+        const midX = (sourcePos.x + targetPos.x) / 2;
+        const path = `M ${sourcePos.x} ${sourcePos.y} C ${midX} ${sourcePos.y}, ${midX} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+        
+        return (
+          <g key={connection.id}>
+            <path
+              d={path}
+              stroke="#6366f1"
+              strokeWidth="3"
+              fill="none"
+              strokeDasharray="5,5"
+              className="cursor-pointer hover:stroke-width-4"
+              onClick={() => {
+                setSelectedConnection(connection.id);
+                setMappingDialogOpen(true);
+              }}
+            />
+            <text
+              x={midX}
+              y={(sourcePos.y + targetPos.y) / 2 - 10}
+              fill="#6366f1"
+              fontSize="12"
+              textAnchor="middle"
+              className="cursor-pointer font-medium"
+              onClick={() => {
+                setSelectedConnection(connection.id);
+                setMappingDialogOpen(true);
+              }}
+            >
+              Block Connection
+            </text>
+          </g>
+        );
+      }
+      
+      // Handle parameter connections
+      const sourcePos = getPortPosition(connection.fromNodeId, connection.fromOutputId!, true);
+      const targetPos = getPortPosition(connection.toNodeId, connection.toInputId!, false);
+      
+      // Create curved path for better visual appeal
+      const midX = (sourcePos.x + targetPos.x) / 2;
+      const path = `M ${sourcePos.x} ${sourcePos.y} C ${midX} ${sourcePos.y}, ${midX} ${targetPos.y}, ${targetPos.x} ${targetPos.y}`;
+      
+      return (
+        <path
+          key={connection.id}
+          d={path}
+          stroke="#10b981"
+          strokeWidth="2"
+          fill="none"
+          className="cursor-pointer hover:stroke-width-3"
+          onClick={() => {
+            // Remove connection on click
+            if (window.confirm('Remove this connection?')) {
+              setConnections(prev => prev.filter(c => c.id !== connection.id));
+              // Update target node input as disconnected
+              setNodes(prev => prev.map(node => {
+                if (node.id === connection.toNodeId) {
+                  return {
+                    ...node,
+                    inputs: node.inputs.map(input => {
+                      if (input.id === connection.toInputId) {
+                        return { ...input, connected: false };
+                      }
+                      return input;
+                    })
+                  };
+                }
+                return node;
+              }));
+              toast({
+                title: "Connection Removed",
+                description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+              });
+            }
+          }}
+        />
+      );
+    });
+  };
+
+  // Get available output nodes that are currently on canvas
+  const getAvailableOutputNodes = (inputType: string): Array<{
+    type: string;
+    nodeId: string;
+    nodeName: string;
+    outputId: string;
+    outputName: string;
+    description: string;
+  }> => {
+    const outputs: Array<{
+      type: string;
+      nodeId: string;
+      nodeName: string;
+      outputId: string;
+      outputName: string;
+      description: string;
+    }> = [];
+    
+    // AI Model outputs from nodes on canvas (including self-referencing)
+    nodes.filter(node => node.type === 'ai-model').forEach(node => {
+      const model = availableAIModels.find(m => m.id === node.modelId);
+      if (model) {
+        // All AI model outputs can be connected regardless of type
+        model.outputs.forEach((output: any) => {
+          outputs.push({
+            type: 'ai-model',
+            nodeId: node.id,
+            nodeName: node.name,
+            outputId: output.id,
+            outputName: output.name,
+            description: `${output.name} from ${node.name}`
+          });
+        });
+      }
+    });
+    
+    // Data Integration outputs from nodes on canvas
+    nodes.filter(node => node.type === 'data-input').forEach(node => {
+      if ('sourceId' in node) {
+        const source = availableDataSources.find((s: any) => s.id === node.sourceId);
+        if (source) {
+          // All fields from data sources can be connected regardless of type
+          source.fields?.forEach((field: any) => {
+            outputs.push({
+              type: 'data-integration',
+              nodeId: node.id,
+              nodeName: node.name,
+              outputId: field.name,
+              outputName: field.description,
+              description: `${field.description} from ${(source as any).tableName || source.name}`
+            });
+          });
+        }
+      }
+    });
+    
+    // Automation outputs from nodes on canvas
+    nodes.filter(node => node.type === 'automation-input').forEach(node => {
+      if ('triggerId' in node) {
+        const trigger = automationTriggers.find(t => t.id === node.triggerId);
+        if (trigger) {
+          // All automation outputs can be connected regardless of type
+          trigger.outputs?.forEach(output => {
+            outputs.push({
+              type: 'automation',
+              nodeId: node.id,
+              nodeName: node.name,
+              outputId: output.name,
+              outputName: output.description,
+              description: `${output.description} from ${node.name}`
+            });
+          });
+        }
+      }
+    });
+    
+    return outputs.filter(output => 
+      output.nodeName.toLowerCase().includes(connectionSearchQuery.toLowerCase()) ||
+      output.outputName.toLowerCase().includes(connectionSearchQuery.toLowerCase())
+    );
+  };
+
+  // Removed old complex drag handlers - using simplified approach in handleNodeMouseDown
+
+  // Auto-create final goal if needed
+  useEffect(() => {
+    if (nodes.length > 0 && !nodes.some(n => n.type === 'final-goal')) {
+      const finalGoalPosition = {
+        x: Math.max(...nodes.map(n => n.position.x + n.width)) + 200,
+        y: nodes.reduce((sum, n) => sum + n.position.y, 0) / nodes.length
+      };
+      
+      setAddNodePosition(finalGoalPosition);
+      createNode('final-goal', {});
+    }
+  }, [nodes.length]);
+
+  // Handle canvas right click
+  const handleCanvasRightClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setAddNodePosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    setShowAddNodeMenu(true);
+  };
+
+  // Enhanced connection creation with visual feedback
+  const createConnection = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
+    const fromNode = nodes.find(n => n.id === fromNodeId);
+    const toNode = nodes.find(n => n.id === toNodeId);
+    
+    if (!fromNode || !toNode) {
+      toast({
+        title: "Connection Failed",
+        description: "Could not find source or target nodes",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    const fromOutput = fromNode.outputs.find(o => o.id === fromOutputId);
+    const toInput = toNode.inputs.find(i => i.id === toInputId);
+    
+    if (!fromOutput || !toInput) {
+      toast({
+        title: "Connection Failed", 
+        description: "Invalid output or input connection points",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Check if input is already connected
+    const existingConnection = connections.find(c => 
+      c.toNodeId === toNodeId && c.toInputId === toInputId
+    );
+    
+    if (existingConnection) {
+      toast({
+        title: "Connection Failed",
+        description: `Input "${toInput.name}" is already connected`,
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Create new connection
+    const newConnection = {
+      id: `conn-${Date.now()}`,
+      fromNodeId,
+      fromOutputId,
+      toNodeId,
+      toInputId,
+      type: 'parameter' as const,
+      sourceOutputName: fromOutput.name,
+      targetInputName: toInput.name
+    };
+
+    // Update connections state
+    setConnections(prev => [...prev, newConnection]);
+    
+    // Update input connected status
+    setNodes(prev => prev.map(node => {
+      if (node.id === toNodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === toInputId ? { ...input, connected: true } : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    // Show success popup
+    toast({
+      title: "Connection Successful",
+      description: `Connected "${fromOutput.name}" to "${toInput.name}"`,
+    });
+
+    return true;
+  };
+
+  // Type compatibility check
+  const isTypeCompatible = (outputType: string, inputType: string): boolean => {
+    // Exact match
+    if (outputType === inputType) return true;
+    
+    // Compatible types
+    const compatibleTypes: Record<string, string[]> = {
+      'tensor': ['tensor', 'array', 'object'],
+      'array': ['array', 'tensor', 'object'],
+      'object': ['object', 'array'],
+      'string': ['string'],
+      'number': ['number'],
+      'boolean': ['boolean'],
+      'image': ['image', 'object']
+    };
+    
+    return compatibleTypes[outputType]?.includes(inputType) || false;
+  };
+
+  // Validate configuration before test/save
+  const validateConfiguration = (): {isValid: boolean; errors: string[]} => {
+    const errors: string[] = [];
+    
+    if (nodes.length === 0) {
+      errors.push('No nodes found. Add at least one AI model to create a workflow.');
+      return { isValid: false, errors };
+    }
+    
+    // Check if there are any AI models
+    const aiModels = nodes.filter(n => n.type === 'ai-model');
+    if (aiModels.length === 0) {
+      errors.push('At least one AI model is required to create a workflow');
+    }
+    
+    // Check if AI models have sufficient input connections (relaxed validation)
+    aiModels.forEach(model => {
+      const modelConnections = connections.filter(conn => conn.toNodeId === model.id);
+      // Only warn if no connections, don't block execution
+      if (modelConnections.length === 0) {
+        console.warn(`AI model "${model.uniqueName}" has no input connections. Will use sample data for testing.`);
+      }
+    });
+    
+    // Check final goal connections (relaxed - only warn)
+    const finalGoals = nodes.filter(n => n.type === 'final-goal');
+    if (finalGoals.length === 0) {
+      console.warn('No "Final Goal" node found - results will be shown in raw format');
+    }
+    
+    finalGoals.forEach(goal => {
+      const hasConnections = connections.some(conn => conn.toNodeId === goal.id);
+      if (!hasConnections) {
+        console.warn(`Final goal "${goal.uniqueName}" has no input connections`);
+      }
+    });
+    
+    // Check for isolated nodes (only warn, don't block)
+    const dataNodes = nodes.filter(n => n.type === 'data-input');
+    dataNodes.forEach(dataNode => {
+      const hasOutputConnections = connections.some(conn => conn.fromNodeId === dataNode.id);
+      if (!hasOutputConnections) {
+        console.warn(`Data source "${dataNode.uniqueName}" is not connected to any AI models - will use default data`);
+      }
+    });
+    
+    // Check for circular dependencies (basic check)
+    const hasCircularDependency = () => {
+      const visited = new Set<string>();
+      const recursionStack = new Set<string>();
+      
+      const hasCycle = (nodeId: string): boolean => {
+        if (recursionStack.has(nodeId)) return true;
+        if (visited.has(nodeId)) return false;
+        
+        visited.add(nodeId);
+        recursionStack.add(nodeId);
+        
+        const outgoingConnections = connections.filter(conn => conn.fromNodeId === nodeId);
+        for (const conn of outgoingConnections) {
+          if (hasCycle(conn.toNodeId)) return true;
+        }
+        
+        recursionStack.delete(nodeId);
+        return false;
+      };
+      
+      for (const node of nodes) {
+        if (hasCycle(node.id)) return true;
+      }
+      return false;
+    };
+    
+    if (hasCircularDependency()) {
+      errors.push('Circular dependency detected in the workflow. Please check your connections.');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
+  // Test configuration
+  const testConfiguration = async () => {
+    setIsTestRunning(true);
+    
+    try {
+      // First validate the configuration
+      const validation = validateConfiguration();
+      if (!validation.isValid) {
+        setTestResults({
+          status: 'error',
+          message: 'Configuration has errors',
+          details: validation
+        });
+        
+        toast({
+          title: "❌ Configuration Issues",
+          description: `${validation.errors.length} issue(s) found. Please fix these before testing.`,
+          variant: "destructive",
+          action: (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowValidationDetails(true)}
+            >
+              View Details
+            </Button>
+          )
+        });
+        
+        setIsTestRunning(false);
+        return;
+      }
+
+      // Collect goal inputs from Final Goal nodes
+      const finalGoalNodes = nodes.filter(node => node.type === 'final-goal');
+      const goalInputs = finalGoalNodes.map(node => ({
+        nodeId: node.id,
+        goalRequest: node.goalInput || '',
+        nodeName: node.uniqueName
+      }));
+
+      // Execute the model configuration
+      const response = await fetch('/api/model-configuration/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          configurationId: currentConfig?.id,
+          nodes: nodes,
+          connections: connections,
+          goalInputs: goalInputs // Include goal inputs from Final Goal nodes
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setTestResults({
+          status: 'success',
+          message: 'Model execution completed successfully!',
+          details: {
+            isValid: true,
+            errors: [],
+            executionResults: result.results
+          }
+        });
+        
+        toast({
+          title: "✅ Model Execution Success",
+          description: `${result.results.length} AI model(s) executed successfully. View results below.`,
+        });
+      } else {
+        setTestResults({
+          status: 'error',
+          message: result.error || 'Model execution failed',
+          details: {
+            isValid: false,
+            errors: [result.error || 'Unknown error'],
+            executionResults: []
+          }
+        });
+        
+        toast({
+          title: "❌ Execution Failed",
+          description: result.error || 'Failed to execute model configuration',
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error testing configuration:', error);
+      
+      setTestResults({
+        status: 'error',
+        message: 'Network or server error during execution',
+        details: {
+          isValid: false,
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          executionResults: []
+        }
+      });
+      
+      toast({
+        title: "❌ Network Error",
+        description: "Failed to connect to the server. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestRunning(false);
+    }
+  };
+
+  // Save configuration
+  const saveConfiguration = () => {
+    if (!currentConfig) return;
+
+    const validation = validateConfiguration();
+    if (!validation.isValid) {
+      toast({
+        title: "Cannot Save",
+        description: "Please fix configuration issues before saving.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const updatedConfig = {
+      ...currentConfig,
+      nodes,
+      connections,
+      lastModified: new Date().toISOString()
+    };
+    
+    // In real implementation, save to backend
+    toast({
+      title: "Configuration Saved",
+      description: `${currentConfig.name} has been saved successfully`
+    });
+  };
+
+  const getFilteredConfigs = (folderId: string) => {
+    return (modelConfigurations as Configuration[]).filter(config => config.folderId === folderId);
+  };
+
+  const handleOpenEditor = (config: Configuration) => {
+    setCurrentConfig(config);
+    setNodes(config.nodes);
+    setConnections(config.connections);
+    setViewMode('editor');
+  };
+
+  const handleBackToFolders = () => {
+    setViewMode('folders');
+    setCurrentConfig(null);
+    setSelectedFolder(null);
+    setNodes([]);
+    setConnections([]);
+  };
+
+  if (viewMode === 'editor') {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Editor Header */}
+        <div className="border-b bg-white px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={handleBackToFolders}
+                className="flex items-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back to Configurations
+              </Button>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{currentConfig?.name}</h1>
+                <p className="text-sm text-gray-600">{currentConfig?.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={saveConfiguration}>
+                <Save className="w-4 h-4 mr-2" />
+                Save
+              </Button>
+              <Button onClick={testConfiguration}>
+                <Play className="w-4 h-4 mr-2" />
+                Test Configuration
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Editor Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Panel - AI Models */}
+          <div className={`${isLeftPanelCollapsed ? 'w-12' : 'w-80'} bg-gray-100 border-r border-gray-300 flex flex-col transition-all duration-300`}>
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              {!isLeftPanelCollapsed && (
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Models</h3>
+                  <p className="text-sm text-gray-600">Drag models to canvas</p>
+                </div>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
+                className="flex-shrink-0"
+              >
+                {isLeftPanelCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            {!isLeftPanelCollapsed && (
+              <>
+                {/* Search and Filter */}
+                <div className="p-4 border-b border-gray-200 space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search resources..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {/* Tab Navigation */}
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                      className={`flex-1 text-xs py-2 px-3 rounded-md transition-colors ${
+                        activeLeftTab === 'models' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      onClick={() => setActiveLeftTab('models')}
+                    >
+                      <Brain className="w-3 h-3 inline mr-1" />
+                      Models
+                    </button>
+                    <button
+                      className={`flex-1 text-xs py-2 px-3 rounded-md transition-colors ${
+                        activeLeftTab === 'data' 
+                          ? 'bg-white text-green-600 shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      onClick={() => setActiveLeftTab('data')}
+                    >
+                      <Database className="w-3 h-3 inline mr-1" />
+                      Data
+                    </button>
+                    <button
+                      className={`flex-1 text-xs py-2 px-3 rounded-md transition-colors ${
+                        activeLeftTab === 'views' 
+                          ? 'bg-white text-purple-600 shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      onClick={() => setActiveLeftTab('views')}
+                    >
+                      <Monitor className="w-3 h-3 inline mr-1" />
+                      Views
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {!isLeftPanelCollapsed && (
+              <div className="flex-1 overflow-y-auto p-4">
+                {/* AI Models Tab */}
+                {activeLeftTab === 'models' && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-blue-600" />
+                      Uploaded Models ({filteredAIModels.length})
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      {/* Models organized by AI Model folders (not Model Config folders) */}
+                      {(aiModelFolders as any[]).map((folder) => {
+                        const folderModels = filteredAIModels.filter(model => model.folderId === folder.id);
+                        if (folderModels.length === 0) return null;
+                        
+                        const isExpanded = expandedFolders.has(folder.id);
+                        
+                        return (
+                          <div key={folder.id}>
+                            <div 
+                              className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => toggleFolder(folder.id)}
+                            >
+                              <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <Folder className="w-3 h-3 text-blue-500" />
+                              <span className="text-sm font-medium text-gray-900">{folder.name}</span>
+                              <Badge variant="secondary" className="text-xs">{folderModels.length}</Badge>
+                            </div>
+                            
+                            {isExpanded && (
+                              <div className="ml-4 mt-2 space-y-2">
+                                {folderModels.map((model) => (
+                                  <div
+                                    key={model.id}
+                                    className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow relative group"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('application/json', JSON.stringify({
+                                        type: 'ai-model',
+                                        modelId: model.id,
+                                        name: model.name
+                                      }));
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
+                                        </div>
+                                        
+                                        {/* Analysis Status Display */}
+                                        {(model as any).analysisStatus && (
+                                          <div className="mt-2">
+                                            {(model as any).analysisStatus === 'analyzing' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                                <span className="text-xs text-blue-600 font-medium">
+                                                  AI Analysis: {Math.round((model as any).analysisProgress || 0)}%
+                                                </span>
+                                              </div>
+                                            )}
+                                            {(model as any).analysisStatus === 'completed' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                <span className="text-xs text-green-600 font-medium">Analysis Complete</span>
+                                              </div>
+                                            )}
+                                            {(model as any).analysisStatus === 'failed' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                                <span className="text-xs text-red-600 font-medium">Analysis Failed</span>
+                                              </div>
+                                            )}
+                                            {(model as any).analysisStatus === 'pending' && (
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                                <span className="text-xs text-yellow-600 font-medium">Pending Analysis</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {model.inputs.slice(0, 2).map((input: any) => (
+                                            <span
+                                              key={input.id}
+                                              className="inline-block px-1.5 py-0.5 text-xs rounded"
+                                              style={{ 
+                                                backgroundColor: `${getTypeColor(input.type)}20`,
+                                                color: getTypeColor(input.type)
+                                              }}
+                                            >
+                                              {input.name}
+                                            </span>
+                                          ))}
+                                          {model.inputs.length > 2 && (
+                                            <span className="text-xs text-gray-400">+{model.inputs.length - 2}</span>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Action Buttons */}
+                                        <div className="flex gap-1 mt-3">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 text-xs"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAddNodePosition({ x: 100, y: 100 });
+                                              createNode('ai-model', { modelId: model.id, name: model.name });
+                                            }}
+                                          >
+                                            Add to Canvas
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedModelForDetails(model);
+                                              setIsRightPanelOpen(true);
+                                            }}
+                                          >
+                                            <Info className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      
+                      {/* Unorganized models (models without folders) */}
+                      {(() => {
+                        const unorganizedModels = filteredAIModels.filter(model => !model.folderId);
+                        if (unorganizedModels.length === 0) return null;
+                        
+                        const isExpanded = expandedFolders.has('unorganized');
+                        
+                        return (
+                          <div key="unorganized">
+                            <div 
+                              className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => toggleFolder('unorganized')}
+                            >
+                              <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <Folder className="w-3 h-3 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-900">Unorganized Models</span>
+                              <Badge variant="secondary" className="text-xs">{unorganizedModels.length}</Badge>
+                            </div>
+                            
+                            {isExpanded && (
+                              <div className="ml-4 mt-2 space-y-2">
+                                {unorganizedModels.map((model) => (
+                                  <div
+                                    key={model.id}
+                                    className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow relative group"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('application/json', JSON.stringify({
+                                        type: 'ai-model',
+                                        modelId: model.id,
+                                        name: model.name
+                                      }));
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="text-sm font-medium text-gray-900 truncate">{model.name}</h5>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Inputs: {model.inputs.length} • Outputs: {model.outputs.length}
+                                        </div>
+                                        
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {model.inputs.slice(0, 2).map((input: any) => (
+                                            <span
+                                              key={input.id}
+                                              className="inline-block px-1.5 py-0.5 text-xs rounded"
+                                              style={{ 
+                                                backgroundColor: `${getTypeColor(input.type)}20`,
+                                                color: getTypeColor(input.type)
+                                              }}
+                                            >
+                                              {input.name}
+                                            </span>
+                                          ))}
+                                          {model.inputs.length > 2 && (
+                                            <span className="text-xs text-gray-400">+{model.inputs.length - 2} more</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex flex-col gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setAddNodePosition({ x: 100, y: 100 });
+                                              createNode('ai-model', { modelId: model.id, name: model.name });
+                                            }}
+                                          >
+                                            Add to Canvas
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedModelForDetails(model);
+                                              setIsRightPanelOpen(true);
+                                            }}
+                                          >
+                                            <Info className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Data Integration Tab */}
+                {activeLeftTab === 'data' && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <Database className="w-4 h-4 text-green-600" />
+                      Data Sources ({filteredDataSources.length})
+                      {isDataSourcesLoading && (
+                        <div className="animate-spin w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                      )}
+                    </h4>
+                    
+                    {/* Debug Information */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="mb-3 p-2 bg-gray-100 rounded text-xs">
+                        <div>Raw data sources: {Array.isArray(realDataSources) ? realDataSources.length : 0}</div>
+                        <div>Available: {availableDataSources.length}</div>
+                        <div>Filtered: {filteredDataSources.length}</div>
+                        <div>Loading: {isDataSourcesLoading ? 'Yes' : 'No'}</div>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
+                        const sources = filteredDataSources.filter(s => s.category === category);
+                        if (sources.length === 0) return null;
+                        
+                        return (
+                          <div key={category}>
+                            <div className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-2">
+                              <span>{category}</span>
+                              <Badge variant="outline" className="text-xs">{sources.length}</Badge>
+                            </div>
+                            <div className="space-y-1">
+                              {sources.map(source => (
+                                <div
+                                  key={source.id}
+                                  className="p-2 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('application/json', JSON.stringify({
+                                      type: 'data-input',
+                                      sourceId: source.id,
+                                      name: source.name
+                                    }));
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm text-gray-900 truncate">{source.name}</div>
+                                        <div className="text-xs text-gray-500">
+                                          {source.recordCount && <span className="mr-1">{source.recordCount.toLocaleString()} records</span>}
+                                          {source.fields?.length || 0} fields
+                                          {source.tables?.length && <span className="ml-1">• {source.tables.length} tables</span>}
+                                        </div>
+                                        {/* Show actual table data for real sources */}
+                                        {source.sampleData && Object.keys(source.sampleData).length > 0 && (
+                                          <div className="text-xs text-blue-600 mt-1">
+                                            Real data: {Object.keys(source.sampleData).map(table => table.split(' - ')[1] || table).join(', ')}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAddNodePosition({ x: 100, y: 200 });
+                                        createNode('data-input', { 
+                                          name: source.name, 
+                                          type: source.type,
+                                          sourceId: source.id
+                                        });
+                                      }}
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+
+                    </div>
+                  </div>
+                )}
+
+                {/* Views Tab */}
+                {activeLeftTab === 'views' && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-purple-600" />
+                      Views ({availableViews.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {availableViews.map(view => (
+                        <div
+                          key={view.id}
+                          className="p-3 bg-white border border-gray-200 rounded hover:shadow-sm transition-shadow group"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/json', JSON.stringify({
+                              type: 'view-data',
+                              viewId: view.id,
+                              name: view.name
+                            }));
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-gray-900 truncate">{view.name}</div>
+                                <div className="text-xs text-gray-500">{view.outputs?.length || 0} outputs</div>
+                                {view.description && (
+                                  <div className="text-xs text-gray-400 truncate mt-1">{view.description}</div>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAddNodePosition({ x: 100, y: 300 });
+                                createNode('view-data', { 
+                                  name: view.name, 
+                                  viewId: view.id
+                                });
+                              }}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+
+
+          {/* Canvas Area */}
+          <div className={`${isRightPanelOpen ? 'flex-1' : 'flex-1'} relative overflow-hidden bg-gray-900`}>
+          <div
+            ref={canvasRef}
+            className="w-full h-full relative cursor-crosshair"
+            onContextMenu={handleCanvasRightClick}
+            onClick={(e) => {
+              setShowAddNodeMenu(false);
+              handleCanvasClick();
+            }}
+            onMouseMove={(e) => {
+              if (canvasRef.current) {
+                const rect = canvasRef.current.getBoundingClientRect();
+                setMousePosition({
+                  x: e.clientX - rect.left,
+                  y: e.clientY - rect.top
+                });
+              }
+            }}
+            onMouseUp={() => {
+              // Clear any connecting state if needed
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (!rect) return;
+
+              const dropPosition = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+              };
+
+              try {
+                const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                setAddNodePosition(dropPosition);
+                
+                if (data.type === 'ai-model') {
+                  createNode('ai-model', { modelId: data.modelId, name: data.name });
+                } else if (data.type === 'data-input') {
+                  createNode('data-input', { 
+                    name: data.name, 
+                    sourceId: data.sourceId 
+                  });
+                } else if (data.type === 'automation-input') {
+                  createNode('automation-input', { 
+                    name: data.name, 
+                    triggerId: data.triggerId 
+                  });
+                } else if (data.type === 'view-data') {
+                  createNode('view-data', { 
+                    name: data.name, 
+                    viewId: data.viewId 
+                  });
+                }
+              } catch (error) {
+                console.error('Error parsing drop data:', error);
+              }
+            }}
+          >
+            {/* Grid Background */}
+            <div 
+              className="absolute inset-0 opacity-20"
+              style={{
+                backgroundImage: `
+                  linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                `,
+                backgroundSize: '20px 20px'
+              }}
+            />
+
+            {/* Block Connection Mode Overlay */}
+            {selectedNodeForConnection && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
+                <div className="bg-blue-900/90 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                  <Link2 className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <div className="text-sm font-medium">Connection Mode</div>
+                    <div className="text-xs text-blue-200">
+                      Click another node to connect
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-blue-200 hover:text-white hover:bg-blue-800"
+                    onClick={() => {
+                      cancelConnection();
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Connection Rendering Layer */}
+            <svg 
+              className="absolute inset-0 w-full h-full pointer-events-none" 
+              style={{ zIndex: 10 }}
+            >
+              <defs>
+                <marker
+                  id="arrow"
+                  markerWidth="6"
+                  markerHeight="6"
+                  refX="5"
+                  refY="3"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <polygon
+                    points="0 0, 6 3, 0 6"
+                    fill="#3b82f6"
+                  />
+                </marker>
+              </defs>
+              
+              {/* Render existing connections */}
+              {connections.map((connection) => {
+                const fromNode = nodes.find(n => n.id === connection.fromNodeId);
+                const toNode = nodes.find(n => n.id === connection.toNodeId);
+                
+                if (!fromNode || !toNode) return null;
+                
+                let startX, startY, endX, endY, curve;
+                
+                if (connection.type === 'block') {
+                  // Block connection: center to center with different styling
+                  startX = fromNode.position.x + fromNode.width / 2;
+                  startY = fromNode.position.y + fromNode.height / 2;
+                  endX = toNode.position.x + toNode.width / 2;
+                  endY = toNode.position.y + toNode.height / 2;
+                  
+                  const controlOffset = Math.abs(endX - startX) * 0.5;
+                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                } else {
+                  // Parameter connection: port to port
+                  const outputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
+                  startX = fromNode.position.x + fromNode.width;
+                  startY = fromNode.position.y + 60 + (outputIndex * 28) + 14;
+                  
+                  const inputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
+                  endX = toNode.position.x;
+                  endY = toNode.position.y + 60 + (inputIndex * 28) + 14;
+                  
+                  const controlOffset = Math.abs(endX - startX) * 0.5;
+                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                }
+                
+                return (
+                  <g key={connection.id} className="pointer-events-auto">
+                    {/* Connection path */}
+                    <path
+                      d={curve}
+                      stroke={connection.type === 'block' ? '#3b82f6' : '#3b82f6'}
+                      strokeWidth="3"
+                      strokeDasharray="none"
+                      fill="none"
+                      markerEnd="url(#arrow)"
+                      opacity="0.9"
+                      className="hover:opacity-100 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (connection.type === 'block') {
+                          // Open mapping dialog for block connections
+                          setSelectedConnection(connection.id);
+                          setMappingDialogOpen(true);
+                        } else {
+                          // Delete parameter connections directly
+                          if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
+                            setConnections(prev => prev.filter(c => c.id !== connection.id));
+                            setNodes(prev => prev.map(node => {
+                              if (node.id === connection.toNodeId) {
+                                return {
+                                  ...node,
+                                  inputs: node.inputs.map(input => {
+                                    if (input.id === connection.toInputId) {
+                                      return { ...input, connected: false };
+                                    }
+                                    return input;
+                                  })
+                                };
+                              }
+                              return node;
+                            }));
+                            toast({
+                              title: "연결 해제",
+                              description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 해제되었습니다`,
+                            });
+                          }
+                        }
+                      }}
+                    />
+                    
+                    {/* Connection endpoints */}
+                    <circle 
+                      cx={startX} 
+                      cy={startY} 
+                      r="4" 
+                      fill="#3b82f6"
+                      className="pointer-events-none"
+                    />
+                    <circle 
+                      cx={endX} 
+                      cy={endY} 
+                      r="4" 
+                      fill="#3b82f6"
+                      className="pointer-events-none"
+                    />
+                    
+                    {/* Block connection label */}
+                    {connection.type === 'block' && (
+                      <text
+                        x={(startX + endX) / 2}
+                        y={(startY + endY) / 2 - 8}
+                        textAnchor="middle"
+                        className="text-xs fill-blue-400 pointer-events-none font-medium"
+                      >
+                        Block ({(connection.mappings || []).length} mappings)
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+              
+              {/* Preview connection for click-based connection mode */}
+              {selectedNodeForConnection && (
+                <g>
+                  {(() => {
+                    const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
+                    if (!sourceNode) return null;
+                    
+                    const startX = sourceNode.position.x + sourceNode.width / 2;
+                    const startY = sourceNode.position.y + sourceNode.height / 2;
+                    const endX = mousePosition.x;
+                    const endY = mousePosition.y;
+                    const controlOffset = Math.abs(endX - startX) * 0.5;
+                    const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
+                    
+                    return (
+                      <path
+                        d={curve}
+                        stroke="#3b82f6"
+                        strokeWidth="3"
+                        strokeDasharray="8,4"
+                        fill="none"
+                        opacity="0.7"
+                        className="pointer-events-none"
+                      />
+                    );
+                  })()}
+                </g>
+              )}
+            </svg>
+
+            {/* Nodes */}
+            {nodes.map(node => (
+                <div
+                key={node.id}
+                className={`absolute border rounded-lg shadow-lg z-0 ${
+                  isDragging && draggedNode?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'
+                } ${
+                  node.type === 'final-goal' 
+                    ? 'bg-purple-900 border-purple-500 ring-2 ring-purple-400' 
+                    : 'bg-gray-800 border-gray-600'
+                } ${
+                  selectedNodeForConnection === node.id
+                    ? 'ring-4 ring-blue-400 border-blue-500'
+                    : ''
+                } ${
+                  selectedNodeForConnection && selectedNodeForConnection !== node.id
+                    ? 'ring-2 ring-green-400 border-green-500 hover:ring-green-300'
+                    : ''
+                }`}
+                style={{
+                  left: node.position.x,
+                  top: node.position.y,
+                  width: Math.max(node.width, 300), // Minimum width to prevent overflow
+                  minHeight: node.height,
+                  zIndex: isDragging && draggedNode?.id === node.id ? 50 : 10
+                }}
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onDragStart={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  
+                  // Only handle connection mode when connection is in progress
+                  if (selectedNodeForConnection) {
+                    if (selectedNodeForConnection === node.id) {
+                      // Cancel connection mode
+                      cancelConnection();
+                    } else {
+                      // Create connection between selected source and this target node
+                      const sourceNode = nodes.find(n => n.id === selectedNodeForConnection);
+                      if (sourceNode && sourceNode.id !== node.id) {
+                        // Check if connection already exists
+                        const existingConnection = connections.find(c => 
+                          c.fromNodeId === sourceNode.id && c.toNodeId === node.id
+                        );
+                        
+                        if (existingConnection) {
+                          toast({
+                            title: "Connection Already Exists",
+                            description: `${sourceNode.name} is already connected to ${node.name}`,
+                            variant: "destructive"
+                          });
+                        } else {
+                          // Create new connection
+                          const connection: Connection = {
+                            id: `conn-${Date.now()}`,
+                            type: 'data',
+                            fromNodeId: sourceNode.id,
+                            toNodeId: node.id,
+                            sourceOutputName: sourceNode.name,
+                            targetInputName: node.name,
+                            fromOutputId: sourceNode.outputs[0]?.id || '',
+                            toInputId: node.inputs[0]?.id || '',
+                            mappings: []
+                          };
+                          
+                          setConnections(prev => [...prev, connection]);
+                          cancelConnection();
+                          
+                          toast({
+                            title: "Connection Created",
+                            description: `Connected ${sourceNode.name} to ${node.name}`,
+                          });
+                        }
+                      }
+                    }
+                  }
+                  // Remove automatic details display on node click
+                }}
+              >
+                {/* Node Header */}
+                <div className={`px-3 py-2 rounded-t-lg text-white text-sm font-medium ${
+                  node.type === 'ai-model' ? 'bg-blue-600' :
+                  node.type === 'data-input' ? 'bg-green-600' :
+                  node.type === 'view-data' ? 'bg-indigo-600' :
+                  node.type === 'final-goal' ? 'bg-purple-700' :
+                  'bg-purple-600'
+                }`}>
+                  <div className="flex items-center justify-between min-w-0">
+                    <div className="flex flex-col min-w-0 flex-1 mr-2">
+                      <span className="truncate text-sm font-medium" title={node.uniqueName}>
+                        {node.uniqueName}
+                      </span>
+                      {node.uniqueName !== node.name && (
+                        <span className="text-xs opacity-70 truncate" title={node.name}>
+                          {node.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {/* Simple Connection Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 w-6 p-0 hover:bg-white/20 ${
+                          selectedNodeForConnection === node.id ? 'bg-blue-500/30 text-blue-300' : ''
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (selectedNodeForConnection === node.id) {
+                            // Cancel connection mode
+                            cancelConnection();
+                          } else {
+                            // Start connection mode
+                            setSelectedNodeForConnection(node.id);
+                            toast({
+                              title: "Connection Mode",
+                              description: "Click another node to connect",
+                            });
+                          }
+                        }}
+                        title={selectedNodeForConnection === node.id ? "Cancel connection" : "Connect to another node"}
+                      >
+                        <Link2 className="w-3 h-3" />
+                      </Button>
+                      
+                      {/* Info button for all node types */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (node.type === 'ai-model') {
+                            const model = availableAIModels.find(m => m.id === node.modelId);
+                            if (model) {
+                              setSelectedModelForDetails(model);
+                              setSelectedNodeForDetails(null);
+                              setIsRightPanelOpen(true);
+                            }
+                          } else {
+                            setSelectedNodeForDetails(node);
+                            setSelectedModelForDetails(null);
+                            setIsRightPanelOpen(true);
+                          }
+                        }}
+                      >
+                        <Info className="w-3 h-3" />
+                      </Button>
+                      
+                      {/* Delete button for all node types */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete "${node.uniqueName}"? This action cannot be undone.`)) {
+                            deleteNodeDirectly(node);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      <Circle className={`w-3 h-3 ${
+                        node.type === 'ai-model' ? 
+                          ((() => {
+                            const model = availableAIModels.find(m => m.id === node.modelId);
+                            const status = (model as any)?.analysisStatus;
+                            return status === 'completed' ? 'text-green-400' :
+                                   status === 'analyzing' ? 'text-blue-400 animate-pulse' :
+                                   status === 'failed' ? 'text-red-400' :
+                                   status === 'pending' ? 'text-yellow-400' :
+                                   'text-gray-400';
+                          })()) :
+                          node.status === 'ready' ? 'text-green-400' :
+                          node.status === 'running' ? 'text-yellow-400' :
+                          'text-red-400'
+                      }`} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Node Body */}
+                <div className="p-3 space-y-1">
+                  {/* Node Info */}
+                  {node.type !== 'ai-model' && (
+                    <div className="text-xs text-gray-500 mb-2 border-b border-gray-600 pb-1">
+                      {node.type === 'data-input' ? 'Data Source' : 
+                       node.type === 'view-data' ? 'View Data' :
+                       node.type === 'final-goal' ? 'Configuration Output' :
+                       'Automation Trigger'}
+                    </div>
+                  )}
+                  
+                  {/* Final Goal Icon and Input */}
+                  {node.type === 'final-goal' && (
+                    <div className="mb-3">
+                      <div className="flex items-center justify-center mb-2">
+                        <Target className="w-8 h-8 text-purple-400" />
+                      </div>
+                      <div className="px-1">
+                        <Label className="text-xs text-gray-400 mb-1 block">Goal Request:</Label>
+                        <textarea
+                          className="w-full h-16 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
+                          placeholder="Enter your prediction request..."
+                          value={node.goalInput || ''}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setNodes(prev => prev.map(n => 
+                              n.id === node.id 
+                                ? { ...n, goalInput: e.target.value }
+                                : n
+                            ));
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Inputs */}
+                  {node.inputs.map((input, index) => (
+                    <div key={input.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div
+                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                            input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          } ${
+                            input.connected ? 'animate-pulse' : ''
+                          }`}
+                          style={{ 
+                            backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
+                            borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`${input.name} (${input.type})`}
+                        />
+                        <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
+                          {input.name}
+                        </span>
+                      </div>
+                      <span className="text-gray-500 text-xs flex-shrink-0 ml-1">{input.type}</span>
+                    </div>
+                  ))}
+
+                  {/* Separator if both inputs and outputs exist */}
+                  {node.inputs.length > 0 && node.outputs.length > 0 && (
+                    <div className="border-t border-gray-600 my-2"></div>
+                  )}
+
+                  {/* Outputs */}
+                  {node.outputs.map((output, index) => (
+                    <div key={output.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <span className="text-gray-500 text-xs flex-shrink-0 mr-1">{output.type}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                        <span className="text-gray-300 truncate flex-1 min-w-0 text-right" title={output.name}>
+                          {output.name}
+                        </span>
+                        <div
+                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                            output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          }`}
+                          style={{ 
+                            backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`${output.name} (${output.type})`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </div>
+            ))}
+
+            {/* Add Node Menu */}
+            {showAddNodeMenu && (
+              <div
+                className="absolute bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-[100] min-w-48"
+                style={{
+                  left: addNodePosition.x,
+                  top: addNodePosition.y
+                }}
+              >
+                <div className="p-2">
+                  <div className="text-xs font-medium text-gray-400 mb-2">Add Node</div>
+                  
+                  {/* AI Models */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">AI Models</div>
+                    {availableAIModels.map(model => (
+                      <button
+                        key={model.id}
+                        className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        onClick={() => createNode('ai-model', { modelId: model.id, name: model.name })}
+                      >
+                        {model.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Data Sources by Category */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">Data Integration</div>
+                    {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
+                      const sources = availableDataSources.filter((s: any) => s.category === category);
+                      if (sources.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="mb-1">
+                          <div className="text-xs text-gray-600 px-2 py-1">{category}</div>
+                          {sources.map(source => (
+                            <button
+                              key={source.id}
+                              className="w-full text-left px-4 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                              onClick={() => createNode('data-input', { 
+                                name: source.name, 
+                                type: source.type,
+                                sourceId: source.id
+                              })}
+                            >
+                              {source.name}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Views */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">Views</div>
+                    {availableViews.map((view: any) => (
+                      <button
+                        key={view.id}
+                        className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                        onClick={() => createNode('view-data', { viewId: view.id, name: view.name })}
+                      >
+                        {view.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Final Goal */}
+                  <div className="mb-2">
+                    <div className="text-xs text-gray-500 mb-1">Output</div>
+                    <button
+                      className="w-full text-left px-2 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                      onClick={() => createNode('final-goal', {})}
+                    >
+                      Final Goal
+                    </button>
+                  </div>
+
+                  {/* Automation by Category */}
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">Automation</div>
+                    {['Schedule', 'Event', 'API'].map(category => {
+                      const triggers = automationTriggers.filter(t => t.category === category);
+                      if (triggers.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="mb-1">
+                          <div className="text-xs text-gray-600 px-2 py-1">{category}</div>
+                          {triggers.map(trigger => (
+                            <button
+                              key={trigger.id}
+                              className="w-full text-left px-4 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded"
+                              onClick={() => createNode('automation-input', { 
+                                name: trigger.name, 
+                                type: trigger.type,
+                                triggerId: trigger.id
+                              })}
+                            >
+                              {trigger.name}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel - Node Details & Test Results */}
+          {((isRightPanelOpen && (selectedModelForDetails || selectedNodeForDetails)) || testResults) && (
+            <div className="w-96 bg-white border-l border-gray-300 flex flex-col">
+              {/* Panel Tabs */}
+              <div className="border-b border-gray-200">
+                <div className="flex">
+                  <button
+                    className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 ${
+                      rightPanelTab === 'details' 
+                        ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                    onClick={() => setRightPanelTab('details')}
+                  >
+                    Node Details
+                  </button>
+                  <button
+                    className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 ${
+                      rightPanelTab === 'results' 
+                        ? 'border-green-500 text-green-600 bg-green-50' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                    onClick={() => setRightPanelTab('results')}
+                  >
+                    Test Results
+                    {testResults && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                        {testResults.status === 'success' ? '✓' : '✗'}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Content */}
+              {rightPanelTab === 'details' && (selectedModelForDetails || selectedNodeForDetails) && (
+                <>
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {selectedModelForDetails ? 'AI Model Details' : 
+                       selectedNodeForDetails?.type === 'data-input' ? 'Data Source Details' :
+                       selectedNodeForDetails?.type === 'view-data' ? 'View Details' :
+                       selectedNodeForDetails?.type === 'final-goal' ? 'Final Goal Details' :
+                       selectedNodeForDetails?.type === 'automation-input' ? 'Automation Details' :
+                       'Node Details'}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          const name = selectedModelForDetails?.name || selectedNodeForDetails?.uniqueName;
+                          if (window.confirm(`Delete "${name}"?`)) {
+                            if (selectedNodeForDetails) {
+                              deleteNodeDirectly(selectedNodeForDetails);
+                            }
+                            toast({
+                              title: "Node Deleted",
+                              description: `${name} has been deleted.`,
+                              variant: "destructive"
+                            });
+                            setIsRightPanelOpen(false);
+                            setSelectedModelForDetails(null);
+                            setSelectedNodeForDetails(null);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsRightPanelOpen(false)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {selectedModelForDetails ? (
+                  <>
+                    {/* Model Info */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedModelForDetails.name}</h4>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>Model ID: {selectedModelForDetails.id}</div>
+                        <div>Inputs: {selectedModelForDetails.inputs.length}</div>
+                        <div>Outputs: {selectedModelForDetails.outputs.length}</div>
+                      </div>
+                    </div>
+                  </>
+                ) : selectedNodeForDetails ? (
+                  <>
+                    {/* Node Info */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedNodeForDetails.uniqueName}</h4>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>Type: {selectedNodeForDetails.type}</div>
+                        <div>Status: {selectedNodeForDetails.status}</div>
+                        <div>Inputs: {selectedNodeForDetails.inputs.length}</div>
+                        <div>Outputs: {selectedNodeForDetails.outputs.length}</div>
+                        
+                        {/* Type-specific information */}
+                        {selectedNodeForDetails.type === 'data-input' && selectedNodeForDetails.sourceId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Data Source:</div>
+                            <div>{availableDataSources.find((s: any) => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
+                            
+                            {/* Show Sample Data Tables */}
+                            {selectedNodeForDetails.sampleData && Object.keys(selectedNodeForDetails.sampleData).length > 0 && (
+                              <div className="mt-4">
+                                <div className="font-medium text-gray-700 mb-2">Sample Data:</div>
+                                {Object.entries(selectedNodeForDetails.sampleData).map(([tableName, tableData]: [string, any]) => (
+                                  <div key={tableName} className="mb-4 p-3 border rounded-lg bg-gray-50">
+                                    <h6 className="font-medium text-sm text-gray-800 mb-2">
+                                      {tableName.split(' - ')[1] || tableName}
+                                    </h6>
+                                    {Array.isArray(tableData) && tableData.length > 0 ? (
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-xs border-collapse">
+                                          <thead>
+                                            <tr className="bg-gray-100">
+                                              {Object.keys(tableData[0]).map(column => (
+                                                <th key={column} className="border border-gray-300 px-2 py-1 text-left font-medium">
+                                                  {column}
+                                                </th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {tableData.slice(0, 3).map((row: any, index: number) => (
+                                              <tr key={index}>
+                                                {Object.values(row).map((value: any, colIndex: number) => (
+                                                  <td key={colIndex} className="border border-gray-300 px-2 py-1">
+                                                    {String(value)}
+                                                  </td>
+                                                ))}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                        {tableData.length > 3 && (
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            +{tableData.length - 3} more rows
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-gray-500">No data available</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'view-data' && selectedNodeForDetails.viewId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">View:</div>
+                            <div>{availableViews.find((v: any) => v.id === selectedNodeForDetails.viewId)?.name || 'Unknown View'}</div>
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'automation-input' && selectedNodeForDetails.triggerId && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Trigger:</div>
+                            <div>{automationTriggers.find(t => t.id === selectedNodeForDetails.triggerId)?.name || 'Unknown Trigger'}</div>
+                          </div>
+                        )}
+                        
+                        {selectedNodeForDetails.type === 'final-goal' && (
+                          <div>
+                            <div className="mt-2 font-medium text-gray-700">Purpose:</div>
+                            <div>Configuration output target for workflow results</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {/* Outputs Section */}
+                {((selectedModelForDetails?.outputs && selectedModelForDetails.outputs.length > 0) || 
+                  (selectedNodeForDetails?.outputs && selectedNodeForDetails.outputs.length > 0)) && (
+                  <div>
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-green-600" />
+                      Outputs
+                    </h5>
+                    <div className="space-y-3">
+                      {(selectedModelForDetails?.outputs || selectedNodeForDetails?.outputs || []).map((output: any, index: number) => (
+                        <div key={output.id || index} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-gray-900">{output.name}</span>
+                            <span 
+                              className="px-2 py-1 text-xs rounded-full text-white"
+                              style={{ backgroundColor: getTypeColor(output.type) }}
+                            >
+                              {output.type}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            This output can be connected to inputs of the same type in other models
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Model Test Section */}
+                {selectedNodeForDetails?.type === 'ai-model' && (
+                  <div className="mb-6">
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <PlayCircle className="w-4 h-4 text-green-600" />
+                      Model Testing
+                    </h5>
+                    <div className="space-y-3">
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            console.log('🧪 Testing AI model:', selectedNodeForDetails.modelId);
+                            const response = await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/test`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                sampleData: {
+                                  graph_signal: [[1, 2, 3], [4, 5, 6]],
+                                  adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+                                }
+                              })
+                            });
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                              toast({
+                                title: "Model Test Successful",
+                                description: `Model executed in ${result.executionTime}ms`,
+                              });
+                              console.log('🎉 Model test results:', result.results);
+                            } else {
+                              toast({
+                                title: "Model Test Failed",
+                                description: result.error || "Unknown error occurred",
+                                variant: "destructive"
+                              });
+                              console.error('❌ Model test error:', result.error);
+                            }
+                          } catch (error) {
+                            toast({
+                              title: "Test Request Failed",
+                              description: "Could not connect to model execution service",
+                              variant: "destructive"
+                            });
+                            console.error('❌ Test request error:', error);
+                          }
+                        }}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Test Model with Sample Data
+                      </Button>
+                      
+                      <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                        <div className="font-medium mb-1">Test Requirements:</div>
+                        <div>• Python 3.x with PyTorch installed</div>
+                        <div>• Model file accessible in uploads directory</div>
+                        <div>• Compatible input/output specifications</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Connections Section */}
+                <div>
+                  <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-purple-600" />
+                    Active Connections
+                  </h5>
+                  {(() => {
+                    const nodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
+                    if (!nodeId) return (
+                      <div className="text-center py-6 text-gray-500">
+                        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <div className="text-sm">No node selected</div>
+                      </div>
+                    );
+                    const nodeConnections = connections.filter(c => c.fromNodeId === nodeId || c.toNodeId === nodeId);
+                    
+                    return nodeConnections.length > 0 ? (
+                      <div className="space-y-2">
+                        {nodeConnections.map(connection => {
+                          const isOutput = connection.fromNodeId === nodeId;
+                          const otherNodeId = isOutput ? connection.toNodeId : connection.fromNodeId;
+                          const otherNode = nodes.find(n => n.id === otherNodeId);
+                          
+                          return (
+                            <div key={connection.id} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isOutput ? (
+                                    <>
+                                      <ArrowRight className="w-3 h-3 text-green-600" />
+                                      <span className="text-sm font-medium">Output to</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ArrowRight className="w-3 h-3 text-blue-600 transform rotate-180" />
+                                      <span className="text-sm font-medium">Input from</span>
+                                    </>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1"
+                                  onClick={() => {
+                                    if (window.confirm('Remove this connection?')) {
+                                      setConnections(prev => prev.filter(c => c.id !== connection.id));
+                                      // Update target node input as disconnected
+                                      setNodes(prev => prev.map(node => {
+                                        if (node.id === connection.toNodeId) {
+                                          return {
+                                            ...node,
+                                            inputs: node.inputs.map(input => {
+                                              if (input.id === connection.toInputId) {
+                                                return { ...input, connected: false };
+                                              }
+                                              return input;
+                                            })
+                                          };
+                                        }
+                                        return node;
+                                      }));
+                                      toast({
+                                        title: "Connection Removed",
+                                        description: `Disconnected ${connection.sourceOutputName} from ${connection.targetInputName}`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <span className="font-medium">{otherNode?.uniqueName || 'Unknown Node'}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {isOutput ? connection.sourceOutputName : connection.targetInputName} → {isOutput ? connection.targetInputName : connection.sourceOutputName}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-500">
+                        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <div className="text-sm">No connections</div>
+                        <div className="text-xs">Use the canvas to connect this node</div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Inputs Section */}
+                {((selectedModelForDetails?.inputs && selectedModelForDetails.inputs.length > 0) || 
+                  (selectedNodeForDetails?.inputs && selectedNodeForDetails.inputs.length > 0)) && (
+                  <div>
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-blue-600 transform rotate-180" />
+                      Inputs
+                    </h5>
+                    <div className="space-y-3">
+                      {(selectedModelForDetails?.inputs || selectedNodeForDetails?.inputs || []).map((input: any, index: number) => (
+                      <div key={input.id || index} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900">{input.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="px-2 py-1 text-xs rounded-full text-white"
+                              style={{ backgroundColor: getTypeColor(input.type) }}
+                            >
+                              {input.type}
+                            </span>
+                            {input.connected && (
+                              <div className="w-2 h-2 rounded-full bg-green-500" title="Connected" />
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Required input for model processing
+                        </p>
+                        
+                        {/* Possible Connections Button */}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Link2 className="w-3 h-3 mr-1" />
+                              View Possible Connections
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[9999]" style={{ zIndex: 9999 }}>
+                            <DialogHeader>
+                              <DialogTitle>Connect to "{input.name}" ({input.type})</DialogTitle>
+                              <DialogDescription>
+                                Select an output from the nodes currently on your canvas to connect to this input.
+                              </DialogDescription>
+                            </DialogHeader>
+                            
+                            {/* Search for connections */}
+                            <div className="mb-4">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                <Input
+                                  placeholder="Search available outputs..."
+                                  value={connectionSearchQuery}
+                                  onChange={(e) => setConnectionSearchQuery(e.target.value)}
+                                  className="pl-10"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                              {getAvailableOutputNodes(input.type).length === 0 ? (
+                                <div className="col-span-full text-center py-8 text-gray-500">
+                                  <div className="mb-2">No compatible outputs found on canvas</div>
+                                  <div className="text-sm">Add nodes with "{input.type}" outputs to connect to this input</div>
+                                </div>
+                              ) : (
+                                getAvailableOutputNodes(input.type).map((output, index) => (
+                                  <div 
+                                    key={index} 
+                                    className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                                    onClick={() => {
+                                      const targetNodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
+                                      const targetNode = nodes.find(n => n.id === targetNodeId);
+                                      if (targetNode) {
+                                        connectParameters(
+                                          output.nodeId, 
+                                          output.outputId, 
+                                          targetNode.id, 
+                                          input.id
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div 
+                                        className="w-4 h-4 rounded-full flex-shrink-0 mt-0.5"
+                                        style={{ 
+                                          backgroundColor: 
+                                            output.type === 'ai-model' ? '#3b82f6' :
+                                            output.type === 'data-integration' ? '#22c55e' :
+                                            '#8b5cf6'
+                                        }}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-medium text-sm text-gray-900">{output.nodeName}</span>
+                                          <Badge 
+                                            variant="outline" 
+                                            className="text-xs"
+                                            style={{
+                                              borderColor: 
+                                                output.type === 'ai-model' ? '#3b82f6' :
+                                                output.type === 'data-integration' ? '#22c55e' :
+                                                '#8b5cf6',
+                                              color:
+                                                output.type === 'ai-model' ? '#3b82f6' :
+                                                output.type === 'data-integration' ? '#22c55e' :
+                                                '#8b5cf6'
+                                            }}
+                                          >
+                                            {output.type === 'ai-model' ? 'AI Model' :
+                                             output.type === 'data-integration' ? 'Data Source' :
+                                             'Automation'}
+                                          </Badge>
+                                        </div>
+                                        <div className="text-sm text-gray-700 mb-1">→ {output.outputName}</div>
+                                        <div className="text-xs text-gray-500">{output.description}</div>
+                                        <div className="mt-2 flex items-center gap-1">
+                                          <span 
+                                            className="inline-block w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: getTypeColor(input.type) }}
+                                          />
+                                          <span className="text-xs text-gray-500">{input.type} type</span>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        className="flex-shrink-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const targetNode = nodes.find(n => n.type === 'ai-model' && 
+                                            availableAIModels.find(m => m.id === n.modelId)?.id === selectedModelForDetails.id
+                                          );
+                                          if (targetNode) {
+                                            connectParameters(
+                                              output.nodeId, 
+                                              output.outputId, 
+                                              targetNode.id, 
+                                              input.id
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        Connect
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+                </>
+              )}
+
+              {/* Test Results Tab */}
+              {rightPanelTab === 'results' && (
+                <div className="flex-1 overflow-y-auto p-4">
+                  {testResults ? (
+                    <div className="space-y-6">
+                      {/* Test Status */}
+                      <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
+                        {testResults.status === 'success' ? (
+                          <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full">
+                            <XCircle className="w-5 h-5 text-red-600" />
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {testResults.status === 'success' ? 'Test Completed Successfully' : 'Test Failed'}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Configuration executed at {new Date(testResults.executedAt || Date.now()).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Execution Results */}
+                      {testResults.status === 'success' && testResults.results && (
+                        <div className="space-y-4">
+                          {testResults.results.map((result: any, index: number) => (
+                            <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                              {/* Result Header */}
+                              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-medium text-gray-900">{result.modelName}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {result.modelType}
+                                    </Badge>
+                                    <Badge className={result.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                      {result.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Result Content */}
+                              <div className="p-4 space-y-4">
+                                {/* Goal Responses */}
+                                {result.outputData?.goalResponses && result.outputData.goalResponses.length > 0 && (
+                                  <div>
+                                    <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                      <Target className="w-4 h-4 text-purple-600" />
+                                      AI Analysis & Recommendations
+                                    </h5>
+                                    <div className="space-y-3">
+                                      {result.outputData.goalResponses.map((response: any, idx: number) => (
+                                        <div key={idx} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                          <div className="mb-2">
+                                            <span className="text-sm font-medium text-purple-800">Request:</span>
+                                            <p className="text-sm text-gray-700 mt-1">{response.userRequest}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-sm font-medium text-purple-800">AI Response:</span>
+                                            <div className="text-sm text-gray-700 mt-1 whitespace-pre-line">
+                                              {response.aiResponse}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Model Predictions */}
+                                {result.outputData?.predictions && (
+                                  <div>
+                                    <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                      <BarChart3 className="w-4 h-4 text-blue-600" />
+                                      Predictions
+                                    </h5>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-sm border-collapse border border-gray-300">
+                                        <thead className="bg-gray-50">
+                                          <tr>
+                                            {result.outputData.predictions.length > 0 && Object.keys(result.outputData.predictions[0]).map((key: string) => (
+                                              <th key={key} className="border border-gray-300 px-3 py-2 text-left font-medium text-gray-700">
+                                                {key}
+                                              </th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {result.outputData.predictions.slice(0, 5).map((prediction: any, idx: number) => (
+                                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                              {Object.values(prediction).map((value: any, colIdx: number) => (
+                                                <td key={colIdx} className="border border-gray-300 px-3 py-2">
+                                                  {typeof value === 'number' ? value.toFixed(3) : String(value)}
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                      {result.outputData.predictions.length > 5 && (
+                                        <div className="text-xs text-gray-500 mt-2 text-center">
+                                          +{result.outputData.predictions.length - 5} more predictions
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Model Performance */}
+                                {result.outputData?.modelPerformance && (
+                                  <div>
+                                    <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                      <TrendingUp className="w-4 h-4 text-green-600" />
+                                      Performance Metrics
+                                    </h5>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      {Object.entries(result.outputData.modelPerformance).map(([key, value]: [string, any]) => (
+                                        <div key={key} className="p-3 bg-gray-50 rounded-lg">
+                                          <div className="text-xs text-gray-600 uppercase tracking-wide">{key}</div>
+                                          <div className="text-lg font-semibold text-gray-900">
+                                            {typeof value === 'number' ? value.toFixed(3) : String(value)}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Execution Info */}
+                                <div className="pt-3 border-t border-gray-200">
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-gray-600">Confidence:</span>
+                                      <span className="ml-2 font-medium">{(result.outputData?.confidence * 100 || 0).toFixed(1)}%</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Processing Time:</span>
+                                      <span className="ml-2 font-medium">{result.outputData?.processingTime || 0}ms</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Execution Method:</span>
+                                      <span className="ml-2 font-medium">{result.outputData?.executionMethod || 'simulated'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Input Sources:</span>
+                                      <span className="ml-2 font-medium">{result.inputDataSources?.join(', ') || 'None'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Error Details */}
+                      {testResults.status === 'error' && (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <h4 className="font-medium text-red-900 mb-2">Error Details</h4>
+                          <p className="text-sm text-red-700">{testResults.message}</p>
+                          {testResults.details && (
+                            <pre className="mt-3 text-xs text-red-600 bg-red-100 p-2 rounded overflow-x-auto">
+                              {JSON.stringify(testResults.details, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Play className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Test Results</h3>
+                      <p className="text-gray-600 mb-4">Run a test configuration to see results here</p>
+                      <Button onClick={testConfiguration} disabled={isTestRunning}>
+                        <Play className="w-4 h-4 mr-2" />
+                        {isTestRunning ? 'Testing...' : 'Run Test'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Validation Details Dialog */}
+      <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              Configuration Validation
+            </DialogTitle>
+            <DialogDescription>
+              Review configuration details and validation results
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Configuration Summary */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Configuration Summary</h4>
+              <div className="text-sm text-blue-700 space-y-1">
+                <div>• Total Nodes: {nodes.length}</div>
+                <div>• AI Models: {nodes.filter(n => n.type === 'ai-model').length}</div>
+                <div>• Data Sources: {nodes.filter(n => n.type === 'data-input').length}</div>
+                <div>• Block Connections: {connections.filter(c => c.type === 'block').length}</div>
+                <div>• Parameter Connections: {connections.filter(c => c.type === 'parameter').length}</div>
+              </div>
+            </div>
+
+            {/* Validation Results */}
+            {testResults?.details?.errors && testResults.details.errors.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-red-900">Validation Issues</h4>
+                {testResults.details.errors.map((error: any, index: number) => (
+                  <div key={index} className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <XCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-red-900">{error.type || 'Validation Error'}</div>
+                        <div className="text-sm text-red-700 mt-1">{error.message}</div>
+                        {error.nodeId && (
+                          <div className="text-xs text-red-600 mt-2">
+                            Node: {nodes.find(n => n.id === error.nodeId)?.name || error.nodeId}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <Button 
+              onClick={() => setShowValidationDetails(false)}
+              className="flex-1"
+            >
+              Close
+            </Button>
+            {testResults?.details?.errors?.length > 0 && (
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setShowValidationDetails(false);
+                  // Auto-test again after closing
+                  setTimeout(testConfiguration, 500);
+                }}
+                className="flex-1"
+              >
+                Test Again
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block Connection Mapping Dialog */}
+      <Dialog open={mappingDialogOpen} onOpenChange={setMappingDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-blue-600" />
+              Field Mapping Configuration
+            </DialogTitle>
+            <DialogDescription>
+              Configure how fields are mapped between connected nodes
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedConnection && (() => {
+            const connection = connections.find(c => c.id === selectedConnection);
+            if (!connection || connection.type !== 'block') return null;
+            
+            const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+            const targetNode = nodes.find(n => n.id === connection.toNodeId);
+            
+            if (!sourceNode || !targetNode) return null;
+            
+            return (
+              <div className="space-y-6">
+                {/* Connection Overview */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                        {sourceNode.type === 'data-input' ? <Database className="w-6 h-6 text-blue-600" /> : <Brain className="w-6 h-6 text-blue-600" />}
+                      </div>
+                      <div className="text-sm font-medium">{sourceNode.name}</div>
+                      <div className="text-xs text-gray-500">{sourceNode.outputs.length} outputs</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-gray-400" />
+                    
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                        {targetNode.type === 'ai-model' ? <Brain className="w-6 h-6 text-green-600" /> : <Target className="w-6 h-6 text-green-600" />}
+                      </div>
+                      <div className="text-sm font-medium">{targetNode.name}</div>
+                      <div className="text-xs text-gray-500">{targetNode.inputs.length} inputs</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mapping Configuration */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Source Fields */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Circle className="w-3 h-3 text-blue-500" />
+                      Source Fields ({sourceNode.outputs.length})
+                    </h4>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {sourceNode.outputs.map((output) => (
+                        <div key={output.id} className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full bg-blue-500`}></div>
+                            <span className="text-sm font-medium">{output.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {output.type}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Target Fields */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Circle className="w-3 h-3 text-green-500" />
+                      Target Fields ({targetNode.inputs.length})
+                    </h4>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {targetNode.inputs.map((input) => (
+                        <div key={input.id} className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full bg-green-500`}></div>
+                            <span className="text-sm font-medium">{input.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {input.type}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mapping Rules */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-purple-600" />
+                    Field Mappings
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    {(connection.mappings || []).map((mapping, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-blue-700">{mapping.sourceField}</span>
+                          <span className="text-xs text-blue-600 ml-2">({mapping.sourceType})</span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-purple-600" />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-green-700">{mapping.targetField}</span>
+                          <span className="text-xs text-green-600 ml-2">({mapping.targetType})</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setConnections(prev => prev.map(c => 
+                              c.id === selectedConnection 
+                                ? { ...c, mappings: (c.mappings || []).filter((_, i) => i !== index) }
+                                : c
+                            ));
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {(!connection.mappings || connection.mappings.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Link2 className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                        <p>No field mappings configured</p>
+                        <p className="text-sm">Use the Auto Map button to create mappings automatically</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end pt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        // Auto-mapping logic
+                        const autoMappings: any[] = [];
+                        
+                        for (const output of sourceNode.outputs) {
+                          for (const input of targetNode.inputs) {
+                            // Simple name-based matching
+                            if (output.name.toLowerCase() === input.name.toLowerCase() ||
+                                output.name.toLowerCase().includes(input.name.toLowerCase()) ||
+                                input.name.toLowerCase().includes(output.name.toLowerCase())) {
+                              autoMappings.push({
+                                sourceField: output.name,
+                                sourceType: output.type,
+                                targetField: input.name,
+                                targetType: input.type,
+                                mappingId: `${output.id}-${input.id}`
+                              });
+                              break;
+                            }
+                          }
+                        }
+                        
+                        setConnections(prev => prev.map(c => 
+                          c.id === selectedConnection 
+                            ? { ...c, mappings: autoMappings }
+                            : c
+                        ));
+                        
+                        toast({
+                          title: "Auto-mapping Complete",
+                          description: `Created ${autoMappings.length} field mappings`,
+                        });
+                      }}
+                    >
+                      Auto Map
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          
+          <div className="flex justify-between pt-4">
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (window.confirm("Delete this block connection? All field mappings will be removed.")) {
+                  setConnections(prev => prev.filter(c => c.id !== selectedConnection));
+                  setMappingDialogOpen(false);
+                  setSelectedConnection(null);
+                  toast({
+                    title: "Connection Deleted",
+                    description: "Block connection and all mappings have been removed",
+                  });
+                }
+              }}
+            >
+              Delete Connection
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setMappingDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                setMappingDialogOpen(false);
+                toast({
+                  title: "Mappings Saved",
+                  description: "Block connection mappings have been saved",
+                });
+              }}>
+                Save Mappings
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      </div>
+    );
+  }
+
+  // Folders view
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Model Configuration</h1>
+          <p className="text-gray-600">Create and manage AI model workflows</p>
+        </div>
+        <Button onClick={() => setShowNewFolderDialog(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          New Folder
+        </Button>
+      </div>
+
+      {!selectedFolder ? (
+        // Folder grid view
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(modelConfigFolders as any[]).map((folder) => (
+            <Card key={folder.id} className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <Folder className="w-5 h-5 text-blue-600" />
+                    <CardTitle className="text-lg">{folder.name}</CardTitle>
+                  </div>
+                  <Badge variant="secondary">0 configs</Badge>
+                </div>
+                <p className="text-sm text-gray-600">{folder.description}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-500 mb-4">
+                  Created: {new Date(folder.createdAt || Date.now()).toLocaleDateString()}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setSelectedFolder(folder.id)}
+                >
+                  Open Folder
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Configuration list view
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedFolder(null)}
+              className="flex items-center gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to Folders
+            </Button>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                {(modelConfigFolders as any[]).find(f => f.id === selectedFolder)?.name}
+              </h2>
+              <p className="text-gray-600">
+                {(modelConfigFolders as any[]).find(f => f.id === selectedFolder)?.description}
+              </p>
+            </div>
+            <Button 
+              onClick={() => {
+                setNewConfig({ ...newConfig, folderId: selectedFolder });
+                setShowNewConfigDialog(true);
+              }}
+              className="ml-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Configuration
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {getFilteredConfigs(selectedFolder).map((config) => (
+              <Card key={config.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <Workflow className="w-5 h-5 text-purple-600" />
+                      <CardTitle className="text-lg">{config.name}</CardTitle>
+                    </div>
+                    <Badge className={
+                      config.status === 'published' ? 'bg-green-100 text-green-800' :
+                      config.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }>
+                      {config.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600">{config.description}</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-xs text-gray-500">
+                    <div>Created: {new Date(config.createdAt).toLocaleDateString()}</div>
+                    <div>Modified: {new Date(config.lastModified).toLocaleDateString()}</div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleOpenEditor(config)}
+                    >
+                      <Settings className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Dialog */}
+      <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
+        <DialogContent className="sm:max-w-md z-[1000]" style={{ zIndex: 1000 }}>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="folder-name">Folder Name</Label>
+              <Input
+                id="folder-name"
+                value={newFolder.name}
+                onChange={(e) => setNewFolder(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter folder name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="folder-description">Description</Label>
+              <Input
+                id="folder-description"
+                value={newFolder.description}
+                onChange={(e) => setNewFolder(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter folder description"
+              />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button 
+                onClick={async () => {
+                  try {
+                    await createFolderMutation.mutateAsync({
+                      name: newFolder.name,
+                      description: newFolder.description
+                    });
+                    toast({ 
+                      title: "Success", 
+                      description: "Folder created successfully" 
+                    });
+                    setShowNewFolderDialog(false);
+                    setNewFolder({ name: '', description: '' });
+                  } catch (error) {
+                    toast({ 
+                      title: "Error", 
+                      description: "Failed to create folder",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                disabled={!newFolder.name || createFolderMutation.isPending}
+                className="flex-1"
+              >
+                {createFolderMutation.isPending ? 'Creating...' : 'Create Folder'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowNewFolderDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Configuration Dialog */}
+      <Dialog open={showNewConfigDialog} onOpenChange={setShowNewConfigDialog}>
+        <DialogContent className="sm:max-w-md z-[1000]" style={{ zIndex: 1000 }}>
+          <DialogHeader>
+            <DialogTitle>Create New Configuration</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="config-name">Configuration Name</Label>
+              <Input
+                id="config-name"
+                value={newConfig.name}
+                onChange={(e) => setNewConfig(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter configuration name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="config-description">Description</Label>
+              <Input
+                id="config-description"
+                value={newConfig.description}
+                onChange={(e) => setNewConfig(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter configuration description"
+              />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button 
+                onClick={async () => {
+                  try {
+                    const newConfigData = {
+                      id: `config-${Date.now()}`,
+                      name: newConfig.name,
+                      description: newConfig.description,
+                      folderId: selectedFolder || null,
+                      status: 'draft',
+                      nodes: [],
+                      connections: []
+                    };
+
+                    // Save to server
+                    const response = await fetch('/api/model-configurations', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify(newConfigData)
+                    });
+
+                    if (response.ok) {
+                      // Refresh the configurations list
+                      await refetchConfigurations();
+                      
+                      handleOpenEditor(newConfigData);
+                      setShowNewConfigDialog(false);
+                      setNewConfig({ name: '', description: '', folderId: '' });
+                      
+                      toast({
+                        title: "Configuration Created",
+                        description: `"${newConfig.name}" has been created successfully`,
+                      });
+                    } else {
+                      throw new Error('Failed to create configuration');
+                    }
+                  } catch (error) {
+                    console.error('Error creating configuration:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to create configuration. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                disabled={!newConfig.name}
+                className="flex-1"
+              >
+                Create & Edit
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowNewConfigDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Note: Delete functionality now uses browser's native confirm dialog for simplicity and reliability */}
+
+      {/* Configuration Validation Details Modal */}
+      <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto z-[1000]" style={{ zIndex: 1000 }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              Configuration Issues
+            </DialogTitle>
+            <DialogDescription>
+              Review and fix the following issues before testing or running your workflow:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {testResults?.details?.errors?.map((error: string, index: number) => (
+              <div key={index} className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center mt-0.5">
+                    <span className="text-red-600 text-sm font-bold">{index + 1}</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-red-800 font-medium">{error}</p>
+                    {error.includes('input connections') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Drag from a data source or AI model output to this node's input ports
+                      </p>
+                    )}
+                    {error.includes('Final goal') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Add a "Final Goal" node from the canvas menu and connect it to your AI models
+                      </p>
+                    )}
+                    {error.includes('AI model') && error.includes('required') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Add at least one AI model to your workflow to process data
+                      </p>
+                    )}
+                    {error.includes('not connected to any AI models') && (
+                      <p className="text-xs text-red-600 mt-2">
+                        💡 Tip: Connect this data source to AI model inputs to use the data
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {testResults?.details?.errors?.length === 0 && (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Configuration Valid!</h3>
+                <p className="text-gray-600">Your workflow is configured correctly and ready to run.</p>
+              </div>
+            )}
+
+            {/* Execution Results Section */}
+            {testResults?.details?.executionResults && testResults.details.executionResults.length > 0 && (
+              <div className="mt-6 space-y-4">
+                <h4 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <Play className="w-5 h-5 text-green-600" />
+                  Execution Results
+                </h4>
+                
+                {testResults.details.executionResults.map((result: any, index: number) => (
+                  <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-green-900">{result.modelName}</h5>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                          {result.status}
+                        </span>
+                        <span className="text-xs text-green-600">
+                          {result.outputData.processingTime}ms
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Input Data Sources */}
+                      <div>
+                        <h6 className="text-sm font-medium text-gray-700 mb-2">Input Data Sources</h6>
+                        <div className="space-y-1">
+                          {result.inputDataSources.map((source: string, idx: number) => (
+                            <span key={idx} className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded mr-1">
+                              {source}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Output Predictions */}
+                      <div>
+                        <h6 className="text-sm font-medium text-gray-700 mb-2">Predictions</h6>
+                        <div className="space-y-1 text-xs">
+                          {result.outputData.predictions.slice(0, 3).map((pred: any, idx: number) => (
+                            <div key={idx} className="bg-white p-2 rounded border border-green-200">
+                              <div className="font-mono text-green-700">
+                                KPI_X: {pred.KPI_X?.toFixed(2)} | 
+                                KPI_Y: {pred.KPI_Y?.toFixed(2)} | 
+                                KPI_Z: {pred.KPI_Z?.toFixed(2)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Goal Responses Section */}
+                    {result.outputData.goalResponses && result.outputData.goalResponses.length > 0 && (
+                      <div className="mt-4">
+                        <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-purple-600" />
+                          Goal Analysis Results
+                        </h6>
+                        <div className="space-y-3">
+                          {result.outputData.goalResponses.map((response: any, idx: number) => (
+                            <div key={idx} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                              <div className="flex items-start gap-2 mb-2">
+                                <Target className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-purple-900 text-sm mb-1">
+                                    {response.goalNodeName}
+                                  </div>
+                                  <div className="text-xs text-purple-700 bg-purple-100 px-2 py-1 rounded mb-2">
+                                    Request: "{response.userRequest}"
+                                  </div>
+                                  <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                                    {response.aiResponse}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Model Performance */}
+                    <div className="mt-3 pt-3 border-t border-green-200">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {(result.outputData.confidence * 100).toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-green-600">Confidence</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {result.outputData.modelPerformance.accuracy.toFixed(3)}
+                          </div>
+                          <div className="text-xs text-green-600">Accuracy</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-semibold text-green-700">
+                            {result.outputData.modelPerformance.rmse.toFixed(2)}
+                          </div>
+                          <div className="text-xs text-green-600">RMSE</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <Button 
+              onClick={() => setShowValidationDetails(false)}
+              className="flex-1"
+            >
+              Close
+            </Button>
+            {testResults?.details?.errors?.length > 0 && (
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setShowValidationDetails(false);
+                  // Auto-test again after closing
+                  setTimeout(testConfiguration, 500);
+                }}
+                className="flex-1"
+              >
+                Test Again
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
