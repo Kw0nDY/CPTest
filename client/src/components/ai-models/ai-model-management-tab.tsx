@@ -16,7 +16,11 @@ import {
   MoreVertical,
   Brain,
   Edit3,
-  Trash2
+  Trash2,
+  Zap,
+  Target,
+  TrendingUp,
+  Cog
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -85,9 +89,12 @@ export default function AIModelManagementTab() {
       if (!response.ok) throw new Error('Failed to create folder');
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (newFolder) => {
       queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
-      toast({ title: 'Success', description: 'Folder created successfully' });
+      toast({ 
+        title: 'Folder Created Successfully', 
+        description: `"${newFolder.name}" folder has been added and is now available for model uploads.`
+      });
       setShowFolderDialog(false);
     },
     onError: () => {
@@ -153,6 +160,18 @@ export default function AIModelManagementTab() {
   const handleDeleteModel = (modelId: string) => {
     if (confirm('Are you sure you want to delete this model? This action cannot be undone.')) {
       deleteModelMutation.mutate(modelId);
+    }
+  };
+
+  const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+      case 'FolderOpen': return FolderOpen;
+      case 'Brain': return Brain;
+      case 'Zap': return Zap;
+      case 'Target': return Target;
+      case 'TrendingUp': return TrendingUp;
+      case 'Cog': return Cog;
+      default: return FolderOpen;
     }
   };
 
@@ -249,248 +268,103 @@ export default function AIModelManagementTab() {
       </div>
 
       {/* Model Folders */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Quality Control Folder */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <FolderOpen className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold">Quality Control</CardTitle>
-                  <p className="text-sm text-gray-500">Models for product quality inspection</p>
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem>
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">Created 2024.1.16</p>
-            <p className="text-xs font-medium text-gray-600">3 models</p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Assembly Line Quality Classifier</span>
-                </div>
-                <Badge className="bg-green-100 text-green-800 text-xs">ready</Badge>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Surface Defect Detector</span>
-                </div>
-                <Badge className="bg-green-100 text-green-800 text-xs">ready</Badge>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Material Grade Classifier</span>
-                </div>
-                <Badge className="bg-yellow-100 text-yellow-800 text-xs">draft</Badge>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
-              View All Models
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Predictive Maintenance Folder */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <FolderOpen className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold">Predictive Maintenance</CardTitle>
-                  <p className="text-sm text-gray-500">Equipment maintenance forecasting models</p>
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem>
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">Created 2024.1.8</p>
-            <p className="text-xs font-medium text-gray-600">2 models</p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Vibration Analysis Model</span>
-                </div>
-                <Badge className="bg-green-100 text-green-800 text-xs">ready</Badge>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Temperature Trend Predictor</span>
-                </div>
-                <Badge className="bg-blue-100 text-blue-800 text-xs">training</Badge>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
-              View All Models
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Demand Forecasting Folder */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <FolderOpen className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold">Demand Forecasting</CardTitle>
-                  <p className="text-sm text-gray-500">Sales and inventory prediction models</p>
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem>
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">Created 2024.1.5</p>
-            <p className="text-xs font-medium text-gray-600">1 models</p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-700">Monthly Demand Forecaster</span>
-                </div>
-                <Badge className="bg-green-100 text-green-800 text-xs">ready</Badge>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
-              View All Models
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Dynamic Folders from Database */}
-        {folders.map((folder) => {
-          const folderModels = getModelsForFolder(folder.id);
-          return (
-            <Card key={folder.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center`} style={{ backgroundColor: folder.color + '20' }}>
-                      <FolderOpen className="w-5 h-5" style={{ color: folder.color }} />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base font-semibold">{folder.name}</CardTitle>
-                      <p className="text-sm text-gray-500">{folder.description}</p>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem>
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="text-red-600"
-                        onClick={() => handleDeleteFolder(folder.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">Created {new Date(folder.createdAt).toLocaleDateString()}</p>
-                <p className="text-xs font-medium text-gray-600">{folderModels.length} models</p>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {folderModels.slice(0, 3).map((model) => (
-                    <div key={model.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div className="flex items-center gap-2">
-                        <Brain className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-700">{model.name}</span>
+      <div className="space-y-6">
+        {/* Database Folders */}
+        {folders.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Model Folders</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{folders.map((folder) => {
+              const folderModels = getModelsForFolder(folder.id);
+              const IconComponent = getIconComponent(folder.icon);
+              return (
+                <Card key={folder.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center`} style={{ backgroundColor: folder.color + '20' }}>
+                          <IconComponent className="w-5 h-5" style={{ color: folder.color }} />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base font-semibold">{folder.name}</CardTitle>
+                          <p className="text-sm text-gray-500">{folder.description}</p>
+                        </div>
                       </div>
-                      {getStatusBadge(model.status)}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem>
+                            <Edit3 className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => handleDeleteFolder(folder.id)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  ))}
-                  {folderModels.length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-2">No models in this folder</p>
-                  )}
-                </div>
-                {folderModels.length > 0 && (
-                  <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
-                    View All Models
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+                    <p className="text-xs text-gray-400 mt-2">Created {new Date(folder.createdAt).toLocaleDateString()}</p>
+                    <p className="text-xs font-medium text-gray-600">{folderModels.length} models</p>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-2">
+                      {folderModels.slice(0, 3).map((model) => (
+                        <div key={model.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <Brain className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm text-gray-700">{model.name}</span>
+                          </div>
+                          {getStatusBadge(model.status)}
+                        </div>
+                      ))}
+                      {folderModels.length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-2">No models in this folder</p>
+                      )}
+                    </div>
+                    {folderModels.length > 0 && (
+                      <Button variant="ghost" size="sm" className="w-full mt-3 text-blue-600 hover:bg-blue-50">
+                        View All Models
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {folders.length === 0 && (
+          <div>
+            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Folders Created</h3>
+              <p className="text-gray-600 mb-4">Create your first folder to organize your AI models</p>
+              <Button 
+                onClick={() => setShowFolderDialog(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Folder
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Dialogs */}
       {showUpload && (
         <EnhancedModelUpload 
           onClose={() => setShowUpload(false)}
+          folders={folders}
         />
       )}
 

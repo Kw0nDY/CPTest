@@ -73,7 +73,7 @@ interface UploadProgress {
   message: string;
 }
 
-export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
+export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps) {
   const [modelFiles, setModelFiles] = useState<ModelFile[]>([]);
   const [modelName, setModelName] = useState('');
   const [modelDescription, setModelDescription] = useState('');
@@ -85,16 +85,6 @@ export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Fetch folders directly in the component to ensure synchronization
-  const { data: folders = [] } = useQuery({
-    queryKey: ['/api/ai-model-folders'],
-    queryFn: async () => {
-      const response = await fetch('/api/ai-model-folders');
-      if (!response.ok) throw new Error('Failed to fetch folders');
-      return response.json();
-    }
-  });
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -525,14 +515,13 @@ export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
 
               {/* Folder Selection */}
               <div>
-                <Label htmlFor="folder-select">Folder (Optional)</Label>
-                <Select value={selectedFolderId || "none"} onValueChange={(value) => setSelectedFolderId(value === "none" ? "" : value)}>
+                <Label htmlFor="folder-select">Folder *</Label>
+                <Select value={selectedFolderId || ""} onValueChange={setSelectedFolderId} required>
                   <SelectTrigger className="mt-1" data-testid="select-folder">
-                    <SelectValue placeholder="Select a folder or leave unorganized" />
+                    <SelectValue placeholder="Select a folder (required)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No folder (Unorganized)</SelectItem>
-                    {folders.map((folder) => (
+                    {folders?.map((folder) => (
                       <SelectItem key={folder.id} value={folder.id}>
                         <div className="flex items-center gap-2">
                           <div 
@@ -543,8 +532,18 @@ export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
                         </div>
                       </SelectItem>
                     ))}
+                    {(!folders || folders.length === 0) && (
+                      <div className="p-2 text-sm text-gray-500 text-center">
+                        No folders available. Create a folder first.
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
+                {(!folders || folders.length === 0) && (
+                  <p className="text-xs text-red-500 mt-1">
+                    You must create at least one folder before uploading models.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -636,7 +635,7 @@ export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
             </Button>
             <Button 
               onClick={() => uploadMutation.mutate()}
-              disabled={!modelName.trim() || modelFiles.length === 0 || uploadMutation.isPending}
+              disabled={!modelName.trim() || modelFiles.length === 0 || !selectedFolderId || uploadMutation.isPending}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {uploadMutation.isPending ? (
