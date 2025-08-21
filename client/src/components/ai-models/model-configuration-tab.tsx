@@ -364,7 +364,23 @@ const automationTriggers = [
   }
 ];
 
-export default function ModelConfigurationTab() {
+interface ModelConfigurationTabProps {
+  selectedModel?: AiModel;
+}
+
+interface AiModel {
+  id: string;
+  name: string;
+  fileName: string;
+  fileSize: number;
+  modelType: string;
+  status: string;
+  folderId?: string;
+  uploadedAt: string;
+  analysisStatus: string;
+}
+
+export default function ModelConfigurationTab({ selectedModel }: ModelConfigurationTabProps = {}) {
   const [viewMode, setViewMode] = useState<'folders' | 'editor'>('folders');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [currentConfig, setCurrentConfig] = useState<Configuration | null>(null);
@@ -1930,6 +1946,54 @@ export default function ModelConfigurationTab() {
             });
           });
         }
+      }
+    });
+
+    // All loaded Data Sources (not just those on canvas)
+    availableDataSources.forEach((source: any) => {
+      if (source.fields) {
+        source.fields.forEach((field: any) => {
+          outputs.push({
+            type: 'data-source',
+            nodeId: `ds-${source.id}`,
+            nodeName: source.name,
+            outputId: field.name,
+            outputName: field.description || field.name,
+            description: `${field.description || field.name} from ${source.name} (Data Source)`
+          });
+        });
+      }
+    });
+
+    // All loaded Views
+    availableViews.forEach((view: ViewData) => {
+      if (view.outputs) {
+        view.outputs.forEach(output => {
+          outputs.push({
+            type: 'view',
+            nodeId: `view-${view.id}`,
+            nodeName: view.name,
+            outputId: output.id,
+            outputName: output.name,
+            description: `${output.name} from ${view.name} (View)`
+          });
+        });
+      }
+    });
+
+    // All AI Model outputs (not just those on canvas, including self)
+    availableAIModels.forEach(model => {
+      if (model.outputs) {
+        model.outputs.forEach((output: any) => {
+          outputs.push({
+            type: 'ai-model-output',
+            nodeId: `ai-${model.id}`,
+            nodeName: model.name,
+            outputId: output.id,
+            outputName: output.name,
+            description: `${output.name} from ${model.name} (AI Model)`
+          });
+        });
       }
     });
     
@@ -4300,19 +4364,7 @@ export default function ModelConfigurationTab() {
                                 getAvailableOutputNodes(input.type).map((output, index) => (
                                   <div 
                                     key={index} 
-                                    className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                                    onClick={() => {
-                                      const targetNodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
-                                      const targetNode = nodes.find(n => n.id === targetNodeId);
-                                      if (targetNode) {
-                                        connectParameters(
-                                          output.nodeId, 
-                                          output.outputId, 
-                                          targetNode.id, 
-                                          input.id
-                                        );
-                                      }
-                                    }}
+                                    className="p-3 border border-gray-200 rounded-lg transition-colors"
                                   >
                                     <div className="flex items-start gap-3">
                                       <div 
@@ -4356,26 +4408,9 @@ export default function ModelConfigurationTab() {
                                           <span className="text-xs text-gray-500">{input.type} type</span>
                                         </div>
                                       </div>
-                                      <Button
-                                        size="sm"
-                                        className="flex-shrink-0"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const targetNode = nodes.find(n => n.type === 'ai-model' && 
-                                            availableAIModels.find(m => m.id === n.modelId)?.id === selectedModelForDetails.id
-                                          );
-                                          if (targetNode) {
-                                            connectParameters(
-                                              output.nodeId, 
-                                              output.outputId, 
-                                              targetNode.id, 
-                                              input.id
-                                            );
-                                          }
-                                        }}
-                                      >
-                                        Connect
-                                      </Button>
+                                      <div className="text-sm text-blue-600 font-medium">
+                                        Available for Connection
+                                      </div>
                                     </div>
                                   </div>
                                 ))

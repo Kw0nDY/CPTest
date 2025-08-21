@@ -3,6 +3,7 @@ import { EnhancedModelUpload } from './enhanced-model-upload';
 import { FolderCreationDialog } from './folder-creation-dialog';
 import { FolderEditDialog } from './folder-edit-dialog';
 import { ModelsViewDialog } from './models-view-dialog';
+import ModelConfigurationTab from './model-configuration-tab';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,8 @@ import {
   Zap,
   Target,
   TrendingUp,
-  Cog
+  Cog,
+  ChevronLeft
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -59,6 +61,8 @@ export default function AIModelManagementTab() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showModelsDialog, setShowModelsDialog] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<AiModelFolder | null>(null);
+  const [showModelConfiguration, setShowModelConfiguration] = useState(false);
+  const [selectedModelForConfig, setSelectedModelForConfig] = useState<AiModel | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -186,6 +190,12 @@ export default function AIModelManagementTab() {
   const handleCloseModelsDialog = () => {
     setShowModelsDialog(false);
     setSelectedFolder(null);
+  };
+
+  const handleOpenModelConfiguration = (model: AiModel) => {
+    setSelectedModelForConfig(model);
+    setShowModelConfiguration(true);
+    setShowModelsDialog(false); // Close the models dialog
   };
 
   const getIconComponent = (iconName: string) => {
@@ -480,7 +490,33 @@ export default function AIModelManagementTab() {
         isOpen={showModelsDialog}
         onClose={handleCloseModelsDialog}
         folder={selectedFolder}
+        onOpenModelConfiguration={handleOpenModelConfiguration}
       />
+
+      {/* Model Configuration Tab */}
+      {showModelConfiguration && selectedModelForConfig && (
+        <div className="fixed inset-0 z-50 bg-white">
+          <div className="h-full flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowModelConfiguration(false)}
+                  className="flex items-center gap-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back to Models
+                </Button>
+                <div className="text-lg font-semibold">Model Configuration - {selectedModelForConfig.name}</div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ModelConfigurationTab selectedModel={selectedModelForConfig} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

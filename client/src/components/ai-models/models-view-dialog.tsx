@@ -29,7 +29,8 @@ import {
   Download,
   Settings,
   FileCode,
-  Archive
+  Archive,
+  Link2
 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
@@ -60,9 +61,10 @@ interface ModelsViewDialogProps {
   isOpen: boolean;
   onClose: () => void;
   folder: AiModelFolder | null;
+  onOpenModelConfiguration?: (model: AiModel) => void;
 }
 
-export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogProps) {
+export function ModelsViewDialog({ isOpen, onClose, folder, onOpenModelConfiguration }: ModelsViewDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
@@ -299,6 +301,7 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
         onClose={() => setIsDetailDialogOpen(false)}
         model={selectedModel}
         onDownload={handleDownloadModel}
+        onOpenModelConfiguration={onOpenModelConfiguration}
       />
     </Dialog>
   );
@@ -310,9 +313,10 @@ interface ModelDetailDialogProps {
   onClose: () => void;
   model: AiModel | null;
   onDownload: (modelId: string, fileName: string) => void;
+  onOpenModelConfiguration?: (model: AiModel) => void;
 }
 
-function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDialogProps) {
+function ModelDetailDialog({ isOpen, onClose, model, onDownload, onOpenModelConfiguration }: ModelDetailDialogProps) {
   const { toast } = useToast();
   const { data: modelDetails, isLoading } = useQuery({
     queryKey: ['/api/ai-models', model?.id, 'details'],
@@ -347,6 +351,13 @@ function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDi
         description: `Failed to download ${fileName}`, 
         variant: 'destructive' 
       });
+    }
+  };
+
+  const handleViewConnections = (model: AiModel) => {
+    if (onOpenModelConfiguration) {
+      onOpenModelConfiguration(model);
+      onClose(); // Close current dialog
     }
   };
 
@@ -557,6 +568,14 @@ function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDi
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4 border-t">
             <Button 
+              onClick={() => handleViewConnections(model)}
+              className="flex items-center gap-2"
+            >
+              <Link2 className="w-4 h-4" />
+              View Possible Connections
+            </Button>
+            <Button 
+              variant="outline"
               onClick={() => onDownload(model.id, model.fileName)}
               className="flex items-center gap-2"
             >
