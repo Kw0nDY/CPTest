@@ -580,7 +580,7 @@ export default function ModelConfigurationTab() {
     });
     
     // Data Integration sources
-    transformedDataSources.forEach((source: any) => {
+    availableDataSources.forEach((source: any) => {
       source.fields?.forEach((field: any) => {
         if (field.type === inputType) {
           connections.push({
@@ -1475,7 +1475,7 @@ export default function ModelConfigurationTab() {
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
       if ('sourceId' in node) {
-        const source = transformedDataSources.find((s: any) => s.id === node.sourceId);
+        const source = availableDataSources.find((s: any) => s.id === node.sourceId);
         if (source) {
           // All fields from data sources can be connected regardless of type
           source.fields?.forEach((field: any) => {
@@ -2865,7 +2865,7 @@ export default function ModelConfigurationTab() {
                   <div className="mb-2">
                     <div className="text-xs text-gray-500 mb-1">Data Integration</div>
                     {['ERP', 'CRM', 'Industrial', 'Database', 'Manufacturing', 'Quality'].map(category => {
-                      const sources = transformedDataSources.filter((s: any) => s.category === category);
+                      const sources = availableDataSources.filter((s: any) => s.category === category);
                       if (sources.length === 0) return null;
                       
                       return (
@@ -3021,7 +3021,7 @@ export default function ModelConfigurationTab() {
                         {selectedNodeForDetails.type === 'data-input' && selectedNodeForDetails.sourceId && (
                           <div>
                             <div className="mt-2 font-medium text-gray-700">Data Source:</div>
-                            <div>{transformedDataSources.find((s: any) => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
+                            <div>{availableDataSources.find((s: any) => s.id === selectedNodeForDetails.sourceId)?.name || 'Unknown Source'}</div>
                             
                             {/* Show Sample Data Tables */}
                             {selectedNodeForDetails.sampleData && Object.keys(selectedNodeForDetails.sampleData).length > 0 && (
