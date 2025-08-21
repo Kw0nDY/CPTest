@@ -73,7 +73,7 @@ interface UploadProgress {
   message: string;
 }
 
-export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps) {
+export function EnhancedModelUpload({ onClose }: ModelUploadProps) {
   const [modelFiles, setModelFiles] = useState<ModelFile[]>([]);
   const [modelName, setModelName] = useState('');
   const [modelDescription, setModelDescription] = useState('');
@@ -85,6 +85,16 @@ export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps)
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch folders directly in the component to ensure synchronization
+  const { data: folders = [] } = useQuery({
+    queryKey: ['/api/ai-model-folders'],
+    queryFn: async () => {
+      const response = await fetch('/api/ai-model-folders');
+      if (!response.ok) throw new Error('Failed to fetch folders');
+      return response.json();
+    }
+  });
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
