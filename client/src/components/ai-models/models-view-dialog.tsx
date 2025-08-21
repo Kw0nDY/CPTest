@@ -313,6 +313,7 @@ interface ModelDetailDialogProps {
 }
 
 function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDialogProps) {
+  const { toast } = useToast();
   const { data: modelDetails, isLoading } = useQuery({
     queryKey: ['/api/ai-models', model?.id, 'details'],
     queryFn: async () => {
@@ -323,6 +324,31 @@ function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDi
     },
     enabled: !!model && isOpen
   });
+
+  const handleDownloadFile = async (fileId: string, fileName: string) => {
+    try {
+      const response = await fetch(`/api/ai-model-files/${fileId}/download`);
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: 'Success', description: `${fileName} downloaded successfully` });
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: `Failed to download ${fileName}`, 
+        variant: 'destructive' 
+      });
+    }
+  };
 
   if (!model) return null;
 
@@ -475,6 +501,52 @@ function ModelDetailDialog({ isOpen, onClose, model, onDownload }: ModelDetailDi
                           </div>
                         </div>
                       )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Model Files List */}
+              {modelDetails && modelDetails.files && modelDetails.files.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      <h3 className="text-lg font-semibold">Model Files ({modelDetails.files.length})</h3>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {modelDetails.files.map((file: any) => (
+                        <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${
+                              file.fileType === 'model' ? 'bg-purple-500' :
+                              file.fileType === 'config' ? 'bg-blue-500' :
+                              file.fileType === 'scaler' ? 'bg-green-500' : 'bg-gray-500'
+                            }`}></div>
+                            <div>
+                              <div className="font-medium">{file.fileName}</div>
+                              <div className="text-sm text-gray-600 flex items-center gap-2">
+                                <span className="capitalize">{file.fileType}</span>
+                                <span>•</span>
+                                <span>{formatBytes(file.fileSize)}</span>
+                                <span>•</span>
+                                <span>{new Date(file.uploadedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadFile(file.id, file.fileName)}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

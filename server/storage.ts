@@ -1,10 +1,10 @@
 import { 
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
-  aiModels, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
+  aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
-  type AiModel, type InsertAiModel, type ModelConfiguration, type InsertModelConfiguration,
+  type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
   type ModelConfigurationFolder, type InsertModelConfigurationFolder
 } from "@shared/schema";
@@ -51,6 +51,12 @@ export interface IStorage {
   createAiModel(model: InsertAiModel): Promise<AiModel>;
   updateAiModel(id: string, updates: Partial<AiModel>): Promise<AiModel>;
   deleteAiModel(id: string): Promise<void>;
+  
+  // AI Model File methods
+  getAiModelFiles(modelId: string): Promise<AiModelFile[]>;
+  getAiModelFile(id: string): Promise<AiModelFile | undefined>;
+  createAiModelFile(file: InsertAiModelFile): Promise<AiModelFile>;
+  deleteAiModelFile(id: string): Promise<void>;
   
   // Model Configuration methods
   getModelConfigurations(): Promise<ModelConfiguration[]>;
@@ -796,6 +802,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteModelConfigurationFolder(id: string): Promise<void> {
     await db.delete(modelConfigurationFolders).where(eq(modelConfigurationFolders.id, id));
+  }
+
+  // AI Model File methods
+  async getAiModelFiles(modelId: string): Promise<AiModelFile[]> {
+    return await db.select().from(aiModelFiles).where(eq(aiModelFiles.modelId, modelId));
+  }
+
+  async getAiModelFile(id: string): Promise<AiModelFile | undefined> {
+    const [file] = await db.select().from(aiModelFiles).where(eq(aiModelFiles.id, id));
+    return file || undefined;
+  }
+
+  async createAiModelFile(file: InsertAiModelFile): Promise<AiModelFile> {
+    const newId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const [created] = await db
+      .insert(aiModelFiles)
+      .values({
+        id: newId,
+        ...file
+      })
+      .returning();
+    return created;
+  }
+
+  async deleteAiModelFile(id: string): Promise<void> {
+    await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
   }
 }
 

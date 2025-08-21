@@ -328,6 +328,20 @@ export const aiModels = pgTable('ai_models', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// AI Model Files - stores all files associated with each model
+export const aiModelFiles = pgTable('ai_model_files', {
+  id: text('id').primaryKey(),
+  modelId: text('model_id').references(() => aiModels.id).notNull(),
+  fileName: text('file_name').notNull(),
+  originalFileName: text('original_file_name').notNull(), // Original name from user upload
+  filePath: text('file_path').notNull(),
+  fileType: text('file_type').notNull(), // 'model', 'config', 'scaler', 'other'
+  fileSize: integer('file_size'),
+  mimeType: text('mime_type'),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
 // AI Model Folders for organization (Upload Models tab)
 export const aiModelFolders = pgTable('ai_model_folders', {
   id: text('id').primaryKey(),
@@ -459,6 +473,10 @@ export const insertAiModelSchema = createInsertSchema(aiModels).omit({
   updatedAt: true,
   analyzedAt: true
 });
+export const insertAiModelFileSchema = createInsertSchema(aiModelFiles).omit({
+  id: true,
+  createdAt: true
+});
 export const insertModelConfigurationSchema = createInsertSchema(modelConfigurations).omit({
   id: true,
   createdAt: true,
@@ -495,6 +513,8 @@ export type GoogleApiConfig = typeof googleApiConfigs.$inferSelect;
 export type InsertGoogleApiConfig = z.infer<typeof insertGoogleApiConfigSchema>;
 export type AiModel = typeof aiModels.$inferSelect;
 export type InsertAiModel = z.infer<typeof insertAiModelSchema>;
+export type AiModelFile = typeof aiModelFiles.$inferSelect;
+export type InsertAiModelFile = z.infer<typeof insertAiModelFileSchema>;
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
 export type AiModelResult = typeof aiModelResults.$inferSelect;

@@ -3664,6 +3664,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Get all associated files for this model
+      const modelFiles = await storage.getAiModelFiles(id);
+      
       const details = {
         id: model.id,
         name: model.name,
@@ -3675,13 +3678,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inputs: inputs,
         outputs: outputs,
         modelInfo: modelInfo,
-        configFilePath: model.configFilePath
+        configFilePath: model.configFilePath,
+        files: modelFiles.map(file => ({
+          id: file.id,
+          fileName: file.originalFileName,
+          fileType: file.fileType,
+          fileSize: file.fileSize,
+          mimeType: file.mimeType,
+          uploadedAt: file.uploadedAt
+        }))
       };
 
       res.json(details);
     } catch (error) {
       console.error('Error getting model details:', error);
       res.status(500).json({ error: 'Failed to get model details' });
+    }
+  });
+
+  // Download individual model file
+  app.get('/api/ai-model-files/:fileId/download', async (req, res) => {
+    try {
+      const { fileId } = req.params;
+      const modelFile = await storage.getAiModelFile(fileId);
+      
+      if (!modelFile) {
+        return res.status(404).json({ error: 'Model file not found' });
+      }
+
+      if (!fs.existsSync(modelFile.filePath)) {
+        return res.status(404).json({ error: 'Physical file not found' });
+      }
+
+      const stat = fs.statSync(modelFile.filePath);
+      const fileName = modelFile.originalFileName;
+
+      res.setHeader('Content-Type', modelFile.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Length', stat.size.toString());
+      
+      const fileStream = fs.createReadStream(modelFile.filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error downloading model file:', error);
+      res.status(500).json({ error: 'Failed to download model file' });
     }
   });
 
