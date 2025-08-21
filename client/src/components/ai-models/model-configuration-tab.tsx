@@ -3624,37 +3624,45 @@ export default function ModelConfigurationTab() {
       </Dialog>
 
       {/* Delete Node Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="z-[9999]" style={{ zIndex: 9999 }}>
-          <DialogHeader>
-            <DialogTitle>Delete Node</DialogTitle>
-            <DialogDescription>
+      {showDeleteDialog && (
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black bg-opacity-50"
+          style={{ zIndex: 99999 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              cancelDeleteNode();
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4">
+            <h2 className="text-lg font-semibold mb-2">Delete Node</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
               Are you sure you want to delete "{nodeToDelete?.uniqueName}" from the canvas? This action cannot be undone and will remove all connections to this node.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-3 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                console.log('🗑️ Cancel button clicked');
-                cancelDeleteNode();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => {
-                console.log('🗑️ Delete button clicked');
-                deleteNode();
-              }}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </Button>
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  console.log('🗑️ Cancel button clicked');
+                  cancelDeleteNode();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => {
+                  console.log('🗑️ Delete button clicked');
+                  deleteNode();
+                }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Delete
+              </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Configuration Validation Details Modal */}
       <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
