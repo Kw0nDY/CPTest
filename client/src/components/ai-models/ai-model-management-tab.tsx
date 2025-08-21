@@ -132,118 +132,121 @@ export default function AIModelManagementTab() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="uploaded">Uploaded Models</TabsTrigger>
-          <TabsTrigger value="prebuilt">Pre-built AI Models</TabsTrigger>
-        </TabsList>
+        <div className="flex justify-center mb-8">
+          <TabsList className="grid grid-cols-2 w-96 h-12 bg-gray-100">
+            <TabsTrigger value="uploaded" className="text-sm font-medium">Uploaded Models</TabsTrigger>
+            <TabsTrigger value="prebuilt" className="text-sm font-medium">Pre-built AI Models</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="uploaded" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Upload Section */}
-            <Card className="h-fit">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-blue-600" />
-                    <CardTitle className="text-lg">Upload AI Models</CardTitle>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setShowUploadDialog(true)}
-                    data-testid="button-new-folder"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    New Folder
-                  </Button>
+        <TabsContent value="uploaded" className="space-y-8">
+          {/* Central Upload Section */}
+          <div className="flex justify-center">
+            <div className="w-full max-w-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Upload AI Models</h3>
                 </div>
-                <p className="text-sm text-gray-600">Upload trained AI models in various formats</p>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                <Button 
+                  size="sm" 
+                  variant="outline"
                   onClick={() => setShowUploadDialog(true)}
-                  data-testid="drag-drop-upload-area"
+                  data-testid="button-new-folder"
                 >
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Drag & Drop Model Files</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Supported formats: .pkl, .joblib, .h5, .onnx, .pt, .zip, .pth
-                  </p>
-                  <p className="text-xs text-gray-500 mb-4">Maximum file size: 500MB</p>
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    data-testid="button-browse-files"
-                  >
-                    Browse Files
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  <Plus className="w-4 h-4 mr-1" />
+                  New Folder
+                </Button>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">Upload trained AI models in various formats</p>
+              
+              <div 
+                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
+                onClick={() => setShowUploadDialog(true)}
+                data-testid="drag-drop-upload-area"
+              >
+                <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-900 mb-2">Drag & Drop Model Files</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Supported formats: .pkl, .joblib, .h5, .onnx, .pt, .zip, .pth
+                </p>
+                <p className="text-xs text-gray-500 mb-6">Maximum file size: 500MB</p>
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2"
+                  data-testid="button-browse-files"
+                >
+                  Browse Files
+                </Button>
+              </div>
+            </div>
+          </div>
 
-            {/* Model Folders */}
-            <div className="space-y-4">
-              {sampleFolders.map((folder) => (
-                <Card key={folder.id} className="overflow-hidden">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+          {/* Model Folders Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sampleFolders.map((folder) => (
+              <Card key={folder.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                         <FolderOpen className="w-5 h-5 text-blue-600" />
-                        <div>
-                          <CardTitle className="text-base font-medium">{folder.name}</CardTitle>
-                          <p className="text-sm text-gray-600">{folder.description}</p>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500">{folder.modelCount} models</span>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => viewAllModels(folder.id)}
-                          data-testid={`button-view-all-${folder.id}`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base font-semibold text-gray-900 truncate">{folder.name}</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{folder.description}</p>
                       </div>
                     </div>
-                  </CardHeader>
-                  
-                  {folder.models.length > 0 && (
-                    <CardContent className="pt-0">
-                      <div className="space-y-2">
-                        {folder.models.slice(0, 3).map((model) => (
-                          <div key={model.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-900">{model.name}</span>
-                              {getStatusBadge(model.status)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                                <Settings className="w-3 h-3" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                                <Download className="w-3 h-3" />
-                              </Button>
-                            </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <span className="text-sm font-medium text-gray-700">{folder.modelCount}</span>
+                      <span className="text-xs text-gray-500">models</span>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => viewAllModels(folder.id)}
+                        data-testid={`button-view-all-${folder.id}`}
+                        className="ml-2 h-6 w-6 p-0"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                {folder.models.length > 0 && (
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      {folder.models.slice(0, 3).map((model) => (
+                        <div key={model.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 truncate">{model.name}</span>
+                            {getStatusBadge(model.status)}
                           </div>
-                        ))}
-                        
-                        {folder.models.length > 3 && (
-                          <Button 
-                            variant="link" 
-                            className="text-blue-600 text-sm p-0 h-auto"
-                            onClick={() => viewAllModels(folder.id)}
-                            data-testid={`button-view-all-models-${folder.id}`}
-                          >
-                            View All Models
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
+                          <div className="flex items-center gap-1 ml-2">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                              <Settings className="w-3 h-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                              <Download className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {folder.models.length > 3 && (
+                        <Button 
+                          variant="link" 
+                          className="text-blue-600 text-sm p-0 h-auto w-full text-center"
+                          onClick={() => viewAllModels(folder.id)}
+                          data-testid={`button-view-all-models-${folder.id}`}
+                        >
+                          View All Models
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            ))}
           </div>
         </TabsContent>
 
