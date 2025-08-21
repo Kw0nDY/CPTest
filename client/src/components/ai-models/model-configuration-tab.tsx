@@ -1911,42 +1911,47 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
-      if ('sourceId' in node) {
-        const source = availableDataSources.find((s: any) => s.id === node.sourceId);
-        if (source) {
-          // All fields from data sources can be connected regardless of type
-          source.fields?.forEach((field: any) => {
-            outputs.push({
-              type: 'data-integration',
-              nodeId: node.id,
-              nodeName: node.name,
-              outputId: field.name,
-              outputName: field.description,
-              description: `${field.description} from ${(source as any).tableName || source.name}`
-            });
-          });
-        }
-      }
+      // Use the actual outputs that were created when the node was added to canvas
+      node.outputs?.forEach((output: any) => {
+        outputs.push({
+          type: 'data-integration',
+          nodeId: node.id,
+          nodeName: node.name || node.uniqueName,
+          outputId: output.id,
+          outputName: output.name,
+          description: `${output.name} from ${node.name || node.uniqueName}`
+        });
+      });
     });
     
     // Automation outputs from nodes on canvas
     nodes.filter(node => node.type === 'automation-input').forEach(node => {
-      if ('triggerId' in node) {
-        const trigger = automationTriggers.find(t => t.id === node.triggerId);
-        if (trigger) {
-          // All automation outputs can be connected regardless of type
-          trigger.outputs?.forEach(output => {
-            outputs.push({
-              type: 'automation',
-              nodeId: node.id,
-              nodeName: node.name,
-              outputId: output.name,
-              outputName: output.description,
-              description: `${output.description} from ${node.name}`
-            });
-          });
-        }
-      }
+      // Use the actual outputs that were created when the node was added to canvas
+      node.outputs?.forEach((output: any) => {
+        outputs.push({
+          type: 'automation',
+          nodeId: node.id,
+          nodeName: node.name || node.uniqueName,
+          outputId: output.id,
+          outputName: output.name,
+          description: `${output.name} from ${node.name || node.uniqueName}`
+        });
+      });
+    });
+
+    // View data outputs from nodes on canvas
+    nodes.filter(node => node.type === 'view-data').forEach(node => {
+      // Use the actual outputs that were created when the node was added to canvas
+      node.outputs?.forEach((output: any) => {
+        outputs.push({
+          type: 'view-data',
+          nodeId: node.id,
+          nodeName: node.name || node.uniqueName,
+          outputId: output.id,
+          outputName: output.name,
+          description: `${output.name} from ${node.name || node.uniqueName}`
+        });
+      });
     });
 
     // Only show data sources that are actually on the canvas as data-input nodes
