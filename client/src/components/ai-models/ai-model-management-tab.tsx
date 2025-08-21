@@ -1137,142 +1137,222 @@ export default function AIModelManagementTab({ activeTab: propActiveTab }: AIMod
                     <div className="space-y-4">
                       {/* Manual Input Specification */}
                       <div>
-                        <Label className="font-medium text-sm">입력(INPUT) 사양</Label>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="font-medium text-sm">입력(INPUT) 사양</Label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newSpec = {
+                                name: '',
+                                type: 'tensor',
+                                shape: '',
+                                dtype: 'float32',
+                                description: ''
+                              };
+                              setUploadConfig(prev => ({ 
+                                ...prev, 
+                                inputSpecs: [...prev.inputSpecs, newSpec] 
+                              }));
+                            }}
+                            className="text-xs h-6"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Input 추가
+                          </Button>
+                        </div>
                         {uploadConfig.inputSpecs.map((spec, index) => (
                           <div key={index} className="mt-2 p-3 border rounded-lg space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                placeholder="입력 이름 (예: temporal_input)"
-                                value={spec.name}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.inputSpecs];
-                                  newSpecs[index].name = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
-                                }}
-                                className="text-xs"
-                              />
-                              <select
-                                value={spec.type}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.inputSpecs];
-                                  newSpecs[index].type = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
-                                }}
-                                className="text-xs px-2 py-1 border rounded"
-                              >
-                                <option value="tensor">Tensor</option>
-                                <option value="image">Image</option>
-                                <option value="text">Text</option>
-                                <option value="audio">Audio</option>
-                              </select>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="입력 이름 (예: temporal_input)"
+                                    value={spec.name}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.inputSpecs];
+                                      newSpecs[index].name = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs"
+                                  />
+                                  <select
+                                    value={spec.type}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.inputSpecs];
+                                      newSpecs[index].type = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs px-2 py-1 border rounded"
+                                  >
+                                    <option value="tensor">Tensor</option>
+                                    <option value="image">Image</option>
+                                    <option value="text">Text</option>
+                                    <option value="audio">Audio</option>
+                                  </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="Shape (예: [-1, 12, 207, 2])"
+                                    value={spec.shape}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.inputSpecs];
+                                      newSpecs[index].shape = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs"
+                                  />
+                                  <select
+                                    value={spec.dtype}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.inputSpecs];
+                                      newSpecs[index].dtype = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs px-2 py-1 border rounded"
+                                  >
+                                    <option value="float32">float32</option>
+                                    <option value="float64">float64</option>
+                                    <option value="int32">int32</option>
+                                    <option value="int64">int64</option>
+                                  </select>
+                                </div>
+                                <Input
+                                  placeholder="설명 (예: 시공간 그래프 입력 데이터)"
+                                  value={spec.description}
+                                  onChange={(e) => {
+                                    const newSpecs = [...uploadConfig.inputSpecs];
+                                    newSpecs[index].description = e.target.value;
+                                    setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                  }}
+                                  className="text-xs"
+                                />
+                              </div>
+                              {uploadConfig.inputSpecs.length > 1 && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const newSpecs = uploadConfig.inputSpecs.filter((_, i) => i !== index);
+                                    setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
+                                  }}
+                                  className="ml-2 h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              )}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                placeholder="Shape (예: [-1, 12, 207, 2])"
-                                value={spec.shape}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.inputSpecs];
-                                  newSpecs[index].shape = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
-                                }}
-                                className="text-xs"
-                              />
-                              <select
-                                value={spec.dtype}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.inputSpecs];
-                                  newSpecs[index].dtype = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
-                                }}
-                                className="text-xs px-2 py-1 border rounded"
-                              >
-                                <option value="float32">float32</option>
-                                <option value="float64">float64</option>
-                                <option value="int32">int32</option>
-                                <option value="int64">int64</option>
-                              </select>
-                            </div>
-                            <Input
-                              placeholder="설명 (예: 시공간 그래프 입력 데이터)"
-                              value={spec.description}
-                              onChange={(e) => {
-                                const newSpecs = [...uploadConfig.inputSpecs];
-                                newSpecs[index].description = e.target.value;
-                                setUploadConfig(prev => ({ ...prev, inputSpecs: newSpecs }));
-                              }}
-                              className="text-xs"
-                            />
                           </div>
                         ))}
                       </div>
 
                       {/* Manual Output Specification */}
                       <div>
-                        <Label className="font-medium text-sm">출력(OUTPUT) 사양</Label>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="font-medium text-sm">출력(OUTPUT) 사양</Label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newSpec = {
+                                name: '',
+                                type: 'tensor',
+                                shape: '',
+                                dtype: 'float32',
+                                description: ''
+                              };
+                              setUploadConfig(prev => ({ 
+                                ...prev, 
+                                outputSpecs: [...prev.outputSpecs, newSpec] 
+                              }));
+                            }}
+                            className="text-xs h-6"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Output 추가
+                          </Button>
+                        </div>
                         {uploadConfig.outputSpecs.map((spec, index) => (
                           <div key={index} className="mt-2 p-3 border rounded-lg space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                placeholder="출력 이름 (예: predictions)"
-                                value={spec.name}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.outputSpecs];
-                                  newSpecs[index].name = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
-                                }}
-                                className="text-xs"
-                              />
-                              <select
-                                value={spec.type}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.outputSpecs];
-                                  newSpecs[index].type = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
-                                }}
-                                className="text-xs px-2 py-1 border rounded"
-                              >
-                                <option value="tensor">Tensor</option>
-                                <option value="classification">Classification</option>
-                                <option value="regression">Regression</option>
-                                <option value="detection">Detection</option>
-                              </select>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="출력 이름 (예: predictions)"
+                                    value={spec.name}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.outputSpecs];
+                                      newSpecs[index].name = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs"
+                                  />
+                                  <select
+                                    value={spec.type}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.outputSpecs];
+                                      newSpecs[index].type = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs px-2 py-1 border rounded"
+                                  >
+                                    <option value="tensor">Tensor</option>
+                                    <option value="classification">Classification</option>
+                                    <option value="regression">Regression</option>
+                                    <option value="detection">Detection</option>
+                                  </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="Shape (예: [-1, 12, 207, 1])"
+                                    value={spec.shape}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.outputSpecs];
+                                      newSpecs[index].shape = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs"
+                                  />
+                                  <select
+                                    value={spec.dtype}
+                                    onChange={(e) => {
+                                      const newSpecs = [...uploadConfig.outputSpecs];
+                                      newSpecs[index].dtype = e.target.value;
+                                      setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                    }}
+                                    className="text-xs px-2 py-1 border rounded"
+                                  >
+                                    <option value="float32">float32</option>
+                                    <option value="float64">float64</option>
+                                    <option value="int32">int32</option>
+                                    <option value="int64">int64</option>
+                                  </select>
+                                </div>
+                                <Input
+                                  placeholder="설명 (예: 시공간 그래프 예측 결과)"
+                                  value={spec.description}
+                                  onChange={(e) => {
+                                    const newSpecs = [...uploadConfig.outputSpecs];
+                                    newSpecs[index].description = e.target.value;
+                                    setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                  }}
+                                  className="text-xs"
+                                />
+                              </div>
+                              {uploadConfig.outputSpecs.length > 1 && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const newSpecs = uploadConfig.outputSpecs.filter((_, i) => i !== index);
+                                    setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
+                                  }}
+                                  className="ml-2 h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              )}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                placeholder="Shape (예: [-1, 12, 207, 1])"
-                                value={spec.shape}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.outputSpecs];
-                                  newSpecs[index].shape = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
-                                }}
-                                className="text-xs"
-                              />
-                              <select
-                                value={spec.dtype}
-                                onChange={(e) => {
-                                  const newSpecs = [...uploadConfig.outputSpecs];
-                                  newSpecs[index].dtype = e.target.value;
-                                  setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
-                                }}
-                                className="text-xs px-2 py-1 border rounded"
-                              >
-                                <option value="float32">float32</option>
-                                <option value="float64">float64</option>
-                                <option value="int32">int32</option>
-                                <option value="int64">int64</option>
-                              </select>
-                            </div>
-                            <Input
-                              placeholder="설명 (예: 시공간 그래프 예측 결과)"
-                              value={spec.description}
-                              onChange={(e) => {
-                                const newSpecs = [...uploadConfig.outputSpecs];
-                                newSpecs[index].description = e.target.value;
-                                setUploadConfig(prev => ({ ...prev, outputSpecs: newSpecs }));
-                              }}
-                              className="text-xs"
-                            />
                           </div>
                         ))}
                       </div>
