@@ -1,237 +1,393 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Play, FileText, Upload, Link2 } from 'lucide-react';
-
-interface AiModel {
-  id: string;
-  name: string;
-  modelType: string;
-  parameters?: string;
-  status: string;
-  uploadedAt: string;
-  folderId?: string;
-}
+import { useQuery } from '@tanstack/react-query';
+import { 
+  Database, 
+  Monitor, 
+  Brain, 
+  Target, 
+  Plus, 
+  Settings, 
+  Save,
+  Trash2,
+  Link2,
+  Eye
+} from 'lucide-react';
 
 interface ModelConfigurationTabProps {
-  model: AiModel;
+  configurationId: string;
+  onSave?: (workflow: any) => void;
 }
 
-export function ModelConfigurationTab({ model }: ModelConfigurationTabProps) {
+// Node types and interfaces
+interface NodeData {
+  id: string;
+  name: string;
+  type: 'data-source' | 'view' | 'ai-model' | 'final-goal';
+  position: { x: number; y: number };
+  config?: any;
+}
+
+interface Connection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  sourcePort: string;
+  targetPort: string;
+}
+
+export function ModelConfigurationTab({ configurationId, onSave }: ModelConfigurationTabProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'configuration' | 'execution' | 'results'>('configuration');
+  const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [selectedNode, setSelectedNode] = useState<NodeData | null>(null);
+  const [draggedItem, setDraggedItem] = useState<any>(null);
 
-  if (!model || !model.id) {
-    return (
-      <div className="p-4 text-center">
-        <p className="text-muted-foreground">모델 정보를 불러올 수 없습니다.</p>
-      </div>
-    );
-  }
+  // Get available data sources, views, and AI models
+  const { data: dataSources = [] } = useQuery({
+    queryKey: ['/api/data-sources']
+  });
 
-  const handleViewConnections = () => {
-    toast({
-      title: "연결 기능 준비 중",
-      description: "데이터 소스 연결 기능이 곧 준비됩니다."
-    });
+  const { data: views = [] } = useQuery({
+    queryKey: ['/api/views'] 
+  });
+
+  const { data: aiModels = [] } = useQuery({
+    queryKey: ['/api/ai-models']
+  });
+
+  // Initialize with Final Goal node
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setNodes([{
+        id: 'final-goal-1',
+        name: 'Final Goal',
+        type: 'final-goal',
+        position: { x: 400, y: 200 },
+        config: {
+          description: 'Final goal of the workflow',
+          outputFormat: 'json'
+        }
+      }]);
+    }
+  }, [nodes.length]);
+
+  const handleDragStart = (e: React.DragEvent, item: any, type: string) => {
+    setDraggedItem({ ...item, nodeType: type });
+    e.dataTransfer.effectAllowed = 'copy';
   };
 
-  const handleExecuteModel = () => {
-    toast({
-      title: "실행 기능 준비 중", 
-      description: "모델 실행 기능이 곧 준비됩니다."
-    });
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
   };
 
-  const handleUploadFile = () => {
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const newNode: NodeData = {
+      id: `${draggedItem.nodeType}-${Date.now()}`,
+      name: draggedItem.name,
+      type: draggedItem.nodeType,
+      position: { x, y },
+      config: {}
+    };
+
+    setNodes(prev => [...prev, newNode]);
+    setDraggedItem(null);
+  };
+
+  const handleNodeClick = (node: NodeData) => {
+    setSelectedNode(node);
+  };
+
+  const handleNodeDelete = (nodeId: string) => {
+    setNodes(prev => prev.filter(n => n.id !== nodeId));
+    setConnections(prev => prev.filter(c => c.sourceId !== nodeId && c.targetId !== nodeId));
+    if (selectedNode?.id === nodeId) {
+      setSelectedNode(null);
+    }
+  };
+
+  const handleSave = () => {
+    const workflow = {
+      nodes,
+      connections,
+      configurationId
+    };
+    
+    onSave?.(workflow);
     toast({
-      title: "업로드 기능 준비 중",
-      description: "파일 업로드 기능이 곧 준비됩니다."
+      title: "워크플로우 저장됨",
+      description: "구성이 성공적으로 저장되었습니다."
     });
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header with tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button
-            variant={activeTab === 'configuration' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('configuration')}
-            data-testid="tab-configuration"
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            설정
-          </Button>
-          <Button
-            variant={activeTab === 'execution' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('execution')}
-            data-testid="tab-execution"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            실행
-          </Button>
-          <Button
-            variant={activeTab === 'results' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('results')}
-            data-testid="tab-results"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            결과
-          </Button>
+    <div className="flex h-full bg-gray-900 text-white">
+      {/* Left Panel - Available Components */}
+      <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
+        <div className="p-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">Components</h3>
+        </div>
+        
+        <ScrollArea className="flex-1 p-4">
+          {/* Data Sources */}
+          <div className="mb-6">
+            <h4 className="text-sm font-medium mb-3 text-gray-300 flex items-center">
+              <Database className="w-4 h-4 mr-2" />
+              Data Sources
+            </h4>
+            <div className="space-y-2">
+              {dataSources.map((source: any) => (
+                <div
+                  key={source.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, source, 'data-source')}
+                  className="p-3 bg-gray-700 rounded-md cursor-move hover:bg-gray-600 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm">{source.name}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">{source.type}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Views */}
+          <div className="mb-6">
+            <h4 className="text-sm font-medium mb-3 text-gray-300 flex items-center">
+              <Monitor className="w-4 h-4 mr-2" />
+              Views
+            </h4>
+            <div className="space-y-2">
+              {views.map((view: any) => (
+                <div
+                  key={view.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, view, 'view')}
+                  className="p-3 bg-gray-700 rounded-md cursor-move hover:bg-gray-600 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Monitor className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">{view.name}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">{view.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Models */}
+          <div className="mb-6">
+            <h4 className="text-sm font-medium mb-3 text-gray-300 flex items-center">
+              <Brain className="w-4 h-4 mr-2" />
+              AI Models
+            </h4>
+            <div className="space-y-2">
+              {aiModels.map((model: any) => (
+                <div
+                  key={model.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, model, 'ai-model')}
+                  className="p-3 bg-gray-700 rounded-md cursor-move hover:bg-gray-600 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm">{model.name}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">{model.modelType}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Center Panel - Canvas */}
+      <div className="flex-1 flex flex-col">
+        <div className="p-4 border-b border-gray-700 flex items-center justify-between bg-gray-800">
+          <h3 className="text-lg font-semibold">Workflow Canvas</h3>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save
+            </Button>
+          </div>
+        </div>
+        
+        <div
+          className="flex-1 relative bg-gray-900 overflow-hidden"
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          style={{
+            backgroundImage: 'radial-gradient(circle, #374151 1px, transparent 1px)',
+            backgroundSize: '20px 20px'
+          }}
+        >
+          {/* Render Nodes */}
+          {nodes.map((node) => (
+            <div
+              key={node.id}
+              className={`absolute p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                selectedNode?.id === node.id
+                  ? 'border-blue-400 bg-gray-700'
+                  : 'border-gray-600 bg-gray-800 hover:bg-gray-700'
+              }`}
+              style={{
+                left: node.position.x,
+                top: node.position.y,
+                minWidth: '150px'
+              }}
+              onClick={() => handleNodeClick(node)}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {node.type === 'data-source' && <Database className="w-4 h-4 text-blue-400" />}
+                  {node.type === 'view' && <Monitor className="w-4 h-4 text-green-400" />}
+                  {node.type === 'ai-model' && <Brain className="w-4 h-4 text-purple-400" />}
+                  {node.type === 'final-goal' && <Target className="w-4 h-4 text-orange-400" />}
+                  <span className="text-sm font-medium">{node.name}</span>
+                </div>
+                {node.type !== 'final-goal' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNodeDelete(node.id);
+                    }}
+                    className="text-gray-400 hover:text-red-400"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+              
+              <Badge variant="outline" className="text-xs">
+                {node.type}
+              </Badge>
+              
+              {/* Connection ports */}
+              <div className="flex justify-between mt-3">
+                <div className="w-3 h-3 bg-gray-500 rounded-full border-2 border-gray-300"></div>
+                <div className="w-3 h-3 bg-gray-500 rounded-full border-2 border-gray-300"></div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Configuration Tab */}
-      {activeTab === 'configuration' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                모델 설정: {model.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델 ID:</span>
-                    <span className="text-sm text-muted-foreground">{model.id}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델 타입:</span>
-                    <Badge variant="outline">{model.modelType}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">상태:</span>
-                    <Badge variant={model.status === 'active' ? 'default' : 'secondary'}>
-                      {model.status}
-                    </Badge>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleViewConnections}
-                    data-testid="button-view-connections"
-                  >
-                    <Link2 className="w-4 h-4 mr-2" />
-                    연결 가능한 소스 보기
-                  </Button>
-                </div>
+      {/* Right Panel - Properties */}
+      <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
+        <div className="p-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold">Properties</h3>
+        </div>
+        
+        <ScrollArea className="flex-1 p-4">
+          {selectedNode ? (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-gray-300">Node Name</Label>
+                <Input
+                  value={selectedNode.name}
+                  onChange={(e) => {
+                    setSelectedNode(prev => prev ? { ...prev, name: e.target.value } : null);
+                    setNodes(prev => prev.map(n => 
+                      n.id === selectedNode.id ? { ...n, name: e.target.value } : n
+                    ));
+                  }}
+                  className="mt-1 bg-gray-700 border-gray-600 text-white"
+                />
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                실행 파일 관리
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 border rounded-lg border-dashed">
-                <div className="text-center space-y-2">
-                  <Upload className="w-8 h-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    실행을 위해 Python 파일이 필요합니다
-                  </p>
+              
+              <div>
+                <Label className="text-gray-300">Node Type</Label>
+                <Input
+                  value={selectedNode.type}
+                  disabled
+                  className="mt-1 bg-gray-700 border-gray-600 text-gray-400"
+                />
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">Position</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <Input
+                    placeholder="X"
+                    value={selectedNode.position.x}
+                    disabled
+                    className="bg-gray-700 border-gray-600 text-gray-400"
+                  />
+                  <Input
+                    placeholder="Y"
+                    value={selectedNode.position.y}
+                    disabled
+                    className="bg-gray-700 border-gray-600 text-gray-400"
+                  />
                 </div>
               </div>
               
-              <Button
-                onClick={handleUploadFile}
-                variant="outline"
-                className="w-full"
-                data-testid="button-upload-file"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Python 파일 업로드
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Execution Tab */}
-      {activeTab === 'execution' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Play className="w-5 h-5" />
-                모델 실행
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">모델:</span>
-                    <span className="text-sm text-muted-foreground">{model.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">설정:</span>
-                    <span className="text-sm text-muted-foreground">기본 설정</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">실행 파일:</span>
-                    <span className="text-sm text-muted-foreground">업로드 필요</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">연결된 데이터 소스:</span>
-                    <span className="text-sm text-muted-foreground">0 개</span>
-                  </div>
+              {selectedNode.type === 'final-goal' && (
+                <div>
+                  <Label className="text-gray-300">Description</Label>
+                  <Textarea
+                    value={selectedNode.config?.description || ''}
+                    onChange={(e) => {
+                      setSelectedNode(prev => prev ? {
+                        ...prev,
+                        config: { ...prev.config, description: e.target.value }
+                      } : null);
+                      setNodes(prev => prev.map(n => 
+                        n.id === selectedNode.id ? {
+                          ...n,
+                          config: { ...n.config, description: e.target.value }
+                        } : n
+                      ));
+                    }}
+                    className="mt-1 bg-gray-700 border-gray-600 text-white"
+                    placeholder="Describe the final goal..."
+                  />
                 </div>
+              )}
+              
+              <div className="pt-4 border-t border-gray-700">
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  onClick={() => handleNodeClick(selectedNode)}
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  View Connections
+                </Button>
               </div>
-
-              <Button
-                onClick={handleExecuteModel}
-                className="w-full"
-                data-testid="button-execute-model"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                모델 실행
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Results Tab */}
-      {activeTab === 'results' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                실행 결과
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  아직 실행 결과가 없습니다.
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  모델을 실행하면 여기에 결과가 표시됩니다.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 mt-8">
+              <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">Select a node to edit its properties</p>
+              <p className="text-xs mt-2">Drag components from the left panel to add them to the canvas</p>
+            </div>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }
-
-export default ModelConfigurationTab;

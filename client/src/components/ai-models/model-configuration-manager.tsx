@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SimpleNodeWorkflow } from '../ai-fac/simple-node-workflow';
+import { ModelConfigurationTab } from './model-configuration-tab';
 
 interface ModelConfigurationFolder {
   id: string;
@@ -180,15 +180,17 @@ export function ModelConfigurationManager({ onTestWorkflow }: ModelConfiguration
           </div>
         </div>
 
-        <SimpleNodeWorkflow 
-          configurationId={selectedConfiguration.id}
-          onSave={(workflow) => {
-            toast({
-              title: "구성 저장됨",
-              description: "워크플로우 구성이 성공적으로 저장되었습니다."
-            });
-          }}
-        />
+        <div className="bg-gray-900 rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
+          <ModelConfigurationTab 
+            configurationId={selectedConfiguration.id}
+            onSave={(workflow) => {
+              toast({
+                title: "구성 저장됨",
+                description: "워크플로우 구성이 성공적으로 저장되었습니다."
+              });
+            }}
+          />
+        </div>
       </div>
     );
   }
