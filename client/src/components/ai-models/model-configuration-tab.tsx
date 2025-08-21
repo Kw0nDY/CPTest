@@ -2914,8 +2914,8 @@ export default function ModelConfigurationTab() {
                             backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
                             borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
                           }}
-                          onClick={(e) => handleInputClick(e, node.id, input.id, input.type)}
-                          title={`${input.name} (${input.type}) - Click to connect`}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`${input.name} (${input.type})`}
                         />
                         <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
                           {input.name}
@@ -2945,8 +2945,8 @@ export default function ModelConfigurationTab() {
                           style={{ 
                             backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
                           }}
-                          onClick={(e) => handleInputClick(e, node.id, output.id, output.type)}
-                          title={`${output.name} (${output.type}) - Click to start connection`}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`${output.name} (${output.type})`}
                         />
                       </div>
                     </div>
