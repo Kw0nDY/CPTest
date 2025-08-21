@@ -3072,6 +3072,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Model Execution APIs
+  
+  // Import model execution service
+  const { modelExecutionService } = await import('./modelExecutionService');
+  
+  // Execute AI model with data
+  app.post("/api/ai-models/execute", async (req, res) => {
+    try {
+      const { modelId, configId, inputData } = req.body;
+      
+      if (!modelId || !inputData) {
+        return res.status(400).json({ 
+          error: "Missing required fields: modelId and inputData are required" 
+        });
+      }
+      
+      // Get AI model information
+      const model = await storage.getAiModel(modelId);
+      if (!model) {
+        return res.status(404).json({ error: "AI model not found" });
+      }
+      
+      // Get model configuration if provided
+      let modelConfig = null;
+      if (configId) {
+        modelConfig = await storage.getModelConfiguration(configId);
+        if (!modelConfig) {
+          return res.status(404).json({ error: "Model configuration not found" });
+        }
+      }
+      
+      // Construct model file path
+      const modelPath = path.join(__dirname, '../uploads', model.filePath);
+      
+      // Prepare execution configuration
+      const executionConfig = {
+        modelPath,
+        inputData,
+        inputSpecs: model.inputs || [],
+        outputSpecs: model.outputs || []
+      };
+      
+      console.log('🤖 Executing AI model:', {
+        modelId,
+        modelName: model.name,
+        modelPath,
+        configId,
+        inputDataKeys: Object.keys(inputData)
+      });
+      
+      // Execute the model
+      const result = await modelExecutionService.executeModel(executionConfig);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          modelId,
+          modelName: model.name,
+          results: result.results,
+          executionTime: result.executionTime,
+          message: "Model executed successfully"
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error,
+          modelId,
+          modelName: model.name
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error executing AI model:", error);
+      res.status(500).json({ 
+        error: "Failed to execute AI model",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // Get Python environment status
+  app.get("/api/ai-models/python-env", async (req, res) => {
+    try {
+      const envStatus = await modelExecutionService.checkPythonEnvironment();
+      res.json(envStatus);
+    } catch (error) {
+      console.error("Error checking Python environment:", error);
+      res.status(500).json({ 
+        error: "Failed to check Python environment",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Test model execution with sample data
+  app.post("/api/ai-models/:id/test", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sampleData } = req.body;
+      
+      // Get AI model
+      const model = await storage.getAiModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "AI model not found" });
+      }
+      
+      // Use provided sample data or create default test data
+      const testData = sampleData || {
+        graph_signal: [[1, 2, 3], [4, 5, 6]],
+        adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+      };
+      
+      // Construct model file path
+      const modelPath = path.join(__dirname, '../uploads', model.filePath);
+      
+      // Prepare execution configuration
+      const executionConfig = {
+        modelPath,
+        inputData: testData,
+        inputSpecs: model.inputs || [],
+        outputSpecs: model.outputs || []
+      };
+      
+      console.log('🧪 Testing AI model:', {
+        modelId: id,
+        modelName: model.name,
+        testDataKeys: Object.keys(testData)
+      });
+      
+      // Execute the model
+      const result = await modelExecutionService.executeModel(executionConfig);
+      
+      res.json({
+        success: result.success,
+        modelId: id,
+        modelName: model.name,
+        testData,
+        results: result.results,
+        error: result.error,
+        executionTime: result.executionTime
+      });
+      
+    } catch (error) {
+      console.error("Error testing AI model:", error);
+      res.status(500).json({ 
+        error: "Failed to test AI model",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -35,7 +35,8 @@ import {
   Link2,
   Target,
   Monitor,
-  Check
+  Check,
+  PlayCircle
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -3065,6 +3066,70 @@ export default function ModelConfigurationTab() {
                           </p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Model Test Section */}
+                {selectedNodeForDetails?.type === 'ai-model' && (
+                  <div className="mb-6">
+                    <h5 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <PlayCircle className="w-4 h-4 text-green-600" />
+                      Model Testing
+                    </h5>
+                    <div className="space-y-3">
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            console.log('🧪 Testing AI model:', selectedNodeForDetails.modelId);
+                            const response = await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/test`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                sampleData: {
+                                  graph_signal: [[1, 2, 3], [4, 5, 6]],
+                                  adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+                                }
+                              })
+                            });
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                              toast({
+                                title: "Model Test Successful",
+                                description: `Model executed in ${result.executionTime}ms`,
+                              });
+                              console.log('🎉 Model test results:', result.results);
+                            } else {
+                              toast({
+                                title: "Model Test Failed",
+                                description: result.error || "Unknown error occurred",
+                                variant: "destructive"
+                              });
+                              console.error('❌ Model test error:', result.error);
+                            }
+                          } catch (error) {
+                            toast({
+                              title: "Test Request Failed",
+                              description: "Could not connect to model execution service",
+                              variant: "destructive"
+                            });
+                            console.error('❌ Test request error:', error);
+                          }
+                        }}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <PlayCircle className="w-4 h-4 mr-2" />
+                        Test Model with Sample Data
+                      </Button>
+                      
+                      <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                        <div className="font-medium mb-1">Test Requirements:</div>
+                        <div>• Python 3.x with PyTorch installed</div>
+                        <div>• Model file accessible in uploads directory</div>
+                        <div>• Compatible input/output specifications</div>
+                      </div>
                     </div>
                   </div>
                 )}
