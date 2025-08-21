@@ -100,8 +100,6 @@ export default function Dashboard() {
         return <AIModelManagementTab activeTab={activeView} />;
       case "model-configuration":
         return <ModelConfigurationTab />;
-      case "model-configuration-new":
-        return <ModelConfigurationTabNew />;
       case "boi-overview":
       case "boi-input-setting":
       case "boi-insights":

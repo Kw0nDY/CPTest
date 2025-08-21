@@ -401,6 +401,17 @@ export default function ModelConfigurationTab() {
   const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<{nodeId: string; inputId: string} | null>(null);
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   
+  // Click-based connection states  
+  const [clickConnectionMode, setClickConnectionMode] = useState(false);
+  const [selectedSourceNode, setSelectedSourceNode] = useState<string | null>(null);
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
+  const [previewConnection, setPreviewConnection] = useState<{
+    fromNodeId: string;
+    fromOutputId: string;
+    toX: number;
+    toY: number;
+  } | null>(null);
+  
   // Delete dialog states
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<ModelNode | null>(null);
@@ -1108,6 +1119,8 @@ export default function ModelConfigurationTab() {
       return newSet;
     });
   };
+
+  // Click-based connection handlers will be defined later in the file
 
   // Connect two nodes with improved validation and management
   // New block-to-block connection function
