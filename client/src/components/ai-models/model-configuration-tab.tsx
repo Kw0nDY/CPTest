@@ -246,7 +246,7 @@ const useDataIntegrationSources = () => {
   const transformedSources = useMemo(() => {
     const sources: any[] = [];
 
-    dataSources.forEach((dataSource: any) => {
+    (dataSources as any[]).forEach((dataSource: any) => {
       if (dataSource.dataSchema && Array.isArray(dataSource.dataSchema)) {
         dataSource.dataSchema.forEach((table: any) => {
           sources.push({
@@ -847,7 +847,7 @@ export default function ModelConfigurationTab() {
         break;
       
       case 'data-input':
-        const dataSource = realDataSources.find(ds => ds.id === data?.sourceId);
+        const dataSource = (realDataSources as any[]).find((ds: any) => ds.id === data?.sourceId);
         const dataUniqueName = generateUniqueName(data?.name || 'Data Input', nodes);
         
         // Create outputs from all tables and fields in the data source
@@ -1555,7 +1555,7 @@ export default function ModelConfigurationTab() {
               nodeName: node.name,
               outputId: field.name,
               outputName: field.description,
-              description: `${field.description} from ${source.tableName || source.name}`
+              description: `${field.description} from ${(source as any).tableName || source.name}`
             });
           });
         }
