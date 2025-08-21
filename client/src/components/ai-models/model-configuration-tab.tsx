@@ -454,6 +454,12 @@ export default function ModelConfigurationTab() {
     staleTime: 30000,
   });
 
+  // Fetch model configurations
+  const { data: modelConfigurations = [], refetch: refetchConfigurations } = useQuery({
+    queryKey: ['/api/model-configurations'],
+    staleTime: 30000,
+  });
+
   // Create model configuration folder mutation
   const createFolderMutation = useMutation({
     mutationFn: async (folderData: { name: string; description: string; color?: string; icon?: string }) => {
@@ -1920,7 +1926,7 @@ export default function ModelConfigurationTab() {
   };
 
   const getFilteredConfigs = (folderId: string) => {
-    return sampleConfigurations.filter(config => config.folderId === folderId);
+    return (modelConfigurations as Configuration[]).filter(config => config.folderId === folderId);
   };
 
   const handleOpenEditor = (config: Configuration) => {
@@ -3781,21 +3787,53 @@ export default function ModelConfigurationTab() {
             </div>
             <div className="flex gap-3 pt-4">
               <Button 
-                onClick={() => {
-                  const newConfigData: Configuration = {
-                    id: `config-${Date.now()}`,
-                    name: newConfig.name,
-                    description: newConfig.description,
-                    folderId: newConfig.folderId,
-                    nodes: [],
-                    connections: [],
-                    createdAt: new Date().toISOString(),
-                    lastModified: new Date().toISOString(),
-                    status: 'draft'
-                  };
-                  handleOpenEditor(newConfigData);
-                  setShowNewConfigDialog(false);
-                  setNewConfig({ name: '', description: '', folderId: '' });
+                onClick={async () => {
+                  try {
+                    const newConfigData: Configuration = {
+                      id: `config-${Date.now()}`,
+                      name: newConfig.name,
+                      description: newConfig.description,
+                      folderId: selectedFolder?.id || '',
+                      nodes: [],
+                      connections: [],
+                      createdAt: new Date().toISOString(),
+                      lastModified: new Date().toISOString(),
+                      status: 'draft'
+                    };
+
+                    // Save to server
+                    const response = await fetch('/api/model-configurations', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify(newConfigData)
+                    });
+
+                    if (response.ok) {
+                      // Refresh the configurations list
+                      await refetchConfigurations();
+                      
+                      handleOpenEditor(newConfigData);
+                      setShowNewConfigDialog(false);
+                      setNewConfig({ name: '', description: '', folderId: '' });
+                      
+                      toast({
+                        title: "Configuration Created",
+                        description: `"${newConfig.name}" has been created successfully`,
+                      });
+                    } else {
+                      throw new Error('Failed to create configuration');
+                    }
+                  } catch (error) {
+                    console.error('Error creating configuration:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to create configuration. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
                 }}
                 disabled={!newConfig.name}
                 className="flex-1"
