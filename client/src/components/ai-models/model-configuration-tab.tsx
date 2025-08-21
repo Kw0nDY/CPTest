@@ -3454,7 +3454,7 @@ export default function ModelConfigurationTab() {
                                       const targetNodeId = selectedModelForDetails?.id || selectedNodeForDetails?.id;
                                       const targetNode = nodes.find(n => n.id === targetNodeId);
                                       if (targetNode) {
-                                        connectNodes(
+                                        connectParameters(
                                           output.nodeId, 
                                           output.outputId, 
                                           targetNode.id, 
@@ -3514,7 +3514,7 @@ export default function ModelConfigurationTab() {
                                             availableAIModels.find(m => m.id === n.modelId)?.id === selectedModelForDetails.id
                                           );
                                           if (targetNode) {
-                                            connectNodes(
+                                            connectParameters(
                                               output.nodeId, 
                                               output.outputId, 
                                               targetNode.id, 
