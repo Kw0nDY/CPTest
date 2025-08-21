@@ -57,15 +57,30 @@ export default function ViewSettingTab() {
     }
   });
 
-  // Fetch AI Model Results
-  const { data: aiModelResults = [], isLoading: isLoadingResults } = useQuery<AiModelResult[]>({
-    queryKey: ['/api/ai-model-results'],
+  // Fetch Data Sources (including AI Results)
+  const { data: dataSources = [], isLoading: isLoadingDataSources } = useQuery({
+    queryKey: ['/api/data-sources'],
     queryFn: async () => {
-      const response = await fetch('/api/ai-model-results');
-      if (!response.ok) throw new Error('Failed to fetch AI model results');
+      const response = await fetch('/api/data-sources');
+      if (!response.ok) throw new Error('Failed to fetch data sources');
       return response.json();
     }
   });
+
+  // Filter AI result data sources
+  const aiModelResults = dataSources.filter((ds: any) => ds.type === 'ai-result').map((ds: any) => ({
+    id: ds.id,
+    configurationName: ds.name,
+    status: 'completed',
+    executionType: 'ai-model',
+    executionTime: ds.config?.resultData?.processingTime || 0,
+    createdAt: ds.config?.executedAt,
+    modelId: ds.config?.modelName || 'unknown',
+    results: ds.config?.resultData,
+    resultSnippet: JSON.stringify(ds.config?.sampleData?.[0] || {}).slice(0, 100) + '...'
+  }));
+
+  const isLoadingResults = isLoadingDataSources;
 
   // Create view mutation
   const createViewMutation = useMutation({

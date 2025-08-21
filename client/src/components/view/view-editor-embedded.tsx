@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Button } from '@/components/ui/button';
@@ -49,27 +50,34 @@ function ViewEditor({ view, onClose, onSave }: ViewEditorProps) {
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const [isDataFieldsModalOpen, setIsDataFieldsModalOpen] = useState(false);
 
-  // Mock data sources
-  const availableDataSources = [
-    {
-      id: 'sap-erp',
-      name: 'SAP ERP',
-      fields: [
-        { name: 'employee_count', type: 'number', description: 'Total number of employees', sampleValues: ['1240', '985', '1560'] },
-        { name: 'department', type: 'string', description: 'Department name', sampleValues: ['Engineering', 'Sales', 'Marketing'] },
-        { name: 'budget', type: 'number', description: 'Department budget', sampleValues: ['$2.5M', '$1.2M', '$890K'] }
-      ]
-    },
-    {
-      id: 'aveva-pi',
-      name: 'AVEVA PI System',
-      fields: [
-        { name: 'temperature', type: 'number', description: 'Equipment temperature', sampleValues: ['72.5°F', '68.2°F', '75.1°F'] },
-        { name: 'pressure', type: 'number', description: 'System pressure', sampleValues: ['145 PSI', '152 PSI', '148 PSI'] },
-        { name: 'flow_rate', type: 'number', description: 'Flow rate measurement', sampleValues: ['24.8 L/min', '26.1 L/min', '23.5 L/min'] }
-      ]
+  // Fetch real data sources including AI results
+  const { data: dataSources = [] } = useQuery({
+    queryKey: ['/api/data-sources'],
+    queryFn: async () => {
+      const response = await fetch('/api/data-sources');
+      if (!response.ok) throw new Error('Failed to fetch data sources');
+      return response.json();
     }
-  ];
+  });
+
+  // Convert data sources to the expected format
+  const availableDataSources = dataSources.map((ds: any) => ({
+    id: ds.id,
+    name: ds.name,
+    type: ds.type,
+    fields: ds.config?.dataSchema?.map((table: any) => 
+      table.fields?.map((field: any) => ({
+        name: field.name,
+        type: field.type?.toLowerCase() || 'string',
+        description: field.description || `${field.name} field`,
+        sampleValues: ds.config?.sampleData ? 
+          Object.keys(ds.config.sampleData).map(tableName => 
+            ds.config.sampleData[tableName]?.slice(0, 3)?.map((row: any) => row[field.name])
+          ).flat().filter(Boolean).slice(0, 3) : []
+      }))
+    ).flat() || [],
+    category: ds.category || 'general'
+  }));
 
   const componentTypes = [
     { type: 'chart', icon: BarChart3, label: 'Chart' },
