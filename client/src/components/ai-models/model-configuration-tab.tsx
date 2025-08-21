@@ -1060,40 +1060,38 @@ export default function ModelConfigurationTab() {
     }
     
     const nodeIdToDelete = nodeToDelete.id;
-    const nodeName = nodeToDelete.name;
+    const nodeName = nodeToDelete.name || nodeToDelete.uniqueName;
     
-    console.log('🗑️ Current nodes before deletion:', nodes.length);
-    console.log('🗑️ Removing node from nodes array...');
+    console.log('🗑️ Starting deletion process for node:', nodeIdToDelete);
+    console.log('🗑️ Current nodes count:', nodes.length);
     
-    // Update nodes state - remove the deleted node
-    setNodes(prev => {
-      const filtered = prev.filter(node => node.id !== nodeIdToDelete);
-      console.log('🗑️ Nodes after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
-      console.log('🗑️ Filtered nodes IDs:', filtered.map(n => n.id));
-      return filtered;
+    // First close the dialog to prevent multiple triggers
+    setShowDeleteDialog(false);
+    setNodeToDelete(null);
+    
+    // Update both nodes and connections in a single batch
+    setNodes(prevNodes => {
+      const filteredNodes = prevNodes.filter(node => node.id !== nodeIdToDelete);
+      console.log('🗑️ Nodes updated:', prevNodes.length, '->', filteredNodes.length);
+      return filteredNodes;
     });
     
-    console.log('🗑️ Current connections before deletion:', connections.length);
-    console.log('🗑️ Removing connections...');
-    
-    // Update connections state - remove connections involving the deleted node
-    setConnections(prev => {
-      const filtered = prev.filter(conn => 
+    setConnections(prevConnections => {
+      const filteredConnections = prevConnections.filter(conn => 
         conn.fromNodeId !== nodeIdToDelete && conn.toNodeId !== nodeIdToDelete
       );
-      console.log('🗑️ Connections after filtering:', filtered.length, 'removed:', prev.length - filtered.length);
-      return filtered;
+      console.log('🗑️ Connections updated:', prevConnections.length, '->', filteredConnections.length);
+      return filteredConnections;
     });
     
-    // Clear selected node if it was the deleted one
+    // Clear any related selections
     if (selectedNode?.id === nodeIdToDelete) {
-      console.log('🗑️ Clearing selected node as it was the deleted one');
       setSelectedNode(null);
     }
     
-    console.log('🗑️ Closing dialog...');
-    setShowDeleteDialog(false);
-    setNodeToDelete(null);
+    if (selectedNodeForDetails?.id === nodeIdToDelete) {
+      setSelectedNodeForDetails(null);
+    }
     
     // Show success toast
     toast({
@@ -1101,12 +1099,7 @@ export default function ModelConfigurationTab() {
       description: `${nodeName} has been removed from the configuration.`,
     });
     
-    console.log('🗑️ Delete operation completed');
-    
-    // Force a slight delay to ensure state updates are processed
-    setTimeout(() => {
-      console.log('🗑️ Final node count after deletion:', nodes.filter(n => n.id !== nodeIdToDelete).length);
-    }, 100);
+    console.log('🗑️ Node deletion completed successfully');
   };
 
   const cancelDeleteNode = () => {
@@ -2638,10 +2631,7 @@ export default function ModelConfigurationTab() {
             </svg>
 
             {/* Nodes */}
-            {nodes.map(node => {
-              // Debug logging for node rendering
-              console.log('🎨 Rendering node:', node.id, node.name);
-              return (
+            {nodes.map(node => (
                 <div
                 key={node.id}
                 className={`absolute border rounded-lg shadow-lg z-10 ${
@@ -2654,7 +2644,7 @@ export default function ModelConfigurationTab() {
                 style={{
                   left: node.position.x,
                   top: node.position.y,
-                  width: node.width,
+                  width: Math.max(node.width, 300), // Minimum width to prevent overflow
                   minHeight: node.height,
                   zIndex: isDragging && draggedNode?.id === node.id ? 1000 : 100
                 }}
@@ -2670,11 +2660,15 @@ export default function ModelConfigurationTab() {
                   node.type === 'final-goal' ? 'bg-purple-700' :
                   'bg-purple-600'
                 }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="truncate">{node.uniqueName}</span>
+                  <div className="flex items-center justify-between min-w-0">
+                    <div className="flex flex-col min-w-0 flex-1 mr-2">
+                      <span className="truncate text-sm font-medium" title={node.uniqueName}>
+                        {node.uniqueName}
+                      </span>
                       {node.uniqueName !== node.name && (
-                        <span className="text-xs opacity-70 truncate">{node.name}</span>
+                        <span className="text-xs opacity-70 truncate" title={node.name}>
+                          {node.name}
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
@@ -2754,10 +2748,10 @@ export default function ModelConfigurationTab() {
                   
                   {/* Inputs */}
                   {node.inputs.map((input, index) => (
-                    <div key={input.id} className="flex items-center justify-between text-xs mb-1">
-                      <div className="flex items-center gap-2">
+                    <div key={input.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <div
-                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 ${
+                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
                             input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
                           } ${
                             input.connected ? 'animate-pulse' : ''
@@ -2769,9 +2763,11 @@ export default function ModelConfigurationTab() {
                           onClick={(e) => handleInputClick(e, node.id, input.id, input.type)}
                           title={`${input.name} (${input.type}) - Click to connect`}
                         />
-                        <span className="text-gray-300 truncate max-w-28">{input.name}</span>
+                        <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
+                          {input.name}
+                        </span>
                       </div>
-                      <span className="text-gray-500 text-xs">{input.type}</span>
+                      <span className="text-gray-500 text-xs flex-shrink-0 ml-1">{input.type}</span>
                     </div>
                   ))}
 
@@ -2782,12 +2778,14 @@ export default function ModelConfigurationTab() {
 
                   {/* Outputs */}
                   {node.outputs.map((output, index) => (
-                    <div key={output.id} className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-gray-500 text-xs">{output.type}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-300 truncate max-w-28">{output.name}</span>
+                    <div key={output.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <span className="text-gray-500 text-xs flex-shrink-0 mr-1">{output.type}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                        <span className="text-gray-300 truncate flex-1 min-w-0 text-right" title={output.name}>
+                          {output.name}
+                        </span>
                         <div
-                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 ${
+                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
                             output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
                           }`}
                           style={{ 
@@ -2801,8 +2799,7 @@ export default function ModelConfigurationTab() {
                   ))}
                 </div>
                 </div>
-              );
-            })}
+            ))}
 
             {/* Add Node Menu */}
             {showAddNodeMenu && (
@@ -3288,7 +3285,7 @@ export default function ModelConfigurationTab() {
                               View Possible Connections
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh]">
+                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[9999]" style={{ zIndex: 9999 }}>
                             <DialogHeader>
                               <DialogTitle>Connect to "{input.name}" ({input.type})</DialogTitle>
                               <DialogDescription>
@@ -3651,30 +3648,30 @@ export default function ModelConfigurationTab() {
 
       {/* Delete Node Confirmation Dialog - HIGHEST PRIORITY */}
       {showDeleteDialog && (
-        <>
+        <div 
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ 
+            zIndex: 9999999,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+        >
+          {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black bg-opacity-70"
-            style={{ 
-              zIndex: 999999,
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0
-            }}
+            className="absolute inset-0 bg-black bg-opacity-70"
             onClick={() => {
               console.log('🗑️ Background clicked, canceling delete');
               cancelDeleteNode();
             }}
           />
+          
+          {/* Dialog Content */}
           <div 
-            className="fixed top-1/2 left-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
+            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
             style={{ 
-              zIndex: 999999,
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
               minWidth: '400px'
             }}
           >
@@ -3707,7 +3704,7 @@ export default function ModelConfigurationTab() {
               </Button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Configuration Validation Details Modal */}
