@@ -113,33 +113,32 @@ export default function AIModelManagementTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 space-y-6">
+    <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between py-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">AI Model Management</h2>
-          <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">AI Model Management</h1>
+            <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
+          </div>
+          <Button 
+            onClick={() => setShowUploadDialog(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            data-testid="button-upload-model"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Upload Model
+          </Button>
         </div>
-        <Button 
-          onClick={() => setShowUploadDialog(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-upload-model"
-        >
-          <Upload className="w-4 h-4 mr-2" />
-          Upload Model
-        </Button>
-      </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex justify-center mb-8">
-          <TabsList className="grid grid-cols-2 w-96 h-12 bg-gray-100">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-2 w-80 h-10 bg-gray-100">
             <TabsTrigger value="uploaded" className="text-sm font-medium">Uploaded Models</TabsTrigger>
             <TabsTrigger value="prebuilt" className="text-sm font-medium">Pre-built AI Models</TabsTrigger>
           </TabsList>
-        </div>
 
-        <TabsContent value="uploaded" className="space-y-8">
+          <TabsContent value="uploaded" className="space-y-8 mt-6">
           {/* Central Upload Section */}
           <div className="flex justify-center">
             <div className="w-full max-w-2xl">
@@ -248,14 +247,15 @@ export default function AIModelManagementTab() {
               </Card>
             ))}
           </div>
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="prebuilt" className="space-y-6">
-          <div className="text-center py-12">
-            <p className="text-gray-500">Pre-built AI models coming soon.</p>
-          </div>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="prebuilt" className="space-y-6 mt-6">
+            <div className="text-center py-12">
+              <p className="text-gray-500">Pre-built AI models coming soon.</p>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Enhanced Upload Dialog */}
       <EnhancedModelUpload 
