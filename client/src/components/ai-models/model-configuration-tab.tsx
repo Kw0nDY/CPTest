@@ -1053,37 +1053,17 @@ export default function ModelConfigurationTab() {
     console.log('🗑️ Delete dialog should be visible now');
   };
 
-  const deleteNode = () => {
-    console.log('🗑️ Delete confirmed, nodeToDelete:', nodeToDelete);
-    if (!nodeToDelete) {
-      console.log('🗑️ No node to delete, returning early');
-      return;
-    }
+  const deleteNodeDirectly = (nodeToDelete: ModelNode) => {
+    if (!nodeToDelete) return;
     
     const nodeIdToDelete = nodeToDelete.id;
     const nodeName = nodeToDelete.name || nodeToDelete.uniqueName;
     
-    console.log('🗑️ Starting deletion process for node:', nodeIdToDelete);
-    console.log('🗑️ Current nodes count:', nodes.length);
-    
-    // First close the dialog to prevent multiple triggers
-    setShowDeleteDialog(false);
-    setNodeToDelete(null);
-    
-    // Update both nodes and connections in a single batch
-    setNodes(prevNodes => {
-      const filteredNodes = prevNodes.filter(node => node.id !== nodeIdToDelete);
-      console.log('🗑️ Nodes updated:', prevNodes.length, '->', filteredNodes.length);
-      return filteredNodes;
-    });
-    
-    setConnections(prevConnections => {
-      const filteredConnections = prevConnections.filter(conn => 
-        conn.fromNodeId !== nodeIdToDelete && conn.toNodeId !== nodeIdToDelete
-      );
-      console.log('🗑️ Connections updated:', prevConnections.length, '->', filteredConnections.length);
-      return filteredConnections;
-    });
+    // Update both nodes and connections
+    setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeIdToDelete));
+    setConnections(prevConnections => prevConnections.filter(conn => 
+      conn.fromNodeId !== nodeIdToDelete && conn.toNodeId !== nodeIdToDelete
+    ));
     
     // Clear any related selections
     if (selectedNode?.id === nodeIdToDelete) {
@@ -1099,8 +1079,6 @@ export default function ModelConfigurationTab() {
       title: "Node Deleted",
       description: `${nodeName} has been removed from the configuration.`,
     });
-    
-    console.log('🗑️ Node deletion completed successfully');
   };
 
   const cancelDeleteNode = () => {
@@ -2704,7 +2682,9 @@ export default function ModelConfigurationTab() {
                         className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-200 hover:text-red-100"
                         onClick={(e) => {
                           e.stopPropagation();
-                          initiateDeleteNode(node.id);
+                          if (window.confirm(`Delete "${node.uniqueName}"? This action cannot be undone.`)) {
+                            deleteNodeDirectly(node);
+                          }
                         }}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -2935,8 +2915,7 @@ export default function ModelConfigurationTab() {
                       const name = selectedModelForDetails?.name || selectedNodeForDetails?.uniqueName;
                       if (window.confirm(`Delete "${name}"?`)) {
                         if (selectedNodeForDetails) {
-                          setNodeToDelete(selectedNodeForDetails);
-                          deleteNode();
+                          deleteNodeDirectly(selectedNodeForDetails);
                         }
                         toast({
                           title: "Node Deleted",
@@ -3647,56 +3626,7 @@ export default function ModelConfigurationTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Node Confirmation Dialog - Using Portal */}
-      {showDeleteDialog && createPortal(
-        <div 
-          className="fixed inset-0 flex items-center justify-center"
-          style={{ 
-            zIndex: 999999,
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0
-          }}
-          onClick={() => cancelDeleteNode()}
-        >
-          {/* Dialog Content */}
-          <div 
-            className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-2xl max-w-md w-full mx-4 border-2 border-red-500"
-            style={{ 
-              minWidth: '400px',
-              zIndex: 999999
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold mb-3 text-red-600">⚠️ Delete Node</h2>
-            <p className="text-gray-700 dark:text-gray-300 mb-6">
-              Are you sure you want to delete "<strong>{nodeToDelete?.uniqueName}</strong>" from the canvas? 
-              <br/>
-              This action cannot be undone and will remove all connections to this node.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={cancelDeleteNode}
-                className="border-gray-300"
-              >
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive"
-                onClick={deleteNode}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold"
-              >
-                🗑️ Delete
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Note: Delete functionality now uses browser's native confirm dialog for simplicity and reliability */}
 
       {/* Configuration Validation Details Modal */}
       <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
