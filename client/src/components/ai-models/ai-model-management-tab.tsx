@@ -373,20 +373,77 @@ export default function AIModelManagementTab() {
           </div>
         )}
 
+        {/* Unorganized Models */}
+        {getUnorganizedModels().length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Unorganized Models</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {getUnorganizedModels().map((model) => (
+                <Card key={model.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <Brain className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-semibold">{model.name}</h4>
+                          <p className="text-sm text-gray-500">{model.fileName}</p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" data-testid={`button-unorganized-model-actions-${model.id}`}>
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => handleDeleteModel(model.id)}
+                            data-testid={`button-delete-unorganized-model-${model.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            모델 삭제
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      {getStatusBadge(model.status)}
+                      <Badge variant="outline" className="text-xs">{model.modelType}</Badge>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Uploaded {new Date(model.uploadedAt).toLocaleDateString()}</p>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Empty State */}
-        {folders.length === 0 && (
+        {folders.length === 0 && getUnorganizedModels().length === 0 && (
           <div>
             <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
               <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Folders Created</h3>
-              <p className="text-gray-600 mb-4">Create your first folder to organize your AI models</p>
-              <Button 
-                onClick={() => setShowFolderDialog(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Folder
-              </Button>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Models Found</h3>
+              <p className="text-gray-600 mb-4">Upload your first AI model or create a folder to organize them</p>
+              <div className="flex gap-2 justify-center">
+                <Button 
+                  onClick={() => setShowUpload(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Model
+                </Button>
+                <Button 
+                  onClick={() => setShowFolderDialog(true)}
+                  variant="outline"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Folder
+                </Button>
+              </div>
             </div>
           </div>
         )}

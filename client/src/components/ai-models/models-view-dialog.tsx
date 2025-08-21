@@ -6,15 +6,25 @@ import {
   DialogTitle 
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Brain, 
   FileText, 
   Calendar, 
   HardDrive,
   Activity,
-  Zap
+  Zap,
+  Trash2,
+  MoreVertical
 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
@@ -48,6 +58,9 @@ interface ModelsViewDialogProps {
 }
 
 export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   // Fetch models for this folder
   const { data: models = [], isLoading } = useQuery({
     queryKey: ['/api/ai-model-folders', folder?.id, 'models'],
@@ -59,6 +72,30 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
     },
     enabled: !!folder && isOpen
   });
+
+  // Delete model mutation
+  const deleteModelMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      const response = await fetch(`/api/ai-models/${modelId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete model');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders', folder?.id, 'models'] });
+      toast({ title: '성공', description: '모델이 성공적으로 삭제되었습니다' });
+    },
+    onError: () => {
+      toast({ title: '오류', description: '모델 삭제에 실패했습니다', variant: 'destructive' });
+    }
+  });
+
+  const handleDeleteModel = (modelId: string, modelName: string) => {
+    if (confirm(`정말로 "${modelName}" 모델을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      deleteModelMutation.mutate(modelId);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -140,6 +177,23 @@ export function ModelsViewDialog({ isOpen, onClose, folder }: ModelsViewDialogPr
                         <Badge variant="outline" data-testid={`badge-model-type-${model.id}`}>
                           {model.modelType}
                         </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" data-testid={`button-model-actions-${model.id}`}>
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => handleDeleteModel(model.id, model.name)}
+                              data-testid={`button-delete-model-${model.id}`}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              모델 삭제
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </CardHeader>
