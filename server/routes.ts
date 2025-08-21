@@ -3601,8 +3601,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'AI model not found' });
       }
 
-      // Get model analysis results if available
-      const analysisResult = await modelAnalysisService.getAnalysisResult(id);
+      // Get parsed inputs/outputs from config file if available
+      let inputs = [];
+      let outputs = [];
+      let modelInfo = null;
+
+      if (model.configFilePath && fs.existsSync(model.configFilePath)) {
+        try {
+          const configContent = fs.readFileSync(model.configFilePath, 'utf8');
+          let configData;
+          
+          if (model.configFilePath.endsWith('.json')) {
+            configData = JSON.parse(configContent);
+          } else {
+            // Parse YAML
+            const yaml = await import('js-yaml');
+            configData = yaml.load(configContent);
+          }
+
+          if (configData.inputs) {
+            inputs = configData.inputs;
+          }
+          if (configData.outputs) {
+            outputs = configData.outputs;
+          }
+          if (configData.modelInfo) {
+            modelInfo = configData.modelInfo;
+          }
+        } catch (error) {
+          console.warn('Could not parse config file:', error);
+        }
+      }
       
       const details = {
         id: model.id,
@@ -3610,13 +3639,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: model.fileName,
         modelType: model.modelType,
         status: model.status,
-        analysisStatus: model.analysisStatus,
         uploadedAt: model.createdAt,
         fileSize: model.fileSize,
-        accuracy: model.accuracy,
-        inputs: analysisResult?.inputs || [],
-        outputs: analysisResult?.outputs || [],
-        modelInfo: analysisResult?.modelInfo || null,
+        inputs: inputs,
+        outputs: outputs,
+        modelInfo: modelInfo,
         configFilePath: model.configFilePath
       };
 
