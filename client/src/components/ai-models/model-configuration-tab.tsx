@@ -39,7 +39,7 @@ import {
   Check,
   PlayCircle
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface ViewData {
   id: string;
@@ -413,6 +413,7 @@ export default function ModelConfigurationTab() {
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [newFolder, setNewFolder] = useState({ name: '', description: '' });
   const [newConfig, setNewConfig] = useState({ name: '', description: '', folderId: '' });
@@ -442,9 +443,34 @@ export default function ModelConfigurationTab() {
   });
 
   // Fetch AI model folders
-  const { data: aiModelFolders = [] } = useQuery({
+  const { data: aiModelFolders = [], refetch: refetchFolders } = useQuery({
     queryKey: ['/api/ai-model-folders'],
     staleTime: 30000,
+  });
+
+  // Create folder mutation
+  const createFolderMutation = useMutation({
+    mutationFn: async (folderData: { name: string; description: string; color?: string; icon?: string }) => {
+      const response = await fetch('/api/ai-model-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: folderData.name,
+          description: folderData.description,
+          color: folderData.color || '#3b82f6',
+          icon: folderData.icon || 'FolderOpen'
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create folder');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-model-folders'] });
+      refetchFolders();
+    },
   });
 
   // Fetch real data integration sources directly
@@ -3462,7 +3488,7 @@ export default function ModelConfigurationTab() {
       {!selectedFolder ? (
         // Folder grid view
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sampleFolders.map((folder) => (
+          {(aiModelFolders as any[]).map((folder) => (
             <Card key={folder.id} className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -3470,13 +3496,13 @@ export default function ModelConfigurationTab() {
                     <Folder className="w-5 h-5 text-blue-600" />
                     <CardTitle className="text-lg">{folder.name}</CardTitle>
                   </div>
-                  <Badge variant="secondary">{folder.configCount} configs</Badge>
+                  <Badge variant="secondary">0 configs</Badge>
                 </div>
                 <p className="text-sm text-gray-600">{folder.description}</p>
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-500 mb-4">
-                  Created: {new Date(folder.createdAt).toLocaleDateString()}
+                  Created: {new Date(folder.createdAt || Date.now()).toLocaleDateString()}
                 </div>
                 <Button
                   variant="outline"
@@ -3504,10 +3530,10 @@ export default function ModelConfigurationTab() {
             </Button>
             <div>
               <h2 className="text-xl font-bold text-gray-900">
-                {sampleFolders.find(f => f.id === selectedFolder)?.name}
+                {(aiModelFolders as any[]).find(f => f.id === selectedFolder)?.name}
               </h2>
               <p className="text-gray-600">
-                {sampleFolders.find(f => f.id === selectedFolder)?.description}
+                {(aiModelFolders as any[]).find(f => f.id === selectedFolder)?.description}
               </p>
             </div>
             <Button 
@@ -3597,15 +3623,30 @@ export default function ModelConfigurationTab() {
             </div>
             <div className="flex gap-3 pt-4">
               <Button 
-                onClick={() => {
-                  toast({ title: "Success", description: "Folder created successfully" });
-                  setShowNewFolderDialog(false);
-                  setNewFolder({ name: '', description: '' });
+                onClick={async () => {
+                  try {
+                    await createFolderMutation.mutateAsync({
+                      name: newFolder.name,
+                      description: newFolder.description
+                    });
+                    toast({ 
+                      title: "Success", 
+                      description: "Folder created successfully" 
+                    });
+                    setShowNewFolderDialog(false);
+                    setNewFolder({ name: '', description: '' });
+                  } catch (error) {
+                    toast({ 
+                      title: "Error", 
+                      description: "Failed to create folder",
+                      variant: "destructive"
+                    });
+                  }
                 }}
-                disabled={!newFolder.name}
+                disabled={!newFolder.name || createFolderMutation.isPending}
                 className="flex-1"
               >
-                Create Folder
+                {createFolderMutation.isPending ? 'Creating...' : 'Create Folder'}
               </Button>
               <Button 
                 variant="outline" 
