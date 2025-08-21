@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ChevronDown, User, LogOut, Settings, Shield } from 'lucide-react';
+import { ChevronDown, User, LogOut, Settings, Shield, MessageCircle } from 'lucide-react';
+import ChatBot from '@/components/chat/chatbot';
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ interface HeaderProps {
 }
 
 export default function Header({ currentUser, onUserChange }: HeaderProps) {
+  const [isChatBotOpen, setIsChatBotOpen] = useState(false);
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
@@ -56,6 +58,17 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* ChatBot Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-blue-500 hover:text-white"
+            onClick={() => setIsChatBotOpen(!isChatBotOpen)}
+            data-testid="chatbot-toggle"
+          >
+            <MessageCircle className="h-5 w-5" />
+          </Button>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="flex items-center space-x-2 text-white hover:bg-blue-500 hover:text-white" data-testid="user-menu-trigger">
@@ -103,6 +116,12 @@ export default function Header({ currentUser, onUserChange }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* ChatBot Component */}
+      <ChatBot 
+        isOpen={isChatBotOpen} 
+        onClose={() => setIsChatBotOpen(false)} 
+      />
     </header>
   );
 }

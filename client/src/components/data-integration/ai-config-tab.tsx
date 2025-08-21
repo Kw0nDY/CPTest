@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressIndicator } from "@/components/ui/progress-indicator";
-import { CloudUpload, CheckCircle } from "lucide-react";
+import { CloudUpload, CheckCircle, Monitor, BarChart3, TrendingUp } from "lucide-react";
 import { type AiModel } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,12 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
   });
 
   const [testResult, setTestResult] = useState<ModelTestOutput | null>(null);
+  const [showAddToViewDialog, setShowAddToViewDialog] = useState(false);
+  const [newViewForm, setNewViewForm] = useState({
+    name: '',
+    description: '',
+    chartType: 'bar'
+  });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -63,11 +70,37 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
     onSuccess: (data) => {
       if (data.success) {
         setTestResult(data.prediction);
+        setNewViewForm(prev => ({
+          ...prev,
+          name: `AI Model Test Result - ${new Date().toLocaleString('ko-KR')}`
+        }));
         toast({ title: "테스트 성공", description: "모델이 정상적으로 작동합니다." });
       }
     },
     onError: () => {
       toast({ title: "테스트 실패", description: "모델 테스트에 실패했습니다.", variant: "destructive" });
+    },
+  });
+
+  const addToViewMutation = useMutation({
+    mutationFn: async (viewData: any) => {
+      const response = await apiRequest('POST', '/api/views', viewData);
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowAddToViewDialog(false);
+      toast({ 
+        title: "View 추가 성공", 
+        description: "AI 모델 테스트 결과가 View Setting에 추가되었습니다." 
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/views'] });
+    },
+    onError: () => {
+      toast({ 
+        title: "View 추가 실패", 
+        description: "View 추가에 실패했습니다.", 
+        variant: "destructive" 
+      });
     },
   });
 
@@ -100,6 +133,52 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
       const model = aiModels[0];
       testModelMutation.mutate({ modelId: model.id, input: testInput });
     }
+  };
+
+  const handleAddToView = () => {
+    if (!testResult) return;
+    
+    const viewData = {
+      name: newViewForm.name,
+      description: newViewForm.description,
+      type: 'ai-model-result',
+      chartType: newViewForm.chartType,
+      data: {
+        testInput,
+        testResult,
+        timestamp: new Date().toISOString(),
+        modelInfo: aiModels[0]
+      },
+      components: [
+        {
+          id: 'result-chart',
+          type: 'chart',
+          position: { x: 0, y: 0, w: 6, h: 4 },
+          config: {
+            title: newViewForm.name,
+            chartType: newViewForm.chartType,
+            data: [
+              { name: 'Customer Segment', value: testResult.customer_segment },
+              { name: 'Confidence Score', value: parseFloat(testResult.confidence_score) * 100 }
+            ]
+          }
+        },
+        {
+          id: 'result-metrics',
+          type: 'metrics',
+          position: { x: 6, y: 0, w: 6, h: 4 },
+          config: {
+            title: 'Test Results',
+            metrics: [
+              { label: 'Segment', value: testResult.customer_segment },
+              { label: 'Confidence', value: `${(parseFloat(testResult.confidence_score) * 100).toFixed(1)}%` }
+            ]
+          }
+        }
+      ]
+    };
+
+    addToViewMutation.mutate(viewData);
   };
 
   return (
@@ -341,12 +420,94 @@ export default function AiConfigTab({ onNext, onPrev }: AiConfigTabProps) {
               </div>
               
               {testResult && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">Test Successful</span>
+                <div className="mt-4 space-y-3">
+                  <div className="p-3 bg-green-50 border border-green-200 rounded">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Test Successful</span>
+                    </div>
+                    <p className="text-sm text-green-700 mt-1">Model is working correctly.</p>
                   </div>
-                  <p className="text-sm text-green-700 mt-1">Model is working correctly.</p>
+                  
+                  <Dialog open={showAddToViewDialog} onOpenChange={setShowAddToViewDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full" variant="outline">
+                        <Monitor className="w-4 h-4 mr-2" />
+                        Add to View Setting
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Add Test Result to View</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="view-name">View Name</Label>
+                          <Input
+                            id="view-name"
+                            value={newViewForm.name}
+                            onChange={(e) => setNewViewForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="AI Model Test Result Dashboard"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="view-description">Description</Label>
+                          <Textarea
+                            id="view-description"
+                            value={newViewForm.description}
+                            onChange={(e) => setNewViewForm(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder="Dashboard showing AI model prediction results"
+                            rows={3}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="chart-type">Chart Type</Label>
+                          <Select
+                            value={newViewForm.chartType}
+                            onValueChange={(value) => setNewViewForm(prev => ({ ...prev, chartType: value }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="bar">
+                                <div className="flex items-center">
+                                  <BarChart3 className="w-4 h-4 mr-2" />
+                                  Bar Chart
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="line">
+                                <div className="flex items-center">
+                                  <TrendingUp className="w-4 h-4 mr-2" />
+                                  Line Chart
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="pie">
+                                <div className="flex items-center">
+                                  <Monitor className="w-4 h-4 mr-2" />
+                                  Pie Chart
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowAddToViewDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleAddToView}
+                            disabled={!newViewForm.name || addToViewMutation.isPending}
+                          >
+                            {addToViewMutation.isPending ? 'Adding...' : 'Add View'}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </div>
