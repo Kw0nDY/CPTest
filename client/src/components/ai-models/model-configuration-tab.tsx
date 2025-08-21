@@ -1128,13 +1128,17 @@ export default function ModelConfigurationTab() {
             id: `${id}-input-goal`,
             name: 'Goal Input',
             type: 'object',
-            connected: false,
             active: false
           }],
-          outputs: [],
+          outputs: [{
+            id: `${id}-output-result`,
+            name: 'Goal Result',
+            type: 'object',
+            active: false
+          }],
           status: 'ready',
           width: Math.max(250, calculateNodeWidth(goalUniqueName, true)),
-          height: 160,
+          height: 120,
           goalInput: '' // Initialize with empty string
         };
         break;
@@ -1645,11 +1649,11 @@ export default function ModelConfigurationTab() {
       const goalInputs = finalGoalNodes.map(goalNode => ({
         nodeId: goalNode.id,
         nodeName: goalNode.name,
-        goalRequest: goalNode.goalRequest || ''
+        goalRequest: ''
       }));
 
       console.log('Executing model configuration with:', {
-        configurationId: selectedConfiguration?.id,
+        configurationId: currentConfig?.id,
         nodes: nodes.length,
         connections: connections.length,
         goalInputs: goalInputs.length
@@ -1662,7 +1666,7 @@ export default function ModelConfigurationTab() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          configurationId: selectedConfiguration?.id,
+          configurationId: currentConfig?.id,
           nodes: nodes,
           connections: connections,
           goalInputs: goalInputs
@@ -3450,32 +3454,8 @@ export default function ModelConfigurationTab() {
                   
                   {/* Final Goal Icon and Input */}
                   {node.type === 'final-goal' && (
-                    <div className="mb-3">
-                      <div className="flex items-center justify-center mb-2">
-                        <Target className="w-8 h-8 text-purple-400" />
-                      </div>
-                      <div className="px-1">
-                        <Label className="text-xs text-gray-400 mb-1 block">Parameter Optimization Goal:</Label>
-                        <textarea
-                          className="w-full h-20 px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200 resize-none focus:outline-none focus:border-purple-400"
-                          placeholder=""
-                          value={node.goalRequest || ''}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            setNodes(prev => prev.map(n => 
-                              n.id === node.id 
-                                ? { ...n, goalRequest: e.target.value }
-                                : n
-                            ));
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onFocus={(e) => e.stopPropagation()}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          KPI 목표값을 입력하면 최적 파라미터를 예측합니다
-                        </div>
-                      </div>
+                    <div className="flex items-center justify-center mb-2">
+                      <Target className="w-8 h-8 text-purple-400" />
                     </div>
                   )}
                   
