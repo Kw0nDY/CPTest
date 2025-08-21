@@ -445,30 +445,30 @@ export default function ModelConfigurationTab() {
     }
     
     autoSaveTimeoutRef.current = setTimeout(async () => {
-      if (hasUnsavedChanges && selectedConfiguration && !isSaving) {
+      if (hasUnsavedChanges && currentConfig && !isSaving) {
         await performAutoSave();
       }
     }, 2000); // Auto-save 2 seconds after last change
-  }, [hasUnsavedChanges, selectedConfiguration, isSaving]);
+  }, [hasUnsavedChanges, currentConfig, isSaving]);
 
   // Perform the actual auto-save
   const performAutoSave = async () => {
-    if (!selectedConfiguration || isSaving) return;
+    if (!currentConfig || isSaving) return;
     
     setIsSaving(true);
     try {
       const configurationData = {
-        name: selectedConfiguration.name,
-        description: selectedConfiguration.description,
-        folderId: selectedConfiguration.folderId,
-        modelId: selectedConfiguration.modelId,
+        name: currentConfig.name,
+        description: currentConfig.description,
+        folderId: currentConfig.folderId,
+        modelId: currentConfig.modelId,
         nodes: JSON.stringify(nodes),
         connections: JSON.stringify(connections),
         status: 'draft' as const,
         updatedAt: new Date().toISOString()
       };
 
-      await fetch(`/api/model-configurations/${selectedConfiguration.id}`, {
+      await fetch(`/api/model-configurations/${currentConfig.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
