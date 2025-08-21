@@ -3,7 +3,7 @@ import { EnhancedModelUpload } from './enhanced-model-upload';
 import { FolderCreationDialog } from './folder-creation-dialog';
 import { FolderEditDialog } from './folder-edit-dialog';
 import { ModelsViewDialog } from './models-view-dialog';
-import { SimpleNodeWorkflow } from '../ai-fac/simple-node-workflow';
+import { ModelConfigurationManager } from './model-configuration-manager';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -245,41 +245,9 @@ export default function AIModelManagementTab({ activeTab }: AIModelManagementTab
     );
   }
 
-  // Model Configuration Tab - render node workflow editor
+  // Model Configuration Tab - render configuration management
   if (activeTab === 'model-configuration') {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Model Configuration</h1>
-          <p className="text-gray-600 mt-1">Configure AI model workflows with visual node editor</p>
-        </div>
-        
-        <div className="mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="outline"
-                className="flex items-center space-x-2"
-                data-testid="button-test-workflow"
-                onClick={handleTestWorkflow}
-              >
-                <Play className="w-4 h-4" />
-                <span>Test</span>
-              </Button>
-              <Button 
-                variant="outline"
-                className="flex items-center space-x-2"
-              >
-                <Save className="w-4 h-4" />
-                <span>Save</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <SimpleNodeWorkflow />
-      </div>
-    );
+    return <ModelConfigurationManager onTestWorkflow={handleTestWorkflow} />;
   }
 
   // Model Upload Tab - render folder management and upload interface
