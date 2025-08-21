@@ -113,9 +113,9 @@ export default function AIModelManagementTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between py-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">AI Model Management</h2>
           <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
