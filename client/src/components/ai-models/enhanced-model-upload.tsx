@@ -259,10 +259,17 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
 
       setUploadProgress({ stage: 'uploading', progress: 50, message: 'Uploading files...' });
       
-      const response = await apiRequest('/api/ai-models/upload', {
+      // For FormData uploads, we need to use fetch directly to avoid JSON headers
+      const response = await fetch('/api/ai-models/enhanced-upload', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+      }
 
       setUploadProgress({ stage: 'parsing', progress: 75, message: 'Processing model...' });
       

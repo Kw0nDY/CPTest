@@ -2452,6 +2452,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for enhanced uploads (model + config files)
+  const enhancedUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 500 * 1024 * 1024, // 500MB limit
+      files: 10 // Max 10 files
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedExtensions = [
+        '.pth', '.pt', '.onnx', '.h5', '.pb', '.tflite', '.pkl', '.pickle', // Model files
+        '.json', '.yaml', '.yml' // Config files
+      ];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowedExtensions.includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`File type ${ext} not supported. Supported formats: ${allowedExtensions.join(', ')}`));
+      }
+    }
+  });
+
   // AI Models API
   app.get('/api/ai-models', async (req, res) => {
     try {
@@ -2547,6 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /* Original single file upload endpoint - replaced by enhanced multi-file upload
   app.post('/api/ai-models/upload', upload.single('model'), async (req, res) => {
     try {
       if (!req.file) {
@@ -2693,6 +2715,236 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Error uploading model:', error);
+      res.status(500).json({ error: 'Failed to upload model' });
+    }
+  }); */
+
+  // Enhanced AI Model Upload with multiple files support
+  app.post('/api/ai-models/upload', enhancedUpload.array('files'), async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files provided' });
+      }
+
+      const { name, description, type, parsedConfig } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: 'Model name is required' });
+      }
+
+      console.log(`Enhanced upload request for model: ${name}`);
+      console.log(`Files received: ${req.files.length}`);
+
+      const files = req.files as Express.Multer.File[];
+      let modelFile: Express.Multer.File | null = null;
+      let configFile: Express.Multer.File | null = null;
+      let configData: any = null;
+
+      // Categorize uploaded files
+      for (const file of files) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const isModelFile = ['.pth', '.pt', '.onnx', '.h5', '.pb', '.tflite', '.pkl', '.pickle'].includes(ext);
+        const isConfigFile = ['.json', '.yaml', '.yml'].includes(ext);
+
+        if (isModelFile && !modelFile) {
+          modelFile = file;
+          console.log(`Model file found: ${file.originalname}`);
+        } else if (isConfigFile && !configFile) {
+          configFile = file;
+          console.log(`Config file found: ${file.originalname}`);
+        }
+      }
+
+      if (!modelFile) {
+        return res.status(400).json({ error: 'No valid model file provided' });
+      }
+
+      // Parse config file if provided
+      if (configFile) {
+        try {
+          const configContent = configFile.buffer.toString('utf-8');
+          const ext = path.extname(configFile.originalname).toLowerCase();
+          
+          if (ext === '.json') {
+            configData = JSON.parse(configContent);
+          } else if (['.yaml', '.yml'].includes(ext)) {
+            // For YAML files, we'll need to parse them properly
+            // For now, we'll treat them as text and try to parse as JSON if possible
+            try {
+              configData = JSON.parse(configContent);
+            } catch {
+              configData = { content: configContent, type: 'yaml' };
+            }
+          }
+          console.log('Config file parsed successfully');
+        } catch (error) {
+          console.error('Error parsing config file:', error);
+          configData = null;
+        }
+      }
+
+      // If parsedConfig is provided from the frontend, use that instead
+      if (parsedConfig) {
+        try {
+          configData = JSON.parse(parsedConfig);
+          console.log('Using parsed config from frontend');
+        } catch (error) {
+          console.error('Error parsing frontend config:', error);
+        }
+      }
+
+      // Save uploaded model file temporarily
+      const tempFilePath = await modelAnalysisService.saveUploadedFile(
+        modelFile.buffer,
+        modelFile.originalname
+      );
+
+      // Determine model type from file extension
+      const modelType = path.extname(modelFile.originalname).toLowerCase();
+      const typeMap: { [key: string]: string } = {
+        '.pth': 'pytorch',
+        '.pt': 'pytorch',
+        '.onnx': 'onnx',
+        '.h5': 'tensorflow',
+        '.pb': 'tensorflow',
+        '.tflite': 'tensorflow',
+        '.pkl': 'sklearn',
+        '.pickle': 'sklearn'
+      };
+
+      // Extract input/output specs from config if available
+      let inputSpecs = [];
+      let outputSpecs = [];
+      let metadata = {};
+
+      if (configData) {
+        if (configData.inputs || configData.input) {
+          inputSpecs = configData.inputs || configData.input || [];
+        }
+        if (configData.outputs || configData.output) {
+          outputSpecs = configData.outputs || configData.output || [];
+        }
+        if (configData.metadata) {
+          metadata = configData.metadata;
+        }
+      }
+
+      // Create AI model record
+      const modelData = {
+        name,
+        description: description || '',
+        fileName: modelFile.originalname,
+        fileSize: modelFile.size,
+        modelType: type || typeMap[modelType] || 'unknown',
+        status: configData ? 'completed' as const : 'processing' as const,
+        filePath: tempFilePath,
+        analysisStatus: configData ? 'completed' as const : 'pending' as const,
+        inputSpecs: inputSpecs.length > 0 ? inputSpecs : undefined,
+        outputSpecs: outputSpecs.length > 0 ? outputSpecs : undefined,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        analyzedAt: configData ? new Date() : undefined
+      };
+
+      const createdModel = await storage.createAiModel(modelData);
+      console.log(`Model created with ID: ${createdModel.id}`);
+
+      // Generate config file if we have enough information
+      if (configData || (inputSpecs.length > 0 && outputSpecs.length > 0)) {
+        try {
+          const configToGenerate = {
+            id: createdModel.id,
+            name: createdModel.name,
+            framework: typeMap[modelType] || 'pytorch',
+            filePath: tempFilePath,
+            inputSpecs: inputSpecs,
+            outputSpecs: outputSpecs,
+            metadata: metadata
+          };
+          
+          const generatedConfigData = await modelConfigService.generateConfig(configToGenerate);
+          const configFilePath = await modelConfigService.saveConfigFile(createdModel.id, generatedConfigData);
+          
+          // Update model with config file path
+          await storage.updateAiModel(createdModel.id, {
+            configFilePath: configFilePath
+          });
+          console.log(`Config file saved at: ${configFilePath}`);
+        } catch (configError) {
+          console.error('Config file generation error:', configError);
+        }
+      }
+
+      // Start model analysis in background if no config was provided
+      if (!configData) {
+        setImmediate(async () => {
+          try {
+            console.log(`Starting analysis for model: ${createdModel.name}`);
+            
+            // Analyze the model
+            const analysisResult = await modelAnalysisService.analyzeModel(tempFilePath, modelFile.originalname);
+
+            if (analysisResult.success) {
+              console.log(`Analysis successful for model: ${createdModel.name}`);
+              
+              // Update model with analysis results
+              await storage.updateAiModel(createdModel.id, {
+                status: 'completed',
+                analysisStatus: 'completed',
+                inputSpecs: analysisResult.inputSpecs,
+                outputSpecs: analysisResult.outputSpecs,
+                metadata: analysisResult.metadata,
+                analyzedAt: new Date()
+              });
+
+              // Generate config file with analysis results
+              try {
+                const configData = await modelConfigService.generateConfig({
+                  id: createdModel.id,
+                  name: createdModel.name,
+                  framework: typeMap[modelType] || 'pytorch',
+                  filePath: tempFilePath,
+                  inputSpecs: analysisResult.inputSpecs,
+                  outputSpecs: analysisResult.outputSpecs,
+                  metadata: analysisResult.metadata
+                });
+                
+                const configFilePath = await modelConfigService.saveConfigFile(createdModel.id, configData);
+                
+                // Update model with config file path
+                await storage.updateAiModel(createdModel.id, {
+                  configFilePath: configFilePath
+                });
+              } catch (configError) {
+                console.error('Config file generation error after analysis:', configError);
+              }
+            } else {
+              console.error(`Analysis failed for model: ${createdModel.name}`, analysisResult.error);
+              await storage.updateAiModel(createdModel.id, {
+                status: 'error',
+                analysisStatus: 'error',
+                analyzedAt: new Date()
+              });
+            }
+          } catch (error) {
+            console.error('Model analysis error:', error);
+            await storage.updateAiModel(createdModel.id, {
+              status: 'error',
+              analysisStatus: 'error',
+              analyzedAt: new Date()
+            });
+          } finally {
+            // Clean up temporary file
+            await modelAnalysisService.cleanupFile(tempFilePath);
+          }
+        });
+      }
+
+      res.json({
+        message: 'Model uploaded successfully',
+        model: createdModel,
+        hasConfig: !!configData
+      });
+    } catch (error) {
+      console.error('Error in enhanced model upload:', error);
       res.status(500).json({ error: 'Failed to upload model' });
     }
   });
@@ -3305,16 +3557,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced AI Model Upload with Config Parsing
-  const enhancedUpload = multer({
-    dest: 'uploads/',
-    limits: {
-      fileSize: 500 * 1024 * 1024, // 500MB
-      files: 10 // Maximum 10 files
-    }
-  });
-
-  app.post("/api/ai-models/upload", enhancedUpload.array('files'), async (req, res) => {
+  // Enhanced AI Model Upload with Config Parsing (using existing enhancedUpload configuration)
+  app.post("/api/ai-models/enhanced-upload", enhancedUpload.array('files'), async (req, res) => {
     try {
       console.log('Enhanced model upload request received');
       
