@@ -13,7 +13,8 @@ import {
   Eye,
   Settings,
   Download,
-  MoreVertical
+  MoreVertical,
+  Brain
 } from 'lucide-react';
 
 interface ModelFolder {
@@ -179,6 +180,74 @@ export default function AIModelManagementTab() {
               </div>
             </div>
           </div>
+
+          {/* User Models Section */}
+          {backendModels && backendModels.length > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Brain className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">User Models</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {backendModels.length} uploaded
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {backendModels.map((model: any) => (
+                  <Card key={model.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <Brain className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <CardTitle className="text-base font-semibold text-gray-900 truncate">{model.name}</CardTitle>
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{model.description || 'No description'}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant="outline" className="text-xs">
+                                {model.modelType || 'Unknown'}
+                              </Badge>
+                              {getStatusBadge(model.status)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                            <Settings className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                            <Download className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent className="pt-0">
+                      <div className="space-y-2 text-xs text-gray-600">
+                        <div className="flex justify-between">
+                          <span>File:</span>
+                          <span className="truncate ml-2">{model.fileName}</span>
+                        </div>
+                        {model.fileSize && (
+                          <div className="flex justify-between">
+                            <span>Size:</span>
+                            <span>{(model.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                          </div>
+                        )}
+                        {model.uploadedAt && (
+                          <div className="flex justify-between">
+                            <span>Uploaded:</span>
+                            <span>{new Date(model.uploadedAt).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Model Folders Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

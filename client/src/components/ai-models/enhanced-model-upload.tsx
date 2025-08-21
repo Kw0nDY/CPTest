@@ -127,7 +127,7 @@ export function EnhancedModelUpload({ isOpen, onClose }: ModelUploadProps) {
       return 'config';
     } else if (extension === 'py' || extension === 'ipynb' || extension === 'js' || extension === 'ts') {
       return 'source';
-    } else if (extension === 'pth' || extension === 'pkl' || extension === 'h5' || extension === 'joblib' || extension === 'onnx') {
+    } else if (extension === 'pth' || extension === 'pt' || extension === 'pkl' || extension === 'h5' || extension === 'joblib' || extension === 'onnx' || extension === 'pickle' || extension === 'tflite' || extension === 'pb') {
       return 'model';
     } else if (extension === 'md' || extension === 'txt' || extension === 'pdf') {
       return 'documentation';
