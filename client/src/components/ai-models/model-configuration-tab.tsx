@@ -412,6 +412,20 @@ export default function ModelConfigurationTab() {
   // Node selection state for general selections
   const [selectedNode, setSelectedNode] = useState<ModelNode | null>(null);
   
+  // Port connection states
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionSource, setConnectionSource] = useState<{
+    nodeId: string;
+    portId: string;
+    portType: 'input' | 'output';
+    dataType: string;
+    position: { x: number; y: number };
+  } | null>(null);
+  const [previewConnection, setPreviewConnection] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null>(null);
+  
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -431,6 +445,219 @@ export default function ModelConfigurationTab() {
     };
     return colors[type as keyof typeof colors] || '#6b7280';
   };
+
+  // Port connection handlers
+  const handlePortClick = (nodeId: string, portId: string, portType: 'input' | 'output', dataType: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const position = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+
+    if (!isConnecting) {
+      // Start connection
+      setIsConnecting(true);
+      setConnectionSource({ nodeId, portId, portType, dataType, position });
+      setPreviewConnection({ from: position, to: position });
+    } else if (connectionSource) {
+      // Complete connection
+      if (canCreateConnection(connectionSource, { nodeId, portId, portType, dataType })) {
+        createPortConnection(connectionSource, { nodeId, portId, portType, dataType });
+      }
+      // Reset connection state
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setPreviewConnection(null);
+    }
+  };
+
+  const canCreateConnection = (source: any, target: any) => {
+    // Can't connect to same node
+    if (source.nodeId === target.nodeId) return false;
+    
+    // Must connect output to input or input to output
+    if (source.portType === target.portType) return false;
+    
+    // Check data type compatibility
+    return isDataTypeCompatible(source.dataType, target.dataType);
+  };
+
+  const isDataTypeCompatible = (sourceType: string, targetType: string) => {
+    // Exact match
+    if (sourceType === targetType) return true;
+    
+    // Compatible types
+    const compatibilityMap: Record<string, string[]> = {
+      'number': ['string', 'number'],
+      'string': ['string', 'number', 'object'],
+      'array': ['array', 'object'],
+      'object': ['object', 'string'],
+      'boolean': ['boolean', 'string'],
+      'image': ['image', 'string']
+    };
+    
+    return compatibilityMap[sourceType]?.includes(targetType) || false;
+  };
+
+  const createPortConnection = (source: any, target: any) => {
+    const newConnection: Connection = {
+      id: `conn-${Date.now()}`,
+      sourceNodeId: source.portType === 'output' ? source.nodeId : target.nodeId,
+      targetNodeId: source.portType === 'output' ? target.nodeId : source.nodeId,
+      sourcePortId: source.portType === 'output' ? source.portId : target.portId,
+      targetPortId: source.portType === 'output' ? target.portId : source.portId,
+      dataType: source.dataType
+    };
+
+    setConnections(prev => [...prev, newConnection]);
+    
+    // Update node connection status
+    setNodes(prev => prev.map(node => {
+      if (node.id === newConnection.sourceNodeId) {
+        return {
+          ...node,
+          outputs: node.outputs.map(output => 
+            output.id === newConnection.sourcePortId 
+              ? { ...output, connected: true }
+              : output
+          )
+        };
+      }
+      if (node.id === newConnection.targetNodeId) {
+        return {
+          ...node,
+          inputs: node.inputs.map(input => 
+            input.id === newConnection.targetPortId 
+              ? { ...input, connected: true }
+              : input
+          )
+        };
+      }
+      return node;
+    }));
+
+    toast({
+      title: "Connection Created",
+      description: "Nodes connected successfully",
+    });
+  };
+
+  const handleCanvasMouseMove = (event: React.MouseEvent) => {
+    if (isConnecting && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const position = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+      
+      setPreviewConnection(prev => prev ? { ...prev, to: position } : null);
+    }
+  };
+
+  const handleCanvasClick = () => {
+    if (isConnecting) {
+      // Cancel connection
+      setIsConnecting(false);
+      setConnectionSource(null);
+      setPreviewConnection(null);
+    }
+  };
+
+  // Auto-connect Model_Target data to model inputs
+  const autoConnectModelTarget = useCallback(() => {
+    const modelTargetNode = nodes.find(n => n.type === 'data-input' && n.name === 'Model_Target');
+    const aiModelNodes = nodes.filter(n => n.type === 'ai-model');
+    
+    if (!modelTargetNode || aiModelNodes.length === 0) return;
+
+    aiModelNodes.forEach(aiModel => {
+      // Find compatible inputs that aren't already connected
+      const compatibleInputs = aiModel.inputs.filter(input => 
+        !input.connected && 
+        modelTargetNode.outputs.some(output => 
+          isDataTypeCompatible(output.type, input.type)
+        )
+      );
+
+      compatibleInputs.forEach(input => {
+        // Find matching output from Model_Target
+        const matchingOutput = modelTargetNode.outputs.find(output =>
+          isDataTypeCompatible(output.type, input.type) &&
+          (output.name.toLowerCase().includes(input.name.toLowerCase()) ||
+           input.name.toLowerCase().includes(output.name.toLowerCase()) ||
+           output.type === input.type)
+        );
+
+        if (matchingOutput) {
+          // Create automatic connection
+          const newConnection: Connection = {
+            id: `auto-conn-${Date.now()}-${Math.random()}`,
+            sourceNodeId: modelTargetNode.id,
+            targetNodeId: aiModel.id,
+            sourcePortId: matchingOutput.id,
+            targetPortId: input.id,
+            dataType: matchingOutput.type
+          };
+
+          setConnections(prev => {
+            // Check if connection already exists
+            const exists = prev.some(c => 
+              c.sourceNodeId === newConnection.sourceNodeId &&
+              c.targetNodeId === newConnection.targetNodeId &&
+              c.sourcePortId === newConnection.sourcePortId &&
+              c.targetPortId === newConnection.targetPortId
+            );
+            
+            if (!exists) {
+              return [...prev, newConnection];
+            }
+            return prev;
+          });
+
+          // Update node connection status
+          setNodes(prev => prev.map(node => {
+            if (node.id === modelTargetNode.id) {
+              return {
+                ...node,
+                outputs: node.outputs.map(output => 
+                  output.id === matchingOutput.id 
+                    ? { ...output, connected: true }
+                    : output
+                )
+              };
+            }
+            if (node.id === aiModel.id) {
+              return {
+                ...node,
+                inputs: node.inputs.map(inputItem => 
+                  inputItem.id === input.id 
+                    ? { ...inputItem, connected: true }
+                    : inputItem
+                )
+              };
+            }
+            return node;
+          }));
+        }
+      });
+    });
+  }, [nodes, isDataTypeCompatible]);
+
+  // Run auto-connection when Model_Target or AI models are added
+  useEffect(() => {
+    const modelTargetExists = nodes.some(n => n.type === 'data-input' && n.name === 'Model_Target');
+    const aiModelsExist = nodes.some(n => n.type === 'ai-model');
+    
+    if (modelTargetExists && aiModelsExist) {
+      // Delay to ensure nodes are fully rendered
+      const timeout = setTimeout(autoConnectModelTarget, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [nodes.length, autoConnectModelTarget]);
 
   // Fetch real views data
   const { data: availableViews = [] } = useQuery<ViewData[]>({
@@ -936,15 +1163,7 @@ export default function ModelConfigurationTab() {
     });
   };
 
-  // Simple node connection system
-  const [previewConnection, setPreviewConnection] = useState<{
-    fromNodeId: string;
-    toNodeId: string;
-    fromX: number;
-    fromY: number;
-    toX: number;
-    toY: number;
-  } | null>(null);
+  // Simple node connection system - remove duplicate, already declared above
 
   // Handle node click for connection
   const handleNodeClick = (nodeId: string, event: React.MouseEvent) => {
@@ -1102,23 +1321,9 @@ export default function ModelConfigurationTab() {
     });
   };
 
-  // Canvas click handler to clear active states
-  const handleCanvasClick = () => {
-    if (selectedNodeForConnection) {
-      cancelConnection();
-    }
-  };
+  // Canvas click handler to clear active states - merged with existing function above
 
-  // Handle mouse move for preview connection
-  const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (selectedNodeForConnection) {
-      const rect = (e.currentTarget as Element).getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
-    }
-  };
+  // Handle mouse move for preview connection - merged with existing function above
 
   // Setup complete test workflow with proper connections
   const setupCompleteTestWorkflow = () => {
@@ -2704,6 +2909,7 @@ export default function ModelConfigurationTab() {
                   y: e.clientY - rect.top
                 });
               }
+              handleCanvasMouseMove(e);
             }}
             onMouseUp={() => {
               // Clear any connecting state if needed
@@ -2808,79 +3014,76 @@ export default function ModelConfigurationTab() {
                 </marker>
               </defs>
               
-              {/* Render existing connections */}
-              {connections.map((connection) => {
-                const fromNode = nodes.find(n => n.id === connection.fromNodeId);
-                const toNode = nodes.find(n => n.id === connection.toNodeId);
+              {/* Render existing port connections */}
+              {connections.filter(c => c.sourceNodeId && c.targetNodeId).map((connection) => {
+                const sourceNode = nodes.find(n => n.id === connection.sourceNodeId);
+                const targetNode = nodes.find(n => n.id === connection.targetNodeId);
                 
-                if (!fromNode || !toNode) return null;
+                if (!sourceNode || !targetNode) return null;
                 
-                let startX, startY, endX, endY, curve;
+                // Find output port position
+                const outputIndex = sourceNode.outputs.findIndex(o => o.id === connection.sourcePortId);
+                if (outputIndex === -1) return null;
                 
-                if (connection.type === 'block') {
-                  // Block connection: center to center with different styling
-                  startX = fromNode.position.x + fromNode.width / 2;
-                  startY = fromNode.position.y + fromNode.height / 2;
-                  endX = toNode.position.x + toNode.width / 2;
-                  endY = toNode.position.y + toNode.height / 2;
-                  
-                  const controlOffset = Math.abs(endX - startX) * 0.5;
-                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
-                } else {
-                  // Parameter connection: port to port
-                  const outputIndex = fromNode.outputs.findIndex(o => o.id === connection.fromOutputId);
-                  startX = fromNode.position.x + fromNode.width;
-                  startY = fromNode.position.y + 60 + (outputIndex * 28) + 14;
-                  
-                  const inputIndex = toNode.inputs.findIndex(i => i.id === connection.toInputId);
-                  endX = toNode.position.x;
-                  endY = toNode.position.y + 60 + (inputIndex * 28) + 14;
-                  
-                  const controlOffset = Math.abs(endX - startX) * 0.5;
-                  curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
-                }
+                // Find input port position
+                const inputIndex = targetNode.inputs.findIndex(i => i.id === connection.targetPortId);
+                if (inputIndex === -1) return null;
+                
+                // Calculate port positions
+                const startX = sourceNode.position.x + 250; // Right side of source node
+                const startY = sourceNode.position.y + 60 + (outputIndex * 20) + 10; // Port position
+                
+                const endX = targetNode.position.x; // Left side of target node
+                const endY = targetNode.position.y + 60 + (inputIndex * 20) + 10; // Port position
+                
+                const controlOffset = Math.abs(endX - startX) * 0.5;
+                const curve = `M ${startX} ${startY} C ${startX + controlOffset} ${startY} ${endX - controlOffset} ${endY} ${endX} ${endY}`;
                 
                 return (
                   <g key={connection.id} className="pointer-events-auto">
                     {/* Connection path */}
                     <path
                       d={curve}
-                      stroke={connection.type === 'block' ? '#3b82f6' : '#3b82f6'}
-                      strokeWidth="3"
+                      stroke={getTypeColor(connection.dataType)}
+                      strokeWidth="2"
                       strokeDasharray="none"
                       fill="none"
                       markerEnd="url(#arrow)"
-                      opacity="0.9"
-                      className="hover:opacity-100 cursor-pointer"
+                      opacity="0.8"
+                      className="hover:opacity-100 cursor-pointer hover:stroke-4"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (connection.type === 'block') {
-                          // Open mapping dialog for block connections
-                          setSelectedConnection(connection.id);
-                          setMappingDialogOpen(true);
-                        } else {
-                          // Delete parameter connections directly
-                          if (window.confirm(`Remove connection: ${connection.sourceOutputName} → ${connection.targetInputName}?`)) {
-                            setConnections(prev => prev.filter(c => c.id !== connection.id));
-                            setNodes(prev => prev.map(node => {
-                              if (node.id === connection.toNodeId) {
-                                return {
-                                  ...node,
-                                  inputs: node.inputs.map(input => {
-                                    if (input.id === connection.toInputId) {
-                                      return { ...input, connected: false };
-                                    }
-                                    return input;
-                                  })
-                                };
-                              }
-                              return node;
-                            }));
-                            toast({
-                              title: "연결 해제",
-                              description: `${connection.sourceOutputName} → ${connection.targetInputName} 연결이 해제되었습니다`,
-                            });
-                          }
+                        const sourceOutput = sourceNode.outputs.find(o => o.id === connection.sourcePortId);
+                        const targetInput = targetNode.inputs.find(i => i.id === connection.targetPortId);
+                        if (window.confirm(`Remove connection: ${sourceOutput?.name} → ${targetInput?.name}?`)) {
+                          setConnections(prev => prev.filter(c => c.id !== connection.id));
+                          setNodes(prev => prev.map(node => {
+                            if (node.id === connection.sourceNodeId) {
+                              return {
+                                ...node,
+                                outputs: node.outputs.map(output => 
+                                  output.id === connection.sourcePortId 
+                                    ? { ...output, connected: false }
+                                    : output
+                                )
+                              };
+                            }
+                            if (node.id === connection.targetNodeId) {
+                              return {
+                                ...node,
+                                inputs: node.inputs.map(input => 
+                                  input.id === connection.targetPortId 
+                                    ? { ...input, connected: false }
+                                    : input
+                                )
+                              };
+                            }
+                            return node;
+                          }));
+                          toast({
+                            title: "Connection Removed",
+                            description: `${sourceOutput?.name} → ${targetInput?.name} connection removed`,
+                          });
                         }
                       }}
                     />
@@ -2915,6 +3118,28 @@ export default function ModelConfigurationTab() {
                   </g>
                 );
               })}
+              
+              {/* Preview connection for port-based connection mode */}
+              {previewConnection && (
+                <g>
+                  <path
+                    d={`M ${previewConnection.from.x} ${previewConnection.from.y} C ${previewConnection.from.x + 50} ${previewConnection.from.y} ${previewConnection.to.x - 50} ${previewConnection.to.y} ${previewConnection.to.x} ${previewConnection.to.y}`}
+                    stroke={connectionSource ? getTypeColor(connectionSource.dataType) : '#3b82f6'}
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                    fill="none"
+                    opacity="0.6"
+                    className="pointer-events-none"
+                  />
+                  <circle
+                    cx={previewConnection.from.x}
+                    cy={previewConnection.from.y}
+                    r="3"
+                    fill={connectionSource ? getTypeColor(connectionSource.dataType) : '#3b82f6'}
+                    className="pointer-events-none"
+                  />
+                </g>
+              )}
               
               {/* Preview connection for click-based connection mode */}
               {selectedNodeForConnection && (
@@ -3180,12 +3405,15 @@ export default function ModelConfigurationTab() {
                             input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
                           } ${
                             input.connected ? 'animate-pulse' : ''
+                          } ${
+                            isConnecting && connectionSource?.portType === 'output' && isDataTypeCompatible(connectionSource.dataType, input.type) 
+                              ? 'ring-2 ring-green-400 scale-125' : ''
                           }`}
                           style={{ 
                             backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
                             borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
                           }}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => handlePortClick(node.id, input.id, 'input', input.type, e)}
                           title={`${input.name} (${input.type})`}
                         />
                         <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
@@ -3212,11 +3440,14 @@ export default function ModelConfigurationTab() {
                         <div
                           className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
                             output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          } ${
+                            isConnecting && connectionSource?.portType === 'input' && isDataTypeCompatible(connectionSource.dataType, output.type)
+                              ? 'ring-2 ring-green-400 scale-125' : ''
                           }`}
                           style={{ 
                             backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
                           }}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => handlePortClick(node.id, output.id, 'output', output.type, e)}
                           title={`${output.name} (${output.type})`}
                         />
                       </div>
