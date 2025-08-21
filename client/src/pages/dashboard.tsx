@@ -14,7 +14,7 @@ import ManagementPage from "@/pages/management";
 import { availableUsers, type User } from "@/components/layout/header";
 import ViewComponentRenderer from "@/components/view/view-component-renderer";
 import { useQuery } from "@tanstack/react-query";
-import type { View } from "@shared/schema";
+import type { View, AiModel } from "@shared/schema";
 
 // Dynamic View Renderer Component
 function DynamicViewRenderer({ viewId }: { viewId: string }) {
@@ -80,6 +80,11 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<User>(availableUsers[0]); // Default to Admin
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
+  // Fetch AI models for model configuration
+  const { data: aiModels = [] } = useQuery<AiModel[]>({
+    queryKey: ['/api/ai-models']
+  });
+
   const handleViewChange = (view: string) => {
     setActiveView(view as ViewType);
   };
@@ -99,7 +104,15 @@ export default function Dashboard() {
       case "model-upload":
         return <AIModelManagementTab activeTab={activeView} />;
       case "model-configuration":
-        return <ModelConfigurationTab />;
+        // Use the first available model or a default model
+        const selectedModel = aiModels.length > 0 ? aiModels[0] : {
+          id: "default",
+          name: "기본 모델",
+          modelType: "unknown",
+          status: "inactive",
+          uploadedAt: new Date().toISOString()
+        };
+        return <ModelConfigurationTab model={selectedModel} />;
       case "boi-overview":
       case "boi-input-setting":
       case "boi-insights":
