@@ -2794,6 +2794,31 @@ export default function ModelConfigurationTab() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* Simple Connection Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 w-6 p-0 hover:bg-white/20 ${
+                          selectedNodeForConnection === node.id ? 'bg-blue-500/30 text-blue-300' : ''
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (selectedNodeForConnection === node.id) {
+                            // Cancel connection mode
+                            cancelConnection();
+                          } else {
+                            // Start connection mode
+                            setSelectedNodeForConnection(node.id);
+                            toast({
+                              title: "Connection Mode",
+                              description: "Click another node to connect",
+                            });
+                          }
+                        }}
+                        title={selectedNodeForConnection === node.id ? "Cancel connection" : "Connect to another node"}
+                      >
+                        <Link2 className="w-3 h-3" />
+                      </Button>
                       
                       {/* Info button for all node types */}
                       <Button
@@ -2871,28 +2896,57 @@ export default function ModelConfigurationTab() {
                     </div>
                   )}
                   
-                  {/* Simplified Node Content - No Input/Output circles */}
-                  {node.inputs.length > 0 && (
-                    <div className="mb-2">
-                      <div className="text-xs text-gray-500 mb-1">Inputs:</div>
-                      {node.inputs.map((input, index) => (
-                        <div key={input.id} className="text-xs text-gray-300 ml-2">
-                          • {input.name} ({input.type})
-                        </div>
-                      ))}
+                  {/* Inputs */}
+                  {node.inputs.map((input, index) => (
+                    <div key={input.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div
+                          className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                            input.active ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          } ${
+                            input.connected ? 'animate-pulse' : ''
+                          }`}
+                          style={{ 
+                            backgroundColor: input.connected ? getTypeColor(input.type) : (input.active ? 'rgba(59, 130, 246, 0.3)' : 'transparent'),
+                            borderColor: input.active ? '#3b82f6' : getTypeColor(input.type)
+                          }}
+                          onClick={(e) => handleInputClick(e, node.id, input.id, input.type)}
+                          title={`${input.name} (${input.type}) - Click to connect`}
+                        />
+                        <span className="text-gray-300 truncate flex-1 min-w-0" title={input.name}>
+                          {input.name}
+                        </span>
+                      </div>
+                      <span className="text-gray-500 text-xs flex-shrink-0 ml-1">{input.type}</span>
                     </div>
+                  ))}
+
+                  {/* Separator if both inputs and outputs exist */}
+                  {node.inputs.length > 0 && node.outputs.length > 0 && (
+                    <div className="border-t border-gray-600 my-2"></div>
                   )}
 
-                  {node.outputs.length > 0 && (
-                    <div className="mb-2">
-                      <div className="text-xs text-gray-500 mb-1">Outputs:</div>
-                      {node.outputs.map((output, index) => (
-                        <div key={output.id} className="text-xs text-gray-300 ml-2">
-                          • {output.name} ({output.type})
-                        </div>
-                      ))}
+                  {/* Outputs */}
+                  {node.outputs.map((output, index) => (
+                    <div key={output.id} className="flex items-center justify-between text-xs mb-1 min-w-0">
+                      <span className="text-gray-500 text-xs flex-shrink-0 mr-1">{output.type}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                        <span className="text-gray-300 truncate flex-1 min-w-0 text-right" title={output.name}>
+                          {output.name}
+                        </span>
+                        <div
+                          className={`w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
+                            output.active ? 'ring-2 ring-green-400 ring-opacity-75 shadow-lg scale-110' : ''
+                          }`}
+                          style={{ 
+                            backgroundColor: output.active ? '#10b981' : getTypeColor(output.type)
+                          }}
+                          onClick={(e) => handleInputClick(e, node.id, output.id, output.type)}
+                          title={`${output.name} (${output.type}) - Click to start connection`}
+                        />
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
                 </div>
             ))}
