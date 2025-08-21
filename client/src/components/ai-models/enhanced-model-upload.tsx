@@ -516,7 +516,7 @@ export function EnhancedModelUpload({ onClose, folders = [] }: ModelUploadProps)
               {/* Folder Selection */}
               <div>
                 <Label htmlFor="folder-select">Folder (Optional)</Label>
-                <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                <Select value={selectedFolderId || "none"} onValueChange={(value) => setSelectedFolderId(value === "none" ? "" : value)}>
                   <SelectTrigger className="mt-1" data-testid="select-folder">
                     <SelectValue placeholder="Select a folder or leave unorganized" />
                   </SelectTrigger>

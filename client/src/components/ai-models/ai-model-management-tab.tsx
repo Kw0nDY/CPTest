@@ -123,6 +123,23 @@ export default function AIModelManagementTab() {
     }
   });
 
+  // Delete model mutation
+  const deleteModelMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      const response = await fetch(`/api/ai-models/${modelId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete model');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-models'] });
+      toast({ title: 'Success', description: 'Model deleted successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete model', variant: 'destructive' });
+    }
+  });
+
   // Get models for a specific folder
   const getModelsForFolder = (folderId: string) => {
     return models.filter(model => model.folderId === folderId);
@@ -148,6 +165,12 @@ export default function AIModelManagementTab() {
       deleteFolderMutation.mutate(folderId);
     }
   };
+
+  const handleDeleteModel = (modelId: string) => {
+    if (confirm('Are you sure you want to delete this model? This action cannot be undone.')) {
+      deleteModelMutation.mutate(modelId);
+    }
+  };;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -285,6 +308,13 @@ export default function AIModelManagementTab() {
                               <Settings className="w-4 h-4 mr-2" />
                               Configure
                             </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteModel(model.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Model
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -374,6 +404,13 @@ export default function AIModelManagementTab() {
                                   <DropdownMenuItem>
                                     <Settings className="w-4 h-4 mr-2" />
                                     Configure
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteModel(model.id)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete Model
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

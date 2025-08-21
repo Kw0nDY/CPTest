@@ -2477,7 +2477,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ai-models', async (req, res) => {
     try {
       const models = await storage.getAiModels();
-      res.json(models);
+      
+      // Add sample models (replace existing ones for demo)
+      if (true) {
+        // Clear existing models first
+        for (const model of models) {
+          await storage.deleteAiModel(model.id);
+        }
+        const sampleModels = [
+          {
+            name: 'LSTM Traffic Predictor',
+            fileName: 'traffic_lstm.pth',
+            filePath: 'sample_models/traffic_lstm.pth',
+            fileSize: 2500000,
+            modelType: 'pytorch',
+            status: 'completed' as const,
+            analysisStatus: 'completed' as const,
+            inputSpecs: [
+              { name: 'traffic_flow', type: 'tensor', shape: [1, 24, 5], description: 'Historical traffic flow data (batch, time, features)' },
+              { name: 'weather_data', type: 'tensor', shape: [1, 4], description: 'Weather conditions (temperature, humidity, precipitation, wind)' }
+            ],
+            outputSpecs: [
+              { name: 'predicted_flow', type: 'tensor', shape: [1, 6], description: 'Predicted traffic flow for next 6 hours' },
+              { name: 'confidence', type: 'tensor', shape: [1, 1], description: 'Prediction confidence score' }
+            ],
+            description: 'LSTM-based model for predicting traffic flow patterns using historical data and weather conditions',
+            version: '1.2.0',
+            metadata: {
+              accuracy: 0.94,
+              trainingData: 'City traffic data 2020-2024',
+              features: ['temporal patterns', 'weather correlation', 'seasonality']
+            },
+            createdAt: new Date('2024-01-15'),
+            uploadedAt: new Date('2024-01-15'),
+            analyzedAt: new Date('2024-01-15')
+          },
+          {
+            name: 'CNN Image Classifier',
+            fileName: 'image_classifier.h5',
+            filePath: 'sample_models/image_classifier.h5',
+            fileSize: 15000000,
+            modelType: 'tensorflow',
+            status: 'completed' as const,
+            analysisStatus: 'completed' as const,
+            inputSpecs: [
+              { name: 'image', type: 'tensor', shape: [1, 224, 224, 3], description: 'RGB image input (batch, height, width, channels)' }
+            ],
+            outputSpecs: [
+              { name: 'class_probabilities', type: 'tensor', shape: [1, 1000], description: 'Class probability distribution' },
+              { name: 'predicted_class', type: 'int', shape: [1], description: 'Most likely class index' }
+            ],
+            description: 'Convolutional Neural Network for general image classification with 1000 classes',
+            version: '2.1.0',
+            metadata: {
+              accuracy: 0.87,
+              trainingData: 'ImageNet-1K dataset',
+              features: ['transfer learning', 'data augmentation', 'batch normalization']
+            },
+            createdAt: new Date('2024-01-20'),
+            uploadedAt: new Date('2024-01-20'),
+            analyzedAt: new Date('2024-01-20')
+          },
+          {
+            name: 'Sentiment Analysis BERT',
+            fileName: 'sentiment_bert.onnx',
+            filePath: 'sample_models/sentiment_bert.onnx',
+            fileSize: 440000000,
+            modelType: 'onnx',
+            status: 'completed' as const,
+            analysisStatus: 'completed' as const,
+            inputSpecs: [
+              { name: 'input_ids', type: 'tensor', shape: [1, 512], description: 'Tokenized text input IDs' },
+              { name: 'attention_mask', type: 'tensor', shape: [1, 512], description: 'Attention mask for input tokens' }
+            ],
+            outputSpecs: [
+              { name: 'sentiment_scores', type: 'tensor', shape: [1, 3], description: 'Sentiment scores [negative, neutral, positive]' },
+              { name: 'predicted_sentiment', type: 'string', shape: [1], description: 'Predicted sentiment label' }
+            ],
+            description: 'BERT-based model fine-tuned for sentiment analysis on product reviews and social media text',
+            version: '1.0.0',
+            metadata: {
+              accuracy: 0.92,
+              trainingData: 'Amazon reviews + Twitter sentiment corpus',
+              features: ['contextual embeddings', 'fine-tuning', 'multi-class classification']
+            },
+            createdAt: new Date('2024-01-25'),
+            uploadedAt: new Date('2024-01-25'),
+            analyzedAt: new Date('2024-01-25')
+          }
+        ];
+
+        // Create sample models
+        for (const modelData of sampleModels) {
+          await storage.createAiModel(modelData);
+        }
+
+        // Return all models including the newly created ones
+        const updatedModels = await storage.getAiModels();
+        res.json(updatedModels);
+      } else {
+        res.json(models);
+      }
     } catch (error) {
       console.error('Error fetching AI models:', error);
       res.status(500).json({ error: 'Failed to fetch AI models' });
@@ -2494,6 +2594,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching AI model:', error);
       res.status(500).json({ error: 'Failed to fetch AI model' });
+    }
+  });
+
+  // Delete AI model
+  app.delete('/api/ai-models/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getAiModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: 'Model not found' });
+      }
+
+      // Delete the model files from filesystem if they exist
+      if (model.filePath && fs.existsSync(model.filePath)) {
+        try {
+          fs.unlinkSync(model.filePath);
+          console.log(`Deleted model file: ${model.filePath}`);
+        } catch (fileError) {
+          console.warn(`Could not delete model file: ${model.filePath}`, fileError);
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+
+      // Delete from database
+      await storage.deleteAiModel(id);
+      
+      res.status(200).json({ message: 'AI model deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting AI model:', error);
+      res.status(500).json({ error: 'Failed to delete AI model' });
     }
   });
 
