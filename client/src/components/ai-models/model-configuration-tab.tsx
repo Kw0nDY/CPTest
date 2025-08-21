@@ -373,6 +373,7 @@ export default function ModelConfigurationTab() {
   const [nodes, setNodes] = useState<ModelNode[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedNodeForConnection, setSelectedNodeForConnection] = useState<string | null>(null);
+  const [selectedPort, setSelectedPort] = useState<{nodeId: string, portId: string, portType: 'input' | 'output'} | null>(null);
   const [draggedNode, setDraggedNode] = useState<ModelNode | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [mappingDialogOpen, setMappingDialogOpen] = useState(false);
@@ -3532,9 +3533,6 @@ export default function ModelConfigurationTab() {
                             className={`w-3 h-3 rounded-full border-2 cursor-pointer hover:scale-110 transition-all duration-200 flex-shrink-0 ${
                               selectedPort?.nodeId === node.id && selectedPort?.portId === output.id 
                                 ? 'ring-2 ring-blue-400 ring-opacity-75 shadow-lg scale-110' : ''
-                            } ${
-                              selectedNodeForConnection && isDataTypeCompatible(output.type, getNodeInputType(selectedNodeForConnection))
-                                ? 'ring-2 ring-green-400 scale-125' : ''
                             }`}
                             style={{ 
                               backgroundColor: isConnected ? connectionColor : 'transparent',
