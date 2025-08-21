@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, json, varchar, serial, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, json, varchar, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -523,69 +523,3 @@ export type AiModelFolder = typeof aiModelFolders.$inferSelect;
 export type InsertAiModelFolder = z.infer<typeof insertAiModelFolderSchema>;
 export type ModelConfigurationFolder = typeof modelConfigurationFolders.$inferSelect;
 export type InsertModelConfigurationFolder = z.infer<typeof insertModelConfigurationFolderSchema>;
-
-// AI Model Execution Files Table
-export const aiModelExecutionFiles = pgTable('ai_model_execution_files', {
-  id: varchar('id').primaryKey(),
-  modelId: varchar('model_id').notNull().references(() => aiModels.id, { onDelete: 'cascade' }),
-  fileName: varchar('file_name').notNull(),
-  originalFileName: varchar('original_file_name').notNull(),
-  filePath: varchar('file_path').notNull(),
-  fileType: varchar('file_type').notNull(), // 'python', 'requirements'
-  fileSize: integer('file_size').notNull(),
-  mimeType: varchar('mime_type'),
-  uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
-  isActive: boolean('is_active').notNull().default(true)
-});
-
-// Model Connections Table
-export const modelConnections = pgTable('model_connections', {
-  id: varchar('id').primaryKey(),
-  configurationId: varchar('configuration_id').notNull().references(() => modelConfigurations.id, { onDelete: 'cascade' }),
-  sourceType: varchar('source_type').notNull(), // 'data-source', 'view', 'ai-model-result'
-  sourceId: varchar('source_id').notNull(),
-  targetNodeId: varchar('target_node_id').notNull(),
-  inputParameterName: varchar('input_parameter_name').notNull(),
-  outputParameterName: varchar('output_parameter_name'),
-  mappingConfig: jsonb('mapping_config'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
-});
-
-// Model Execution Results Table (Enhanced)
-export const modelExecutionResults = pgTable('model_execution_results', {
-  id: varchar('id').primaryKey(),
-  configurationId: varchar('configuration_id').notNull().references(() => modelConfigurations.id, { onDelete: 'cascade' }),
-  executionId: varchar('execution_id').notNull(),
-  modelId: varchar('model_id').notNull().references(() => aiModels.id),
-  inputData: jsonb('input_data'),
-  outputData: jsonb('output_data'),
-  executionStatus: varchar('execution_status').notNull().default('pending'), // 'pending', 'running', 'completed', 'failed'
-  executionTime: integer('execution_time'), // milliseconds
-  errorMessage: text('error_message'),
-  logs: text('logs'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  completedAt: timestamp('completed_at')
-});
-
-export const insertAiModelExecutionFileSchema = createInsertSchema(aiModelExecutionFiles).omit({
-  id: true,
-  uploadedAt: true
-});
-export const insertModelConnectionSchema = createInsertSchema(modelConnections).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-export const insertModelExecutionResultSchema = createInsertSchema(modelExecutionResults).omit({
-  id: true,
-  createdAt: true,
-  completedAt: true
-});
-
-export type AiModelExecutionFile = typeof aiModelExecutionFiles.$inferSelect;
-export type InsertAiModelExecutionFile = z.infer<typeof insertAiModelExecutionFileSchema>;
-export type ModelConnection = typeof modelConnections.$inferSelect;
-export type InsertModelConnection = z.infer<typeof insertModelConnectionSchema>;
-export type ModelExecutionResult = typeof modelExecutionResults.$inferSelect;
-export type InsertModelExecutionResult = z.infer<typeof insertModelExecutionResultSchema>;

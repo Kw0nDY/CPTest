@@ -2,15 +2,11 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
-  aiModelExecutionFiles, modelConnections, modelExecutionResults,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
-  type ModelConfigurationFolder, type InsertModelConfigurationFolder,
-  type AiModelExecutionFile, type InsertAiModelExecutionFile,
-  type ModelConnection, type InsertModelConnection,
-  type ModelExecutionResult, type InsertModelExecutionResult
+  type ModelConfigurationFolder, type InsertModelConfigurationFolder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -832,95 +828,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelFile(id: string): Promise<void> {
     await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
-  }
-
-  // AI Model Execution Files methods
-  async createAiModelExecutionFile(file: InsertAiModelExecutionFile): Promise<AiModelExecutionFile> {
-    const newId = `exec-file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const [created] = await db
-      .insert(aiModelExecutionFiles)
-      .values({
-        id: newId,
-        ...file
-      })
-      .returning();
-    return created;
-  }
-
-  async getAiModelExecutionFiles(modelId: string): Promise<AiModelExecutionFile[]> {
-    return await db.select().from(aiModelExecutionFiles).where(eq(aiModelExecutionFiles.modelId, modelId));
-  }
-
-  async getActiveExecutionFile(modelId: string): Promise<AiModelExecutionFile | undefined> {
-    const [file] = await db.select()
-      .from(aiModelExecutionFiles)
-      .where(and(
-        eq(aiModelExecutionFiles.modelId, modelId),
-        eq(aiModelExecutionFiles.isActive, true)
-      ))
-      .limit(1);
-    return file || undefined;
-  }
-
-  // Model Connections methods
-  async createModelConnection(connection: InsertModelConnection): Promise<ModelConnection> {
-    const newId = `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const [created] = await db
-      .insert(modelConnections)
-      .values({
-        id: newId,
-        ...connection
-      })
-      .returning();
-    return created;
-  }
-
-  async getModelConnections(configurationId: string): Promise<ModelConnection[]> {
-    return await db.select().from(modelConnections).where(eq(modelConnections.configurationId, configurationId));
-  }
-
-  async deleteModelConnection(id: string): Promise<void> {
-    await db.delete(modelConnections).where(eq(modelConnections.id, id));
-  }
-
-  // Model Execution Results methods  
-  async createModelExecutionResult(result: InsertModelExecutionResult): Promise<ModelExecutionResult> {
-    const newId = `exec-result-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const [created] = await db
-      .insert(modelExecutionResults)
-      .values({
-        id: newId,
-        ...result
-      })
-      .returning();
-    return created;
-  }
-
-  async updateModelExecutionResult(id: string, updates: Partial<ModelExecutionResult>): Promise<ModelExecutionResult> {
-    const [updated] = await db
-      .update(modelExecutionResults)
-      .set({ ...updates, completedAt: new Date() })
-      .where(eq(modelExecutionResults.id, id))
-      .returning();
-    return updated;
-  }
-
-  async getModelExecutionResults(configurationId: string): Promise<ModelExecutionResult[]> {
-    return await db.select().from(modelExecutionResults).where(eq(modelExecutionResults.configurationId, configurationId));
-  }
-
-  async getExecutionResult(id: string): Promise<ModelExecutionResult | undefined> {
-    const [result] = await db.select().from(modelExecutionResults).where(eq(modelExecutionResults.id, id));
-    return result || undefined;
-  }
-
-  async updateAiModelExecutionFile(id: string, updates: Partial<AiModelExecutionFile>): Promise<AiModelExecutionFile> {
-    const [updated] = await db
-      .update(aiModelExecutionFiles)
-      .set(updates)
-      .where(eq(aiModelExecutionFiles.id, id))
-      .returning();
-    return updated;
   }
 }
 

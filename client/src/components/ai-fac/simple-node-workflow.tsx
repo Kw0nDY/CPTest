@@ -1,503 +1,311 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import {
-  Database,
-  Monitor,
-  Brain,
-  Workflow,
-  Plus,
-  Link2,
-  Play,
-  Settings,
-  Save,
-  Trash2,
-  Eye,
-  CheckCircle,
-  Circle,
-  ArrowRight,
-  Zap
-} from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { Brain, Database, FileText, Target, Circle, Trash2, Plus } from 'lucide-react';
 
-interface NodePosition {
-  x: number;
-  y: number;
-}
-
-interface WorkflowNode {
+interface Node {
   id: string;
-  type: 'data-source' | 'view' | 'ai-model' | 'ai-result';
+  type: 'ai-model' | 'data-source' | 'output' | 'transform';
   name: string;
-  position: NodePosition;
-  data: any;
-  inputs?: Array<{
-    id: string;
-    name: string;
-    type: string;
-    connected?: boolean;
-  }>;
-  outputs?: Array<{
-    id: string;
-    name: string;
-    type: string;
-  }>;
+  position: { x: number; y: number };
+  config?: any;
+  status?: 'connected' | 'disconnected' | 'error';
 }
 
-interface NodeConnection {
+interface Connection {
   id: string;
-  sourceNodeId: string;
-  sourceOutputId: string;
-  targetNodeId: string;
-  targetInputId: string;
+  sourceId: string;
+  targetId: string;
 }
 
 interface SimpleNodeWorkflowProps {
-  configurationId?: string;
-  onSave?: (workflow: any) => void;
+  nodes: Node[];
+  connections: Connection[];
+  onNodesChange: (nodes: Node[]) => void;
+  onConnectionsChange: (connections: Connection[]) => void;
 }
 
-export function SimpleNodeWorkflow({ configurationId, onSave }: SimpleNodeWorkflowProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const canvasRef = useRef<HTMLDivElement>(null);
-  
-  const [nodes, setNodes] = useState<WorkflowNode[]>([]);
-  const [connections, setConnections] = useState<NodeConnection[]>([]);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [showAddNodeDialog, setShowAddNodeDialog] = useState(false);
-  const [showConnectionsDialog, setShowConnectionsDialog] = useState(false);
-  const [draggedNode, setDraggedNode] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState<NodePosition>({ x: 0, y: 0 });
+export function SimpleNodeWorkflow({ 
+  nodes, 
+  connections, 
+  onNodesChange, 
+  onConnectionsChange 
+}: SimpleNodeWorkflowProps) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [previewConnection, setPreviewConnection] = useState<{
+    sourceId: string;
+    mousePosition: { x: number; y: number };
+  } | null>(null);
+  const [draggedNode, setDraggedNode] = useState<{
+    nodeId: string;
+    offset: { x: number; y: number };
+  } | null>(null);
 
-  // Get available data sources for adding nodes
-  const { data: dataSources = [] } = useQuery({
-    queryKey: ['/api/data-sources']
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: views = [] } = useQuery({
-    queryKey: ['/api/views']
-  });
-
-  const { data: aiModels = [] } = useQuery({
-    queryKey: ['/api/ai-models']
-  });
-
-  const { data: aiResults = [] } = useQuery({
-    queryKey: ['/api/ai-model-results']
-  });
-
-  // Get possible connections for selected node
-  const { data: possibleConnections, refetch: refetchConnections } = useQuery({
-    queryKey: ['/api/ai-models', selectedNode, 'possible-connections'],
-    enabled: false
-  });
-
-  const addNodeToCanvas = useCallback((nodeData: any, nodeType: string) => {
-    const newNode: WorkflowNode = {
-      id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type: nodeType as any,
-      name: nodeData.name,
-      position: { 
-        x: Math.random() * 400 + 100, 
-        y: Math.random() * 300 + 100 
-      },
-      data: nodeData,
-      inputs: nodeType === 'ai-model' ? [
-        { id: 'input-1', name: 'Data Input', type: 'any' },
-        { id: 'input-2', name: 'Parameters', type: 'any' }
-      ] : [],
-      outputs: nodeType === 'data-source' ? 
-        nodeData.columns?.map((col: any, index: number) => ({
-          id: `output-${index}`,
-          name: col.name,
-          type: col.type || 'string'
-        })) || [{ id: 'output-1', name: 'Data', type: 'any' }]
-        : [{ id: 'output-1', name: 'Output', type: 'any' }]
-    };
-
-    setNodes(prev => [...prev, newNode]);
-    setShowAddNodeDialog(false);
-    toast({
-      title: "노드 추가됨",
-      description: `${nodeData.name} 노드가 워크플로우에 추가되었습니다.`
-    });
-  }, [toast]);
-
-  const handleNodeMouseDown = useCallback((nodeId: string, event: React.MouseEvent) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const nodeElement = event.currentTarget as HTMLElement;
-      const nodeRect = nodeElement.getBoundingClientRect();
-      setDraggedNode(nodeId);
-      setDragOffset({
-        x: event.clientX - nodeRect.left,
-        y: event.clientY - nodeRect.top
-      });
+  const getNodeIcon = (type: Node['type']) => {
+    switch (type) {
+      case 'ai-model': return <Brain className="w-5 h-5 text-blue-600" />;
+      case 'data-source': return <Database className="w-5 h-5 text-green-600" />;
+      case 'output': return <Target className="w-5 h-5 text-red-600" />;
+      case 'transform': return <FileText className="w-5 h-5 text-purple-600" />;
+      default: return <Circle className="w-5 h-5 text-gray-600" />;
     }
-    event.preventDefault();
-  }, []);
+  };
+
+  const getNodeColor = (type: Node['type']) => {
+    switch (type) {
+      case 'ai-model': return 'border-blue-500 bg-blue-50';
+      case 'data-source': return 'border-green-500 bg-green-50';
+      case 'output': return 'border-red-500 bg-red-50';
+      case 'transform': return 'border-purple-500 bg-purple-50';
+      default: return 'border-gray-500 bg-gray-50';
+    }
+  };
+
+  const handleNodeClick = useCallback((nodeId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    if (selectedNodeId === null) {
+      // First click - select source node
+      setSelectedNodeId(nodeId);
+      setPreviewConnection({
+        sourceId: nodeId,
+        mousePosition: { x: event.clientX, y: event.clientY }
+      });
+    } else if (selectedNodeId === nodeId) {
+      // Clicked same node - deselect
+      setSelectedNodeId(null);
+      setPreviewConnection(null);
+    } else {
+      // Second click - create connection if not already connected
+      const existingConnection = connections.find(
+        conn => conn.sourceId === selectedNodeId && conn.targetId === nodeId
+      );
+      
+      if (!existingConnection) {
+        const newConnection: Connection = {
+          id: `conn-${selectedNodeId}-${nodeId}-${Date.now()}`,
+          sourceId: selectedNodeId,
+          targetId: nodeId
+        };
+        onConnectionsChange([...connections, newConnection]);
+      }
+      
+      // Reset selection
+      setSelectedNodeId(null);
+      setPreviewConnection(null);
+    }
+  }, [selectedNodeId, connections, onConnectionsChange]);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
-    if (draggedNode && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const newX = event.clientX - rect.left - dragOffset.x;
-      const newY = event.clientY - rect.top - dragOffset.y;
-
-      setNodes(prev => 
-        prev.map(node => 
-          node.id === draggedNode 
-            ? { ...node, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
-            : node
-        )
-      );
+    if (previewConnection) {
+      setPreviewConnection(prev => prev ? {
+        ...prev,
+        mousePosition: { x: event.clientX, y: event.clientY }
+      } : null);
     }
-  }, [draggedNode, dragOffset]);
+
+    if (draggedNode && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newX = event.clientX - containerRect.left - draggedNode.offset.x;
+      const newY = event.clientY - containerRect.top - draggedNode.offset.y;
+      
+      const updatedNodes = nodes.map(node => 
+        node.id === draggedNode.nodeId 
+          ? { ...node, position: { x: newX, y: newY } }
+          : node
+      );
+      onNodesChange(updatedNodes);
+    }
+  }, [previewConnection, draggedNode, nodes, onNodesChange]);
+
+  const handleMouseDown = useCallback((nodeId: string, event: React.MouseEvent) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node || !containerRef.current) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const offset = {
+      x: event.clientX - containerRect.left - node.position.x,
+      y: event.clientY - containerRect.top - node.position.y
+    };
+
+    setDraggedNode({ nodeId, offset });
+  }, [nodes]);
 
   const handleMouseUp = useCallback(() => {
     setDraggedNode(null);
-    setDragOffset({ x: 0, y: 0 });
   }, []);
 
-  const handleViewPossibleConnections = useCallback((nodeId: string) => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (node && node.type === 'ai-model') {
-      setSelectedNode(nodeId);
-      refetchConnections();
-      setShowConnectionsDialog(true);
-    }
-  }, [nodes, refetchConnections]);
-
-  const createConnection = useCallback((sourceNodeId: string, sourceOutputId: string, targetNodeId: string, targetInputId: string) => {
-    const connectionId = `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const newConnection: NodeConnection = {
-      id: connectionId,
-      sourceNodeId,
-      sourceOutputId,
-      targetNodeId,
-      targetInputId
-    };
-
-    setConnections(prev => [...prev, newConnection]);
-    
-    // Mark target input as connected
-    setNodes(prev => 
-      prev.map(node => 
-        node.id === targetNodeId
-          ? {
-              ...node,
-              inputs: node.inputs?.map(input => 
-                input.id === targetInputId 
-                  ? { ...input, connected: true }
-                  : input
-              ) || []
-            }
-          : node
-      )
-    );
-
-    toast({
-      title: "연결 생성됨",
-      description: "노드 간 연결이 성공적으로 생성되었습니다."
-    });
-    
-    setShowConnectionsDialog(false);
-  }, [toast]);
+  const handleCanvasClick = useCallback(() => {
+    setSelectedNodeId(null);
+    setPreviewConnection(null);
+  }, []);
 
   const deleteConnection = useCallback((connectionId: string) => {
-    const connection = connections.find(c => c.id === connectionId);
-    if (connection) {
-      setConnections(prev => prev.filter(c => c.id !== connectionId));
+    onConnectionsChange(connections.filter(conn => conn.id !== connectionId));
+  }, [connections, onConnectionsChange]);
+
+  const deleteNode = useCallback((nodeId: string) => {
+    // Remove node and all its connections
+    onNodesChange(nodes.filter(node => node.id !== nodeId));
+    onConnectionsChange(connections.filter(conn => 
+      conn.sourceId !== nodeId && conn.targetId !== nodeId
+    ));
+  }, [nodes, connections, onNodesChange, onConnectionsChange]);
+
+  const addNode = useCallback((type: Node['type']) => {
+    const newNode: Node = {
+      id: `node-${Date.now()}`,
+      type,
+      name: `${type} ${nodes.filter(n => n.type === type).length + 1}`,
+      position: { x: 200 + Math.random() * 300, y: 100 + Math.random() * 200 }
+    };
+    onNodesChange([...nodes, newNode]);
+  }, [nodes, onNodesChange]);
+
+  // Calculate connection paths
+  const connectionPaths = useMemo(() => {
+    return connections.map(conn => {
+      const sourceNode = nodes.find(n => n.id === conn.sourceId);
+      const targetNode = nodes.find(n => n.id === conn.targetId);
       
-      // Mark target input as disconnected
-      setNodes(prev => 
-        prev.map(node => 
-          node.id === connection.targetNodeId
-            ? {
-                ...node,
-                inputs: node.inputs?.map(input => 
-                  input.id === connection.targetInputId
-                    ? { ...input, connected: false }
-                    : input
-                ) || []
-              }
-            : node
-        )
-      );
-    }
-  }, [connections]);
+      if (!sourceNode || !targetNode) return null;
 
-  const renderConnectionLine = useCallback((connection: NodeConnection) => {
-    const sourceNode = nodes.find(n => n.id === connection.sourceNodeId);
-    const targetNode = nodes.find(n => n.id === connection.targetNodeId);
-    
-    if (!sourceNode || !targetNode) return null;
+      const startX = sourceNode.position.x + 150; // Right edge of source node
+      const startY = sourceNode.position.y + 40;  // Center height
+      const endX = targetNode.position.x;         // Left edge of target node
+      const endY = targetNode.position.y + 40;    // Center height
 
-    const sourceX = sourceNode.position.x + 200; // Node width
-    const sourceY = sourceNode.position.y + 50;  // Node height / 2
-    const targetX = targetNode.position.x;
-    const targetY = targetNode.position.y + 50;
+      const controlPoint1X = startX + (endX - startX) / 3;
+      const controlPoint2X = startX + 2 * (endX - startX) / 3;
 
-    return (
-      <line
-        key={connection.id}
-        x1={sourceX}
-        y1={sourceY}
-        x2={targetX}
-        y2={targetY}
-        stroke="#3b82f6"
-        strokeWidth="2"
-        markerEnd="url(#arrowhead)"
-        className="connection-line"
-      />
-    );
-  }, [nodes]);
+      return {
+        id: conn.id,
+        path: `M ${startX} ${startY} C ${controlPoint1X} ${startY}, ${controlPoint2X} ${endY}, ${endX} ${endY}`,
+        midX: (startX + endX) / 2,
+        midY: (startY + endY) / 2
+      };
+    }).filter((path): path is NonNullable<typeof path> => path !== null);
+  }, [connections, nodes]);
 
-  const renderNode = useCallback((node: WorkflowNode) => {
-    const getNodeIcon = () => {
-      switch (node.type) {
-        case 'data-source': return <Database className="w-5 h-5" />;
-        case 'view': return <Monitor className="w-5 h-5" />;
-        case 'ai-model': return <Brain className="w-5 h-5" />;
-        case 'ai-result': return <Zap className="w-5 h-5" />;
-        default: return <Workflow className="w-5 h-5" />;
-      }
-    };
+  // Calculate preview connection path
+  const previewPath = useMemo(() => {
+    if (!previewConnection || !containerRef.current) return null;
 
-    const getNodeColor = () => {
-      switch (node.type) {
-        case 'data-source': return 'border-blue-500 bg-blue-50 dark:bg-blue-950';
-        case 'view': return 'border-green-500 bg-green-50 dark:bg-green-950';
-        case 'ai-model': return 'border-purple-500 bg-purple-50 dark:bg-purple-950';
-        case 'ai-result': return 'border-orange-500 bg-orange-50 dark:bg-orange-950';
-        default: return 'border-gray-500 bg-gray-50 dark:bg-gray-950';
-      }
-    };
+    const sourceNode = nodes.find(n => n.id === previewConnection.sourceId);
+    if (!sourceNode) return null;
 
-    return (
-      <div
-        key={node.id}
-        className={`absolute w-48 p-3 border-2 rounded-lg cursor-move ${getNodeColor()} ${
-          selectedNode === node.id ? 'ring-2 ring-blue-400' : ''
-        }`}
-        style={{
-          left: node.position.x,
-          top: node.position.y,
-          zIndex: selectedNode === node.id ? 10 : 1
-        }}
-        onMouseDown={(e) => handleNodeMouseDown(node.id, e)}
-        onClick={() => setSelectedNode(node.id)}
-        data-testid={`node-${node.type}-${node.id}`}
-      >
-        <div className="flex items-center gap-2 mb-2">
-          {getNodeIcon()}
-          <span className="font-medium text-sm truncate">{node.name}</span>
-        </div>
-        
-        <Badge variant="outline" className="text-xs mb-2">
-          {node.type}
-        </Badge>
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const startX = sourceNode.position.x + 150;
+    const startY = sourceNode.position.y + 40;
+    const endX = previewConnection.mousePosition.x - containerRect.left;
+    const endY = previewConnection.mousePosition.y - containerRect.top;
 
-        {/* Input ports */}
-        {node.inputs && node.inputs.length > 0 && (
-          <div className="space-y-1 mb-2">
-            <div className="text-xs text-muted-foreground">Inputs:</div>
-            {node.inputs.map((input) => (
-              <div key={input.id} className="flex items-center gap-1 text-xs">
-                <Circle 
-                  className={`w-2 h-2 ${input.connected ? 'fill-green-500 text-green-500' : 'text-gray-300'}`}
-                />
-                <span>{input.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
+    const controlPoint1X = startX + (endX - startX) / 3;
+    const controlPoint2X = startX + 2 * (endX - startX) / 3;
 
-        {/* Output ports */}
-        {node.outputs && node.outputs.length > 0 && (
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">Outputs:</div>
-            {node.outputs.slice(0, 3).map((output) => (
-              <div key={output.id} className="flex items-center gap-1 text-xs">
-                <Circle className="w-2 h-2 fill-blue-500 text-blue-500" />
-                <span className="truncate">{output.name}</span>
-              </div>
-            ))}
-            {node.outputs.length > 3 && (
-              <div className="text-xs text-muted-foreground">
-                +{node.outputs.length - 3} more
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Node actions */}
-        {selectedNode === node.id && (
-          <div className="flex gap-1 mt-2">
-            {node.type === 'ai-model' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleViewPossibleConnections(node.id);
-                }}
-                data-testid={`button-view-connections-${node.id}`}
-              >
-                <Link2 className="w-3 h-3" />
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                setNodes(prev => prev.filter(n => n.id !== node.id));
-                setConnections(prev => prev.filter(c => 
-                  c.sourceNodeId !== node.id && c.targetNodeId !== node.id
-                ));
-              }}
-              data-testid={`button-delete-${node.id}`}
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-  }, [selectedNode, handleNodeMouseDown, handleViewPossibleConnections]);
-
-  const renderPossibleConnectionsDialog = () => {
-    const selectedNodeData = nodes.find(n => n.id === selectedNode);
-    if (!selectedNodeData) return null;
-
-    const allConnections = [
-      ...dataSources || [],
-      ...views || [],
-      ...aiResults || [],
-      ...aiModels || []
-    ];
-
-    return (
-      <Dialog open={showConnectionsDialog} onOpenChange={setShowConnectionsDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link2 className="w-5 h-5" />
-              {selectedNodeData.name}에 연결 가능한 소스
-            </DialogTitle>
-          </DialogHeader>
-          
-          <ScrollArea className="h-96">
-            <div className="space-y-4">
-              {allConnections.map((connection) => (
-                <Card key={connection.id} className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    {connection.type === 'data-source' && <Database className="w-5 h-5 text-blue-500" />}
-                    {connection.type === 'view' && <Monitor className="w-5 h-5 text-green-500" />}
-                    {connection.type === 'ai-result' && <Brain className="w-5 h-5 text-purple-500" />}
-                    {connection.type === 'ai-model' && <Workflow className="w-5 h-5 text-orange-500" />}
-                    
-                    <div>
-                      <h4 className="font-medium">{connection.name}</h4>
-                      <Badge variant="outline" className="text-xs">
-                        {connection.type}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  {connection.outputs && connection.outputs.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        사용 가능한 출력:
-                      </p>
-                      <div className="grid gap-2">
-                        {connection.outputs.map((output: any) => (
-                          <div
-                            key={output.id}
-                            className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50 cursor-pointer"
-                            onClick={() => {
-                              // Find the source node in canvas or add it
-                              let sourceNode = nodes.find(n => n.data.id === connection.id);
-                              if (!sourceNode) {
-                                // Add the source node to canvas first
-                                addNodeToCanvas(connection, connection.type);
-                                sourceNode = nodes[nodes.length - 1]; // Get the just added node
-                              }
-                              
-                              // Create connection to the first available input of target node
-                              if (sourceNode && selectedNodeData.inputs && selectedNodeData.inputs.length > 0) {
-                                const availableInput = selectedNodeData.inputs.find(input => !input.connected);
-                                if (availableInput) {
-                                  createConnection(
-                                    sourceNode.id,
-                                    output.id,
-                                    selectedNode!,
-                                    availableInput.id
-                                  );
-                                }
-                              }
-                            }}
-                            data-testid={`connection-option-${output.id}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Circle className="w-3 h-3 fill-current text-muted-foreground" />
-                              <span className="text-sm">{output.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {output.type}
-                              </Badge>
-                            </div>
-                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-              
-              {allConnections.length === 0 && (
-                <div className="text-center py-8">
-                  <Link2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    연결 가능한 데이터 소스가 없습니다.
-                  </p>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    );
-  };
+    return `M ${startX} ${startY} C ${controlPoint1X} ${startY}, ${controlPoint2X} ${endY}, ${endX} ${endY}`;
+  }, [previewConnection, nodes]);
 
   return (
-    <div className="w-full h-96 relative">
+    <div className="h-full flex flex-col">
+      {/* Toolbar */}
+      <div className="p-4 border-b bg-gray-50 flex items-center gap-2">
+        <span className="text-sm font-medium mr-4">Add Node:</span>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => addNode('ai-model')}
+          className="flex items-center gap-2"
+          data-testid="add-ai-model-node"
+        >
+          <Brain className="w-4 h-4" />
+          AI Model
+        </Button>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => addNode('data-source')}
+          className="flex items-center gap-2"
+          data-testid="add-data-source-node"
+        >
+          <Database className="w-4 h-4" />
+          Data Source
+        </Button>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => addNode('transform')}
+          className="flex items-center gap-2"
+          data-testid="add-transform-node"
+        >
+          <FileText className="w-4 h-4" />
+          Transform
+        </Button>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => addNode('output')}
+          className="flex items-center gap-2"
+          data-testid="add-output-node"
+        >
+          <Target className="w-4 h-4" />
+          Output
+        </Button>
+      </div>
+
       {/* Canvas */}
       <div 
-        ref={canvasRef}
-        className="w-full h-full border rounded-lg bg-grid-pattern overflow-hidden relative"
+        ref={containerRef}
+        className="flex-1 relative bg-gray-100 overflow-hidden cursor-default"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onClick={handleCanvasClick}
         data-testid="workflow-canvas"
       >
-        {/* Connection lines SVG */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+        {/* Background grid */}
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)',
+            backgroundSize: '20px 20px'
+          }}
+        />
+
+        {/* Connection lines */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          {connectionPaths.map((conn) => (
+            <g key={conn.id}>
+              <path
+                d={conn.path}
+                stroke="#3b82f6"
+                strokeWidth="2"
+                fill="none"
+                markerEnd="url(#arrowhead)"
+              />
+            </g>
+          ))}
+          
+          {/* Preview connection */}
+          {previewPath && (
+            <path
+              d={previewPath}
+              stroke="#3b82f6"
+              strokeWidth="2"
+              strokeDasharray="5,5"
+              fill="none"
+              opacity="0.7"
+            />
+          )}
+
+          {/* Arrow marker definition */}
           <defs>
             <marker
               id="arrowhead"
               markerWidth="10"
               markerHeight="7"
-              refX="9"
+              refX="10"
               refY="3.5"
               orient="auto"
             >
@@ -507,146 +315,105 @@ export function SimpleNodeWorkflow({ configurationId, onSave }: SimpleNodeWorkfl
               />
             </marker>
           </defs>
-          {connections.map(renderConnectionLine)}
         </svg>
 
-        {/* Nodes */}
-        {nodes.map(renderNode)}
+        {/* Connection delete buttons */}
+        {connectionPaths.map((conn) => (
+          <button
+            key={`delete-${conn.id}`}
+            className="absolute w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors pointer-events-auto"
+            style={{
+              left: conn.midX - 12,
+              top: conn.midY - 12,
+              transform: 'translate(-50%, -50%)'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteConnection(conn.id);
+            }}
+            data-testid={`delete-connection-${conn.id}`}
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        ))}
 
-        {/* Empty state */}
-        {nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <Workflow className="w-12 h-12 mx-auto text-muted-foreground" />
-              <div>
-                <p className="text-lg font-medium mb-2">시각적 워크플로우 생성</p>
-                <p className="text-muted-foreground mb-4">
-                  노드를 추가하여 AI 모델 워크플로우를 구성하세요
-                </p>
-                <Button onClick={() => setShowAddNodeDialog(true)} data-testid="button-add-first-node">
-                  <Plus className="w-4 h-4 mr-2" />
-                  첫 번째 노드 추가
+        {/* Nodes */}
+        {nodes.map((node) => (
+          <Card
+            key={node.id}
+            className={`absolute w-36 cursor-pointer transition-all duration-200 select-none ${
+              getNodeColor(node.type)
+            } ${
+              selectedNodeId === node.id ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:shadow-md'
+            }`}
+            style={{
+              left: node.position.x,
+              top: node.position.y,
+              zIndex: draggedNode?.nodeId === node.id ? 1000 : 1
+            }}
+            onClick={(e) => handleNodeClick(node.id, e)}
+            onMouseDown={(e) => handleMouseDown(node.id, e)}
+            data-testid={`node-${node.id}`}
+          >
+            <CardHeader className="p-3 pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {getNodeIcon(node.type)}
+                  <span className="text-xs font-medium truncate">
+                    {node.name}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNode(node.id);
+                  }}
+                  data-testid={`delete-node-${node.id}`}
+                >
+                  <Trash2 className="w-3 h-3" />
                 </Button>
               </div>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xs text-gray-600 capitalize">
+                {node.type.replace('-', ' ')}
+              </div>
+              <div className="text-xs mt-1">
+                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${
+                  node.status === 'connected' ? 'bg-green-500' : 
+                  node.status === 'error' ? 'bg-red-500' : 'bg-gray-400'
+                }`} />
+                {node.status || 'disconnected'}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Instructions */}
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <Plus className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-2">Create Your Workflow</p>
+              <p className="text-sm">Add nodes using the toolbar above</p>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Controls */}
-      <div className="absolute top-4 right-4 flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => setShowAddNodeDialog(true)}
-          data-testid="button-add-node"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          노드 추가
-        </Button>
-        
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            if (onSave) {
-              onSave({ nodes, connections });
-              toast({
-                title: "워크플로우 저장됨",
-                description: "워크플로우 구성이 저장되었습니다."
-              });
-            }
-          }}
-          data-testid="button-save-workflow"
-        >
-          <Save className="w-4 h-4 mr-1" />
-          저장
-        </Button>
-      </div>
-
-      {/* Add Node Dialog */}
-      <Dialog open={showAddNodeDialog} onOpenChange={setShowAddNodeDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>노드 추가</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            {/* Data Sources */}
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
-                <Database className="w-5 h-5 text-blue-500" />
-                데이터 소스
-              </h3>
-              <div className="grid gap-2">
-                {dataSources.map((source: any) => (
-                  <Card 
-                    key={source.id} 
-                    className="p-3 cursor-pointer hover:bg-muted/50"
-                    onClick={() => addNodeToCanvas(source, 'data-source')}
-                    data-testid={`add-node-data-source-${source.id}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{source.name}</span>
-                      <Badge variant="outline">Data Source</Badge>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* Views */}
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
-                <Monitor className="w-5 h-5 text-green-500" />
-                뷰
-              </h3>
-              <div className="grid gap-2">
-                {views.map((view: any) => (
-                  <Card 
-                    key={view.id} 
-                    className="p-3 cursor-pointer hover:bg-muted/50"
-                    onClick={() => addNodeToCanvas(view, 'view')}
-                    data-testid={`add-node-view-${view.id}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{view.name}</span>
-                      <Badge variant="outline">View</Badge>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* AI Models */}
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
-                <Brain className="w-5 h-5 text-purple-500" />
-                AI 모델
-              </h3>
-              <div className="grid gap-2">
-                {aiModels.map((model: any) => (
-                  <Card 
-                    key={model.id} 
-                    className="p-3 cursor-pointer hover:bg-muted/50"
-                    onClick={() => addNodeToCanvas(model, 'ai-model')}
-                    data-testid={`add-node-ai-model-${model.id}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{model.name}</span>
-                      <Badge variant="outline">AI Model</Badge>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
+        {selectedNodeId && (
+          <div className="absolute top-4 left-4 bg-blue-100 border border-blue-300 rounded-lg p-3">
+            <p className="text-sm text-blue-800 font-medium">
+              Connection Mode Active
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Click another node to create a connection
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Possible Connections Dialog */}
-      {renderPossibleConnectionsDialog()}
+        )}
+      </div>
     </div>
   );
 }
-
-export default SimpleNodeWorkflow;

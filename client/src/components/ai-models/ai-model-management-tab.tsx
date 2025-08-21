@@ -3,7 +3,6 @@ import { EnhancedModelUpload } from './enhanced-model-upload';
 import { FolderCreationDialog } from './folder-creation-dialog';
 import { FolderEditDialog } from './folder-edit-dialog';
 import { ModelsViewDialog } from './models-view-dialog';
-import { ModelConfigurationManager } from './model-configuration-manager';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,9 +22,7 @@ import {
   Zap,
   Target,
   TrendingUp,
-  Cog,
-  Play,
-  Save
+  Cog
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -56,11 +53,7 @@ interface AiModel {
   analysisStatus: string;
 }
 
-interface AIModelManagementTabProps {
-  activeTab?: string;
-}
-
-export default function AIModelManagementTab({ activeTab }: AIModelManagementTabProps) {
+export default function AIModelManagementTab() {
   const [showUpload, setShowUpload] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -195,21 +188,6 @@ export default function AIModelManagementTab({ activeTab }: AIModelManagementTab
     setSelectedFolder(null);
   };
 
-  const handleTestWorkflow = () => {
-    toast({
-      title: "워크플로우 테스트 시작",
-      description: "노드 연결과 데이터 흐름을 검증하고 있습니다...",
-    });
-
-    // 시뮬레이션: 3초 후 테스트 완료
-    setTimeout(() => {
-      toast({
-        title: "워크플로우 테스트 완료",
-        description: "모든 노드 연결이 정상적으로 작동합니다. AI 모델이 성공적으로 실행되었습니다.",
-      });
-    }, 3000);
-  };
-
   const getIconComponent = (iconName: string) => {
     switch (iconName) {
       case 'FolderOpen': return FolderOpen;
@@ -245,20 +223,14 @@ export default function AIModelManagementTab({ activeTab }: AIModelManagementTab
     );
   }
 
-  // Model Configuration Tab - render configuration management
-  if (activeTab === 'model-configuration') {
-    return <ModelConfigurationManager onTestWorkflow={handleTestWorkflow} />;
-  }
-
-  // Model Upload Tab - render folder management and upload interface
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Upload Models</h1>
-            <p className="text-gray-600 mt-1">Upload, organize, and manage your AI models</p>
+            <h1 className="text-2xl font-bold text-gray-900">AI Model Management</h1>
+            <p className="text-gray-600 mt-1">Upload, configure, and manage your AI models</p>
           </div>
           <Button 
             onClick={() => setShowUpload(true)}
