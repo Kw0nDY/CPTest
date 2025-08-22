@@ -4116,51 +4116,188 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                       Model Testing
                     </h5>
                     <div className="space-y-3">
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            console.log('🧪 Testing AI model:', selectedNodeForDetails.modelId);
-                            const response = await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/test`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                sampleData: {
-                                  graph_signal: [[1, 2, 3], [4, 5, 6]],
-                                  adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
-                                }
-                              })
-                            });
-                            const result = await response.json();
-                            
-                            if (result.success) {
-                              toast({
-                                title: "Model Test Successful",
-                                description: `Model executed in ${result.executionTime}ms`,
+                      <div className="space-y-2">
+                        <Button 
+                          onClick={async () => {
+                            try {
+                              console.log('🧪 Testing AI model with sample data:', selectedNodeForDetails.modelId);
+                              const response = await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/test`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  sampleData: {
+                                    graph_signal: [[1, 2, 3], [4, 5, 6]],
+                                    adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+                                  }
+                                })
                               });
-                              console.log('🎉 Model test results:', result.results);
-                            } else {
+                              const result = await response.json();
+                              
+                              if (result.success) {
+                                toast({
+                                  title: "모델 테스트 성공",
+                                  description: `모델이 ${result.executionTime}ms에 실행되었습니다`,
+                                });
+                                console.log('🎉 Model test results:', result.results);
+                              } else {
+                                toast({
+                                  title: "모델 테스트 실패",
+                                  description: result.error || "알 수 없는 오류가 발생했습니다",
+                                  variant: "destructive"
+                                });
+                                console.error('❌ Model test error:', result.error);
+                              }
+                            } catch (error) {
                               toast({
-                                title: "Model Test Failed",
-                                description: result.error || "Unknown error occurred",
+                                title: "테스트 요청 실패",
+                                description: "모델 실행 서비스에 연결할 수 없습니다",
                                 variant: "destructive"
                               });
-                              console.error('❌ Model test error:', result.error);
+                              console.error('❌ Test request error:', error);
                             }
-                          } catch (error) {
-                            toast({
-                              title: "Test Request Failed",
-                              description: "Could not connect to model execution service",
-                              variant: "destructive"
-                            });
-                            console.error('❌ Test request error:', error);
-                          }
-                        }}
-                        className="w-full"
-                        variant="outline"
-                      >
-                        <PlayCircle className="w-4 h-4 mr-2" />
-                        Test Model with Sample Data
-                      </Button>
+                          }}
+                          className="w-full"
+                          variant="outline"
+                        >
+                          <PlayCircle className="w-4 h-4 mr-2" />
+                          샘플 데이터로 테스트
+                        </Button>
+
+                        <Button 
+                          onClick={async () => {
+                            try {
+                              // Get connected input data for this model
+                              const connectedInputs = connections.filter(c => c.toNodeId === selectedNodeForDetails.id);
+                              
+                              if (connectedInputs.length === 0) {
+                                toast({
+                                  title: "연결된 데이터 없음",
+                                  description: "모델에 연결된 입력 데이터가 없습니다. 먼저 데이터 소스나 다른 모델의 출력을 연결해주세요.",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+
+                              console.log('🔗 Testing AI model with connected data:', selectedNodeForDetails.modelId);
+                              console.log('🔗 Connected inputs:', connectedInputs);
+
+                              // Prepare input data from connections
+                              const inputData: any = {};
+                              let hasValidData = false;
+
+                              for (const connection of connectedInputs) {
+                                const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+                                if (sourceNode) {
+                                  if (sourceNode.type === 'data-integration') {
+                                    // Fetch data from data source
+                                    try {
+                                      const dataResponse = await fetch(`/api/data-sources/${sourceNode.sourceId}/sample-data`);
+                                      if (dataResponse.ok) {
+                                        const data = await dataResponse.json();
+                                        inputData[connection.targetInputName] = data.sampleData || data;
+                                        hasValidData = true;
+                                      }
+                                    } catch (error) {
+                                      console.log('Data source fetch error:', error);
+                                    }
+                                  } else if (sourceNode.type === 'ai-model') {
+                                    // Use previous AI model results
+                                    try {
+                                      const resultResponse = await fetch(`/api/ai-models/${sourceNode.modelId}/last-result`);
+                                      if (resultResponse.ok) {
+                                        const resultData = await resultResponse.json();
+                                        inputData[connection.targetInputName] = resultData.predictions || resultData;
+                                        hasValidData = true;
+                                      }
+                                    } catch (error) {
+                                      console.log('AI model result fetch error:', error);
+                                    }
+                                  } else if (sourceNode.type === 'view-data') {
+                                    // Use view data
+                                    try {
+                                      const viewResponse = await fetch(`/api/views/${sourceNode.viewId}/data`);
+                                      if (viewResponse.ok) {
+                                        const viewData = await viewResponse.json();
+                                        inputData[connection.targetInputName] = viewData.data || viewData;
+                                        hasValidData = true;
+                                      }
+                                    } catch (error) {
+                                      console.log('View data fetch error:', error);
+                                    }
+                                  }
+                                }
+                              }
+
+                              if (!hasValidData) {
+                                toast({
+                                  title: "데이터 로드 실패",
+                                  description: "연결된 데이터를 불러올 수 없습니다. 연결된 소스가 유효한지 확인해주세요.",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+
+                              // Execute model with connected data
+                              const response = await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/execute-with-connections`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  connectedData: inputData,
+                                  connections: connectedInputs,
+                                  nodeId: selectedNodeForDetails.id
+                                })
+                              });
+                              
+                              const result = await response.json();
+                              
+                              if (result.success) {
+                                toast({
+                                  title: "연결된 데이터 실행 성공",
+                                  description: `모델이 연결된 데이터와 함께 성공적으로 실행되었습니다. 처리 시간: ${result.executionTime}ms`,
+                                });
+                                console.log('🎉 Connected data execution results:', result.results);
+                                
+                                // Save the result for potential use by other connected models
+                                if (result.results) {
+                                  await fetch(`/api/ai-models/${selectedNodeForDetails.modelId}/save-result`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      results: result.results,
+                                      executedAt: new Date().toISOString(),
+                                      nodeId: selectedNodeForDetails.id
+                                    })
+                                  });
+                                }
+                              } else {
+                                toast({
+                                  title: "연결된 데이터 실행 실패",
+                                  description: result.error || "알 수 없는 오류가 발생했습니다",
+                                  variant: "destructive"
+                                });
+                                console.error('❌ Connected data execution error:', result.error);
+                              }
+                            } catch (error) {
+                              toast({
+                                title: "연결된 데이터 실행 요청 실패",
+                                description: "연결된 데이터로 모델을 실행할 수 없습니다",
+                                variant: "destructive"
+                              });
+                              console.error('❌ Connected data execution request error:', error);
+                            }
+                          }}
+                          className="w-full"
+                          disabled={connections.filter(c => c.toNodeId === selectedNodeForDetails?.id).length === 0}
+                        >
+                          <Link2 className="w-4 h-4 mr-2" />
+                          연결된 데이터로 실행
+                          {connections.filter(c => c.toNodeId === selectedNodeForDetails?.id).length > 0 && (
+                            <Badge variant="secondary" className="ml-2">
+                              {connections.filter(c => c.toNodeId === selectedNodeForDetails?.id).length}개 연결됨
+                            </Badge>
+                          )}
+                        </Button>
+                      </div>
                       
                       <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
                         <div className="font-medium mb-1">Test Requirements:</div>

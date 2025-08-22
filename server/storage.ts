@@ -73,6 +73,7 @@ export interface IStorage {
   createAiModelResult(result: InsertAiModelResult): Promise<AiModelResult>;
   updateAiModelResult(id: string, updates: Partial<AiModelResult>): Promise<AiModelResult>;
   deleteAiModelResult(id: string): Promise<void>;
+  saveAiModelResult(result: any): Promise<AiModelResult>;
   
   // AI Model Folder methods
   getAiModelFolders(): Promise<AiModelFolder[]>;
@@ -722,6 +723,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelResult(id: string): Promise<void> {
     await db.delete(aiModelResults).where(eq(aiModelResults.id, id));
+  }
+
+  async saveAiModelResult(result: any): Promise<AiModelResult> {
+    // Use createAiModelResult with the provided data
+    const insertData: InsertAiModelResult = {
+      id: result.id || `result-${Date.now()}`,
+      modelId: result.modelId,
+      configurationId: result.configurationId || null,
+      inputData: JSON.stringify(result.inputData || {}),
+      resultData: JSON.stringify(result.resultData || {}),
+      executedAt: result.executedAt || new Date().toISOString(),
+      status: result.status || 'completed',
+      executionTime: result.executionTime || 0,
+      error: result.error || null
+    };
+    
+    return await this.createAiModelResult(insertData);
   }
 
   // AI Model Folder methods

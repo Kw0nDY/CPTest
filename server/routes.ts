@@ -36,6 +36,74 @@ const oauth2Client = new OAuth2Client(
   REDIRECT_URI
 );
 
+// Process connected data for AI model execution
+function processConnectedDataForModel(model: any, connectedData: any, connections: any[]): any {
+  console.log('Processing connected data for model:', model.name);
+  
+  if (!connectedData || !connections) {
+    console.log('No connected data or connections provided, using sample data');
+    return {
+      graph_signal: [[1, 2, 3], [4, 5, 6]],
+      adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
+    };
+  }
+  
+  // Transform connected data based on model type and requirements
+  const processedData: any = {};
+  
+  for (const [inputName, data] of Object.entries(connectedData)) {
+    console.log(`Processing input ${inputName}:`, typeof data, Array.isArray(data) ? data.length : 'not array');
+    
+    if (Array.isArray(data)) {
+      // For STGCN models, we need specific format
+      if (model.modelType === 'STGCN' || model.name.toLowerCase().includes('stgcn')) {
+        // Convert data to STGCN format based on input name
+        if (inputName.toLowerCase().includes('kpi') || inputName.toLowerCase().includes('target')) {
+          // This is KPI target data - format as target values
+          processedData.target_kpi = data.slice(0, 3).map(d => Array.isArray(d) ? d[0] : d);
+        } else if (inputName.toLowerCase().includes('temperature') || inputName.toLowerCase().includes('pressure')) {
+          // This is process parameter data
+          processedData.process_params = data;
+        } else {
+          // Generic data - try to format appropriately
+          processedData[inputName] = data;
+        }
+      } else {
+        // For other model types, pass data as-is
+        processedData[inputName] = data;
+      }
+    } else if (typeof data === 'object' && data !== null) {
+      // Handle object data (like prediction results from other models)
+      if (data.predictions) {
+        processedData[inputName] = data.predictions;
+      } else if (data.results) {
+        processedData[inputName] = data.results;
+      } else {
+        processedData[inputName] = data;
+      }
+    } else {
+      // Handle primitive values
+      processedData[inputName] = data;
+    }
+  }
+  
+  // Ensure we have required data format for STGCN models
+  if (model.modelType === 'STGCN' || model.name.toLowerCase().includes('stgcn')) {
+    if (!processedData.target_kpi) {
+      processedData.target_kpi = [50, 100, 150]; // Default KPI targets
+    }
+    if (!processedData.graph_signal) {
+      processedData.graph_signal = [[1, 2, 3], [4, 5, 6]];
+    }
+    if (!processedData.adjacency_matrix) {
+      processedData.adjacency_matrix = [[1, 0, 1], [0, 1, 0], [1, 0, 1]];
+    }
+  }
+  
+  console.log('Processed data structure:', Object.keys(processedData));
+  return processedData;
+}
+
 // Generic AI Model Execution Function
 async function executeAIModelGeneric({
   model,
@@ -4120,6 +4188,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error testing AI model:", error);
       res.status(500).json({ 
         error: "Failed to test AI model",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Execute AI model with connected data from workflow
+  app.post("/api/ai-models/:id/execute-with-connections", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { connectedData, connections, nodeId } = req.body;
+      
+      // Get AI model
+      const model = await storage.getAiModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "AI model not found" });
+      }
+      
+      console.log('🔗 Executing AI model with connected data:', {
+        modelId: id,
+        modelName: model.name,
+        nodeId,
+        connectionsCount: connections?.length || 0,
+        connectedDataKeys: Object.keys(connectedData || {})
+      });
+      
+      // Transform connected data to proper input format based on model requirements
+      const processedInputData = processConnectedDataForModel(model, connectedData, connections);
+      
+      // Construct model file path
+      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      
+      // Prepare execution configuration
+      const executionConfig = {
+        modelPath,
+        inputData: processedInputData,
+        inputSpecs: model.inputs || [],
+        outputSpecs: model.outputs || [],
+        executionContext: 'connected_workflow'
+      };
+      
+      // Execute the model
+      const result = await modelExecutionService.executeModel(executionConfig);
+      
+      if (result.success) {
+        // Save execution result for potential use by other connected models
+        const resultData = {
+          id: `result_${id}_${Date.now()}`,
+          modelId: id,
+          modelName: model.name,
+          nodeId,
+          executedAt: new Date().toISOString(),
+          inputData: processedInputData,
+          resultData: result.results,
+          connections: connections || [],
+          executionMethod: 'connected_data'
+        };
+        
+        // Save to storage for later retrieval
+        try {
+          await storage.saveAiModelResult(resultData);
+        } catch (storageError) {
+          console.warn('Failed to save result to storage:', storageError);
+        }
+        
+        res.json({
+          success: true,
+          modelId: id,
+          modelName: model.name,
+          results: result.results,
+          executionTime: result.executionTime,
+          message: "Model executed successfully with connected data",
+          nodeId,
+          connectionsUsed: connections?.length || 0,
+          resultId: resultData.id
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error,
+          modelId: id,
+          modelName: model.name,
+          nodeId
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error executing AI model with connected data:", error);
+      res.status(500).json({ 
+        error: "Failed to execute AI model with connected data",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Get last result for AI model (for use in other connected models)
+  app.get("/api/ai-models/:id/last-result", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get the most recent result for this model
+      const results = await storage.getAiModelResults();
+      const modelResults = results
+        .filter(r => r.modelId === id)
+        .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+      
+      if (modelResults.length === 0) {
+        return res.status(404).json({ error: "No execution results found for this model" });
+      }
+      
+      res.json(modelResults[0]);
+    } catch (error) {
+      console.error("Error getting last AI model result:", error);
+      res.status(500).json({ 
+        error: "Failed to get last model result",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Save AI model result
+  app.post("/api/ai-models/:id/save-result", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { results, executedAt, nodeId } = req.body;
+      
+      const model = await storage.getAiModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "AI model not found" });
+      }
+      
+      const resultData = {
+        id: `result_${id}_${Date.now()}`,
+        modelId: id,
+        modelName: model.name,
+        nodeId,
+        executedAt,
+        resultData: results,
+        executionMethod: 'saved_result'
+      };
+      
+      await storage.saveAiModelResult(resultData);
+      
+      res.json({
+        success: true,
+        message: "Result saved successfully",
+        resultId: resultData.id
+      });
+    } catch (error) {
+      console.error("Error saving AI model result:", error);
+      res.status(500).json({ 
+        error: "Failed to save model result",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
