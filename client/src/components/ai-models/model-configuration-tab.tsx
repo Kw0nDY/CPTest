@@ -1883,6 +1883,15 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     outputName: string;
     description: string;
   }> => {
+    console.log('🔍 getAvailableOutputNodes called for inputType:', inputType);
+    console.log('🔍 Current nodes on canvas:', nodes.map(n => ({
+      id: n.id,
+      type: n.type,
+      name: n.name,
+      outputsCount: n.outputs?.length || 0,
+      outputs: n.outputs?.map(o => ({ id: o.id, name: o.name, type: o.type }))
+    })));
+    
     const outputs: Array<{
       type: string;
       nodeId: string;
@@ -1912,16 +1921,22 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
+      console.log('🔍 Processing data-input node:', node.name, 'outputs:', node.outputs);
       // Use the actual outputs that were created when the node was added to canvas
       node.outputs?.forEach((output: any) => {
-        outputs.push({
+        console.log('🔍 Adding data-input output:', output.name, 'type:', output.type, 'id:', output.id);
+        const outputEntry = {
           type: 'data-integration',
           nodeId: node.id,
           nodeName: node.name || node.uniqueName,
           outputId: output.id,
           outputName: output.name,
           description: `${output.name} from ${node.name || node.uniqueName}`
-        });
+        };
+        console.log('🔍 Output entry created:', outputEntry);
+        outputs.push(outputEntry);
+        console.log('🔍 Outputs array length after push:', outputs.length);
+        console.log('🔍 Current outputs array:', outputs);
       });
     });
     
@@ -1964,10 +1979,17 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     // Only show AI models that are actually on the canvas as ai-model nodes
     // Self-referencing is already handled in the ai-model nodes section above
     
-    return outputs.filter(output => 
+    console.log('🔍 All outputs before filtering:', outputs);
+    console.log('🔍 Connection search query:', connectionSearchQuery);
+    
+    const filteredOutputs = connectionSearchQuery ? outputs.filter(output => 
       output.nodeName.toLowerCase().includes(connectionSearchQuery.toLowerCase()) ||
       output.outputName.toLowerCase().includes(connectionSearchQuery.toLowerCase())
-    );
+    ) : outputs;
+    
+    console.log('🔍 Final outputs for inputType', inputType, ':', filteredOutputs);
+    
+    return filteredOutputs;
   };
 
   // Removed old complex drag handlers - using simplified approach in handleNodeMouseDown
@@ -2000,22 +2022,43 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
 
   // Enhanced connection creation with visual feedback
   const createConnection = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
+    console.log('🔗 CreateConnection called with:', { fromNodeId, fromOutputId, toNodeId, toInputId });
+    console.log('🔗 Available nodes:', nodes.map(n => ({ id: n.id, type: n.type, name: n.name, outputsCount: n.outputs?.length || 0 })));
+    
     const fromNode = nodes.find(n => n.id === fromNodeId);
     const toNode = nodes.find(n => n.id === toNodeId);
     
+    console.log('🔗 Found nodes:', { fromNode: fromNode?.id, toNode: toNode?.id });
+    
     if (!fromNode || !toNode) {
+      console.error('❌ Node not found:', { fromNodeFound: !!fromNode, toNodeFound: !!toNode });
       toast({
-        title: "Connection Failed",
-        description: "Could not find source or target nodes",
+        title: "연결 실패",
+        description: "소스 또는 대상 노드를 찾을 수 없습니다",
         variant: "destructive"
       });
       return false;
     }
 
+    console.log('🔗 Searching for output with ID:', fromOutputId);
+    console.log('🔗 Available outputs in fromNode:', fromNode.outputs?.map(o => ({ id: o.id, name: o.name })));
+    
     const fromOutput = fromNode.outputs.find(o => o.id === fromOutputId);
     const toInput = toNode.inputs.find(i => i.id === toInputId);
     
+    console.log('🔗 Output/Input search results:', {
+      fromNodeOutputs: fromNode.outputs?.map(o => ({ id: o.id, name: o.name })),
+      toNodeInputs: toNode.inputs?.map(i => ({ id: i.id, name: i.name })),
+      fromOutputFound: !!fromOutput,
+      toInputFound: !!toInput,
+      searchingForOutputId: fromOutputId,
+      searchingForInputId: toInputId,
+      foundOutput: fromOutput,
+      foundInput: toInput
+    });
+    
     if (!fromOutput || !toInput) {
+      console.error('❌ Output or input not found:', { fromOutput, toInput });
       toast({
         title: "Connection Failed", 
         description: "Invalid output or input connection points",
@@ -2030,6 +2073,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     );
     
     if (existingConnection) {
+      console.warn('⚠️ Input already connected:', existingConnection);
       toast({
         title: "Connection Failed",
         description: `Input "${toInput.name}" is already connected`,
@@ -4473,6 +4517,15 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                     key={index} 
                                     className="p-3 border border-gray-200 rounded-lg transition-colors hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
                                     onClick={() => {
+                                      console.log('🔗 Attempting connection:', {
+                                        fromNodeId: output.nodeId,
+                                        fromOutputId: output.outputId,
+                                        toNodeId: selectedModelForDetails?.id || selectedNodeForDetails?.id || '',
+                                        toInputId: input.id,
+                                        outputDetails: output,
+                                        inputDetails: input
+                                      });
+                                      
                                       // Create the connection when clicked
                                       const success = createConnection(
                                         output.nodeId,
@@ -4480,6 +4533,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                         selectedModelForDetails?.id || selectedNodeForDetails?.id || '',
                                         input.id
                                       );
+                                      
                                       if (success) {
                                         // Show success toast
                                         toast({
@@ -4490,10 +4544,16 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                         // Close the dialog after successful connection
                                         setConnectionDialogOpen(prev => ({...prev, [`${selectedModelForDetails?.id || selectedNodeForDetails?.id}-${input.id}`]: false}));
                                       } else {
+                                        console.error('❌ Connection failed for:', {
+                                          fromNodeId: output.nodeId,
+                                          fromOutputId: output.outputId,
+                                          toNodeId: selectedModelForDetails?.id || selectedNodeForDetails?.id || '',
+                                          toInputId: input.id
+                                        });
                                         // Show error toast
                                         toast({
                                           title: "연결 실패",
-                                          description: "연결을 생성하는데 문제가 발생했습니다.",
+                                          description: "연결을 생성하는데 문제가 발생했습니다. 콘솔에서 자세한 정보를 확인하세요.",
                                           variant: "destructive",
                                         });
                                       }
