@@ -54,7 +54,7 @@ function ConfigurationForm({ models, configuration, onClose }: ConfigurationForm
       return {
         name: configuration.name,
         description: configuration.description || '',
-        modelId: configuration.modelId,
+        modelId: configuration.modelId || '',
         isActive: configuration.isActive === 1,
         inputMappings: configuration.inputMappings || [],
         outputMappings: configuration.outputMappings || [],
@@ -608,7 +608,7 @@ export function ModelConfiguration() {
                       
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <div>
-                          <span className="font-medium">모델:</span> {getModelName(config.modelId)}
+                          <span className="font-medium">모델:</span> {getModelName(config.modelId || '')}
                         </div>
                         <div>
                           <span className="font-medium">입력:</span> {config.inputMappings?.length || 0}개

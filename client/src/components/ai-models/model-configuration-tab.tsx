@@ -85,6 +85,7 @@ interface ModelNode {
   sampleData?: any; // Sample data for data input nodes
   dataSchema?: any[]; // Data schema for data input nodes
   goalInput?: string; // Goal input text for final-goal nodes
+  goalRequest?: string; // Goal request text for final-goal nodes
 }
 
 interface Connection {
@@ -93,9 +94,14 @@ interface Connection {
   fromOutputId?: string; // Optional for block connections
   toNodeId: string;
   toInputId?: string; // Optional for block connections
-  type: 'parameter' | 'block'; // New connection type
+  type: 'parameter' | 'block' | 'string' | 'number' | 'boolean' | 'object' | 'array' | 'image' | 'data'; // Connection type with data types
   sourceOutputName?: string;
   targetInputName?: string;
+  // Legacy properties for backward compatibility
+  sourceNodeId?: string;
+  targetNodeId?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
   mappings?: Array<{ // Field mappings for block connections
     sourceField: string;
     targetField: string;
@@ -117,6 +123,7 @@ interface Configuration {
   name: string;
   description: string;
   folderId: string;
+  modelId?: string; // Optional for backward compatibility
   nodes: ModelNode[];
   connections: Connection[];
   createdAt: string;
