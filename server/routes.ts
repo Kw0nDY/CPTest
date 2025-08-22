@@ -4071,8 +4071,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Construct model file path
-      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      // Construct model file path - check if filePath already includes full path
+      const modelPath = model.filePath.startsWith('/') ? 
+        model.filePath : 
+        path.join(process.cwd(), 'uploads', model.filePath);
       
       // Prepare execution configuration
       const executionConfig = {
@@ -4154,8 +4156,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         adjacency_matrix: [[1, 0, 1], [0, 1, 0], [1, 0, 1]]
       };
       
-      // Construct model file path
-      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      // Construct model file path - check if filePath already includes full path
+      const modelPath = model.filePath.startsWith('/') ? 
+        model.filePath : 
+        path.join(process.cwd(), 'uploads', model.filePath);
       
       // Prepare execution configuration
       const executionConfig = {
@@ -4216,8 +4220,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform connected data to proper input format based on model requirements
       const processedInputData = processConnectedDataForModel(model, connectedData, connections);
       
-      // Construct model file path
-      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      // Construct model file path - check if filePath already includes full path
+      const modelPath = model.filePath.startsWith('/') ? 
+        model.filePath : 
+        path.join(process.cwd(), 'uploads', model.filePath);
       
       // Prepare execution configuration
       const executionConfig = {
@@ -4480,8 +4486,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const numRecords = primarySource.records.length;
       console.log(`🎯 Processing ${numRecords} records based on primary source: ${primarySource.inputName}`);
       
-      // Construct model file path
-      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      // Construct model file path - check if filePath already includes full path
+      const modelPath = model.filePath.startsWith('/') ? 
+        model.filePath : 
+        path.join(process.cwd(), 'uploads', model.filePath);
       
       // Execute model for each record
       const allResults: any[] = [];
