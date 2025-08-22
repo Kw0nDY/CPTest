@@ -2403,7 +2403,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
         for (const connection of connections) {
           const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
           if (sourceNode?.type === 'data-input') {
-            const output = sourceNode.outputs?.find(o => o.id === connection.sourceOutputId);
+            const output = sourceNode.outputs?.find((o: any) => o.id === (connection as any).sourceOutputId);
             if (output?.tableData) {
               connectedData[connection.targetInputName] = output.tableData;
               console.log(`📊 Added data source: ${connection.targetInputName}`, {
@@ -2417,8 +2417,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
               console.log(`⚠️ No tableData found for output:`, {
                 sourceNodeType: sourceNode.type,
                 sourceNodeName: sourceNode.name,
-                connectionOutputId: connection.sourceOutputId,
-                availableOutputs: sourceNode.outputs?.map(o => ({ id: o.id, name: o.name, hasTableData: !!o.tableData }))
+                connectionOutputId: (connection as any).sourceOutputId,
+                availableOutputs: sourceNode.outputs?.map((o: any) => ({ id: o.id, name: o.name, hasTableData: !!o.tableData }))
               });
             }
           }
@@ -3836,6 +3836,147 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                       <div className="text-sm text-gray-600 mb-4">
                         {testResults.message} • Executed at {new Date(testResults.details.executedAt).toLocaleTimeString()}
                       </div>
+                      
+                      {/* Check if this is record-based sequential processing */}
+                      {testResults.details?.executionMethod === 'record_based_sequential' && testResults.details?.summary ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <h4 className="font-medium text-blue-900 flex items-center gap-2 mb-3">
+                            <Brain className="w-4 h-4" />
+                            레코드 기반 순차 처리 통합 결과
+                          </h4>
+                          
+                          {/* Summary Statistics */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            <div className="bg-white p-3 rounded border text-center">
+                              <div className="text-xl font-bold text-blue-600">{testResults.details.summary.totalRecords}</div>
+                              <div className="text-xs text-gray-600">총 레코드</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border text-center">
+                              <div className="text-xl font-bold text-green-600">{testResults.details.summary.successfulRecords}</div>
+                              <div className="text-xs text-gray-600">성공</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border text-center">
+                              <div className="text-xl font-bold text-red-600">{testResults.details.summary.failedRecords}</div>
+                              <div className="text-xs text-gray-600">실패</div>
+                            </div>
+                            <div className="bg-white p-3 rounded border text-center">
+                              <div className="text-xl font-bold text-purple-600">{Math.round(testResults.details.summary.averageExecutionTime)}ms</div>
+                              <div className="text-xs text-gray-600">평균 시간</div>
+                            </div>
+                          </div>
+                          
+                          {/* Detailed Records Table */}
+                          <div className="bg-white rounded border">
+                            <div className="px-3 py-2 border-b bg-gray-50">
+                              <h5 className="font-medium text-sm">개별 레코드 처리 결과</h5>
+                            </div>
+                            <div className="max-h-60 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-gray-50">
+                                  <tr>
+                                    <th className="text-left p-2 border-b">레코드</th>
+                                    <th className="text-left p-2 border-b">입력 데이터</th>
+                                    <th className="text-left p-2 border-b">AI 결과</th>
+                                    <th className="text-left p-2 border-b">실행시간</th>
+                                    <th className="text-left p-2 border-b">상태</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {testResults.details.results.map((result: any, index: number) => (
+                                    <tr key={index} className={result.error ? 'bg-red-50' : 'bg-green-50'}>
+                                      <td className="p-2 border-b font-medium">#{result.recordIndex}</td>
+                                      <td className="p-2 border-b">
+                                        <div className="space-y-1">
+                                          {Object.entries(result.inputData || {}).map(([key, value]) => (
+                                            <div key={key} className="text-gray-700">
+                                              <span className="font-medium">{key}:</span> {String(value)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </td>
+                                      <td className="p-2 border-b">
+                                        {result.error ? (
+                                          <span className="text-red-600">Error: {result.error}</span>
+                                        ) : (
+                                          <div>
+                                            {result.outputData?.predictions ? (
+                                              result.outputData.predictions.map((pred: any, i: number) => (
+                                                <div key={i} className="mb-1">
+                                                  <span className="font-medium">Prediction {i + 1}:</span> {
+                                                    typeof pred.result === 'number' ? pred.result.toFixed(3) : 
+                                                    JSON.stringify(pred).substring(0, 50)
+                                                  }
+                                                </div>
+                                              ))
+                                            ) : result.outputData ? (
+                                              <div>{JSON.stringify(result.outputData).substring(0, 50)}...</div>
+                                            ) : (
+                                              <span className="text-gray-500">결과 없음</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="p-2 border-b text-gray-600">{result.executionTime || 0}ms</td>
+                                      <td className="p-2 border-b">
+                                        <Badge variant={result.error ? "destructive" : "default"} className="text-xs">
+                                          {result.error ? "실패" : "성공"}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          
+                          {/* Statistical Summary if numeric results exist */}
+                          {(() => {
+                            const successfulResults = testResults.details.results.filter((r: any) => !r.error);
+                            const numericResults: number[] = [];
+                            
+                            successfulResults.forEach((result: any) => {
+                              if (result.outputData?.predictions) {
+                                result.outputData.predictions.forEach((pred: any) => {
+                                  if (typeof pred.result === 'number') {
+                                    numericResults.push(pred.result);
+                                  }
+                                });
+                              }
+                            });
+                            
+                            if (numericResults.length > 0) {
+                              const avg = numericResults.reduce((a, b) => a + b, 0) / numericResults.length;
+                              const min = Math.min(...numericResults);
+                              const max = Math.max(...numericResults);
+                              
+                              return (
+                                <div className="mt-4 p-3 bg-white rounded border">
+                                  <h6 className="font-medium text-sm text-gray-700 mb-2">결과 통계 분석</h6>
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    <div>
+                                      <span className="text-gray-500">평균:</span>
+                                      <span className="ml-1 font-medium">{avg.toFixed(3)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">최소:</span>
+                                      <span className="ml-1 font-medium">{min.toFixed(3)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">최대:</span>
+                                      <span className="ml-1 font-medium">{max.toFixed(3)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">범위:</span>
+                                      <span className="ml-1 font-medium">{(max - min).toFixed(3)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      ) : null}
                       
                       {testResults.details.results.map((result: any, index: number) => (
                         <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
