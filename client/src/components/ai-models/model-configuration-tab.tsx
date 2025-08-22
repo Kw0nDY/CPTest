@@ -1883,14 +1883,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     outputName: string;
     description: string;
   }> => {
-    console.log('🔍 getAvailableOutputNodes called for inputType:', inputType);
-    console.log('🔍 Current nodes on canvas:', nodes.map(n => ({
-      id: n.id,
-      type: n.type,
-      name: n.name,
-      outputsCount: n.outputs?.length || 0,
-      outputs: n.outputs?.map(o => ({ id: o.id, name: o.name, type: o.type }))
-    })));
+    // Removed verbose debug logs for cleaner console output
     
     const outputs: Array<{
       type: string;
@@ -1921,22 +1914,16 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     
     // Data Integration outputs from nodes on canvas
     nodes.filter(node => node.type === 'data-input').forEach(node => {
-      console.log('🔍 Processing data-input node:', node.name, 'outputs:', node.outputs);
       // Use the actual outputs that were created when the node was added to canvas
       node.outputs?.forEach((output: any) => {
-        console.log('🔍 Adding data-input output:', output.name, 'type:', output.type, 'id:', output.id);
-        const outputEntry = {
+        outputs.push({
           type: 'data-integration',
           nodeId: node.id,
           nodeName: node.name || node.uniqueName,
           outputId: output.id,
           outputName: output.name,
           description: `${output.name} from ${node.name || node.uniqueName}`
-        };
-        console.log('🔍 Output entry created:', outputEntry);
-        outputs.push(outputEntry);
-        console.log('🔍 Outputs array length after push:', outputs.length);
-        console.log('🔍 Current outputs array:', outputs);
+        });
       });
     });
     
@@ -1979,15 +1966,10 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     // Only show AI models that are actually on the canvas as ai-model nodes
     // Self-referencing is already handled in the ai-model nodes section above
     
-    console.log('🔍 All outputs before filtering:', outputs);
-    console.log('🔍 Connection search query:', connectionSearchQuery);
-    
     const filteredOutputs = connectionSearchQuery ? outputs.filter(output => 
       output.nodeName.toLowerCase().includes(connectionSearchQuery.toLowerCase()) ||
       output.outputName.toLowerCase().includes(connectionSearchQuery.toLowerCase())
     ) : outputs;
-    
-    console.log('🔍 Final outputs for inputType', inputType, ':', filteredOutputs);
     
     return filteredOutputs;
   };
@@ -2040,22 +2022,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
       return false;
     }
 
-    console.log('🔗 Searching for output with ID:', fromOutputId);
-    console.log('🔗 Available outputs in fromNode:', fromNode.outputs?.map(o => ({ id: o.id, name: o.name })));
-    
     const fromOutput = fromNode.outputs.find(o => o.id === fromOutputId);
     const toInput = toNode.inputs.find(i => i.id === toInputId);
-    
-    console.log('🔗 Output/Input search results:', {
-      fromNodeOutputs: fromNode.outputs?.map(o => ({ id: o.id, name: o.name })),
-      toNodeInputs: toNode.inputs?.map(i => ({ id: i.id, name: i.name })),
-      fromOutputFound: !!fromOutput,
-      toInputFound: !!toInput,
-      searchingForOutputId: fromOutputId,
-      searchingForInputId: toInputId,
-      foundOutput: fromOutput,
-      foundInput: toInput
-    });
     
     if (!fromOutput || !toInput) {
       console.error('❌ Output or input not found:', { fromOutput, toInput });
@@ -2412,56 +2380,159 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
         nodeName: node.uniqueName
       }));
 
-      // Execute the model configuration
-      const response = await fetch('/api/model-configuration/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          configurationId: currentConfig?.id,
-          nodes: nodes,
-          connections: connections,
-          goalInputs: goalInputs // Include goal inputs from Final Goal nodes
-        })
+      // Check if there are connected data sources that require record-based processing
+      const hasRecordBasedConnections = connections.some(conn => {
+        const sourceNode = nodes.find(n => n.id === conn.fromNodeId);
+        return sourceNode?.type === 'data-input';
       });
+
+      console.log('🔍 Checking execution method:', {
+        hasRecordBasedConnections,
+        connectionsCount: connections.length,
+        dataInputNodes: nodes.filter(n => n.type === 'data-input').length
+      });
+
+      let response;
+      
+      if (hasRecordBasedConnections) {
+        console.log('🔄 Using record-based sequential processing');
+        
+        // Collect connected data for record-based processing
+        const connectedData: Record<string, any> = {};
+        
+        for (const connection of connections) {
+          const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+          if (sourceNode?.type === 'data-input') {
+            const output = sourceNode.outputs?.find(o => o.id === connection.sourceOutputId);
+            if (output?.tableData) {
+              connectedData[connection.targetInputName] = output.tableData;
+              console.log(`📊 Added data source: ${connection.targetInputName} with ${output.tableData.length} records`);
+            }
+          }
+        }
+        
+        // Get the AI model node for record processing
+        const aiModelNode = nodes.find(n => n.type === 'ai-model');
+        if (!aiModelNode) {
+          throw new Error('No AI model node found for execution');
+        }
+        
+        // Call record-based execution endpoint
+        response = await fetch(`/api/ai-models/${aiModelNode.modelId}/execute-with-records`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            connectedData,
+            connections,
+            nodeId: aiModelNode.id
+          })
+        });
+      } else {
+        console.log('📊 Using standard model configuration execution');
+        
+        // Execute the model configuration using standard method
+        response = await fetch('/api/model-configuration/execute', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            configurationId: currentConfig?.id,
+            nodes: nodes,
+            connections: connections,
+            goalInputs: goalInputs
+          })
+        });
+      }
 
       const result = await response.json();
       
       if (result.success) {
         console.log('Full execution result:', result);
-        console.log('Result structure check:', {
-          hasResults: !!result.results,
-          resultsLength: result.results?.length,
-          resultsType: typeof result.results,
-          resultKeys: result.results ? Object.keys(result.results) : 'none'
-        });
         
-        setTestResults({
-          status: 'success',
-          message: 'Model execution completed successfully!',
-          details: {
-            isValid: true,
-            errors: [],
-            results: result.results || [],
-            executedAt: new Date().toISOString(),
-            executionResults: result.results
+        // Handle different result structures based on execution method
+        if (result.executionMethod === 'record_based_sequential') {
+          console.log('📊 Processing record-based results:', {
+            batchResultsLength: result.batchResults?.length,
+            summary: result.summary
+          });
+          
+          const successfulRecords = result.batchResults?.filter((r: any) => !r.error) || [];
+          const failedRecords = result.batchResults?.filter((r: any) => r.error) || [];
+          
+          setTestResults({
+            status: 'success',
+            message: `레코드 기반 순차 처리 완료! ${result.summary?.successfulRecords || 0}개 성공, ${result.summary?.failedRecords || 0}개 실패`,
+            details: {
+              isValid: true,
+              errors: failedRecords.map((r: any) => `Record ${r.recordIndex}: ${r.error}`),
+              results: result.batchResults || [],
+              executedAt: new Date().toISOString(),
+              executionResults: result.batchResults,
+              summary: result.summary,
+              executionMethod: 'record_based_sequential'
+            }
+          });
+          
+          toast({
+            title: "✅ 레코드 기반 실행 완료",
+            description: `총 ${result.summary?.totalRecords || 0}개 레코드 처리: ${result.summary?.successfulRecords || 0}개 성공, ${result.summary?.failedRecords || 0}개 실패`,
+          });
+          
+          // Save batch results as data sources
+          console.log('Attempting to save batch results as data sources...');
+          if (result.batchResults && result.batchResults.length > 0) {
+            const transformedResults = [{
+              modelId: result.modelId,
+              modelName: result.modelName,
+              outputData: {
+                batchResults: result.batchResults,
+                summary: result.summary
+              },
+              executedAt: new Date().toISOString(),
+              executionMethod: 'record_based_sequential'
+            }];
+            console.log('Calling saveExecutionResultsAsDataSources with batch results:', transformedResults);
+            await saveExecutionResultsAsDataSources(transformedResults);
           }
-        });
-        
-        toast({
-          title: "✅ Model Execution Success",
-          description: `${result.results?.length || 0} AI model(s) executed successfully. View results below.`,
-        });
-        
-        // Save execution results as data sources for View Setting
-        console.log('Attempting to save results as data sources...');
-        if (result.results && result.results.length > 0) {
-          console.log('Calling saveExecutionResultsAsDataSources with:', result.results);
-          await saveExecutionResultsAsDataSources(result.results);
         } else {
-          console.log('No results to save or results is empty:', result.results);
+          // Handle standard execution results
+          console.log('Result structure check:', {
+            hasResults: !!result.results,
+            resultsLength: result.results?.length,
+            resultsType: typeof result.results,
+            resultKeys: result.results ? Object.keys(result.results) : 'none'
+          });
+          
+          setTestResults({
+            status: 'success',
+            message: 'Model execution completed successfully!',
+            details: {
+              isValid: true,
+              errors: [],
+              results: result.results || [],
+              executedAt: new Date().toISOString(),
+              executionResults: result.results
+            }
+          });
+          
+          toast({
+            title: "✅ Model Execution Success",
+            description: `${result.results?.length || 0} AI model(s) executed successfully. View results below.`,
+          });
+          
+          // Save execution results as data sources for View Setting
+          console.log('Attempting to save results as data sources...');
+          if (result.results && result.results.length > 0) {
+            console.log('Calling saveExecutionResultsAsDataSources with:', result.results);
+            await saveExecutionResultsAsDataSources(result.results);
+          } else {
+            console.log('No results to save or results is empty:', result.results);
+          }
         }
       } else {
         setTestResults({

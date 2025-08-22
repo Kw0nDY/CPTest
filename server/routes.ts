@@ -4282,6 +4282,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Execute AI Model with Record-based Sequential Processing
+  app.post("/api/ai-models/:id/execute-with-records", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { connectedData, connections, nodeId } = req.body;
+      
+      // Get AI model
+      const model = await storage.getAiModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "AI model not found" });
+      }
+      
+      console.log('🔄 Executing AI model with record-based sequential processing:', {
+        modelId: id,
+        modelName: model.name,
+        nodeId,
+        connectionsCount: connections?.length || 0,
+        connectedDataKeys: Object.keys(connectedData || {})
+      });
+      
+      // Analyze connected data to extract records
+      const recordSources: Array<{
+        inputName: string;
+        records: any[];
+        fieldName: string;
+      }> = [];
+      
+      for (const [inputName, data] of Object.entries(connectedData || {})) {
+        console.log(`🔍 Analyzing input ${inputName}:`, typeof data, Array.isArray(data) ? data.length : 'not array');
+        
+        if (Array.isArray(data) && data.length > 0) {
+          // Check if this is table data with records
+          if (typeof data[0] === 'object' && data[0] !== null) {
+            // This is record-based data (like KPI_X from Excel)
+            const firstRecord = data[0];
+            const fields = Object.keys(firstRecord);
+            
+            // For each field in the records, create a separate record source
+            for (const fieldName of fields) {
+              if (fieldName !== 'undefined' && firstRecord[fieldName] !== undefined) {
+                recordSources.push({
+                  inputName: `${inputName}_${fieldName}`,
+                  records: data,
+                  fieldName: fieldName
+                });
+                console.log(`📊 Found record source: ${inputName}_${fieldName} with ${data.length} records`);
+              }
+            }
+          } else {
+            // This is simple array data
+            recordSources.push({
+              inputName,
+              records: data.map((value, index) => ({ value, index })),
+              fieldName: 'value'
+            });
+          }
+        }
+      }
+      
+      if (recordSources.length === 0) {
+        return res.status(400).json({ 
+          error: 'No record-based data sources found in connections' 
+        });
+      }
+      
+      // Use the record source with the most records as the primary source
+      const primarySource = recordSources.reduce((max, current) => 
+        current.records.length > max.records.length ? current : max
+      );
+      
+      const numRecords = primarySource.records.length;
+      console.log(`🎯 Processing ${numRecords} records based on primary source: ${primarySource.inputName}`);
+      
+      // Construct model file path
+      const modelPath = path.join(process.cwd(), 'uploads', model.filePath);
+      
+      // Execute model for each record
+      const allResults: any[] = [];
+      const executionTimes: number[] = [];
+      
+      for (let recordIndex = 0; recordIndex < numRecords; recordIndex++) {
+        console.log(`🔄 Processing record ${recordIndex + 1}/${numRecords}`);
+        
+        // Build input data for this specific record
+        const recordInputData: any = {};
+        
+        // Extract values from each record source for this record index
+        for (const source of recordSources) {
+          if (recordIndex < source.records.length) {
+            const record = source.records[recordIndex];
+            const value = record[source.fieldName];
+            
+            // Map to model input name (remove field suffix if needed)
+            const modelInputName = source.inputName.replace(`_${source.fieldName}`, '');
+            recordInputData[modelInputName] = value;
+            
+            console.log(`  📊 ${modelInputName}: ${value}`);
+          }
+        }
+        
+        // Process the input data using existing transformation logic
+        const processedInputData = processConnectedDataForModel(model, recordInputData, connections);
+        
+        // Prepare execution configuration
+        const executionConfig = {
+          modelPath,
+          inputData: processedInputData,
+          inputSpecs: model.inputs || [],
+          outputSpecs: model.outputs || [],
+          executionContext: `record_${recordIndex + 1}_of_${numRecords}`
+        };
+        
+        // Execute the model
+        const result = await modelExecutionService.executeModel(executionConfig);
+        
+        if (result.success && result.results) {
+          allResults.push({
+            recordIndex: recordIndex + 1,
+            inputData: recordInputData,
+            processedInputData: processedInputData,
+            outputData: result.results,
+            executionTime: result.executionTime || 0
+          });
+          executionTimes.push(result.executionTime || 0);
+          console.log(`  ✅ Record ${recordIndex + 1} completed successfully`);
+        } else {
+          console.log(`  ❌ Record ${recordIndex + 1} failed:`, result.error);
+          allResults.push({
+            recordIndex: recordIndex + 1,
+            inputData: recordInputData,
+            processedInputData: processedInputData,
+            error: result.error,
+            executionTime: 0
+          });
+        }
+      }
+      
+      // Calculate summary statistics
+      const successfulResults = allResults.filter(r => !r.error);
+      const totalExecutionTime = executionTimes.reduce((sum, time) => sum + time, 0);
+      const avgExecutionTime = executionTimes.length > 0 ? totalExecutionTime / executionTimes.length : 0;
+      
+      // Save the batch execution result
+      const resultData = {
+        id: `batch_result_${id}_${Date.now()}`,
+        modelId: id,
+        modelName: model.name,
+        nodeId,
+        executedAt: new Date().toISOString(),
+        inputData: connectedData,
+        resultData: {
+          batchResults: allResults,
+          summary: {
+            totalRecords: numRecords,
+            successfulRecords: successfulResults.length,
+            failedRecords: allResults.length - successfulResults.length,
+            totalExecutionTime,
+            averageExecutionTime: avgExecutionTime
+          },
+          recordSources: recordSources.map(source => ({
+            inputName: source.inputName,
+            recordCount: source.records.length,
+            fieldName: source.fieldName
+          }))
+        },
+        connections: connections || [],
+        executionMethod: 'record_based_sequential'
+      };
+      
+      // Save to storage for later retrieval
+      try {
+        await storage.saveAiModelResult(resultData);
+      } catch (storageError) {
+        console.warn('Failed to save batch result to storage:', storageError);
+      }
+      
+      res.json({
+        success: true,
+        modelId: id,
+        modelName: model.name,
+        batchResults: allResults,
+        summary: resultData.resultData.summary,
+        totalExecutionTime,
+        message: `Model executed successfully with ${numRecords} records`,
+        nodeId,
+        connectionsUsed: connections?.length || 0,
+        resultId: resultData.id,
+        executionMethod: 'record_based_sequential'
+      });
+      
+    } catch (error) {
+      console.error("Error executing AI model with record-based processing:", error);
+      res.status(500).json({ 
+        error: "Failed to execute AI model with record-based processing",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Get last result for AI model (for use in other connected models)
   app.get("/api/ai-models/:id/last-result", async (req, res) => {
     try {
