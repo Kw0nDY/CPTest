@@ -2590,7 +2590,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
         for (const connection of connections) {
           const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
           if (sourceNode?.type === 'data-input') {
-            const output = sourceNode.outputs?.find((o: any) => o.id === (connection as any).sourceOutputId);
+            const output = sourceNode.outputs?.find((o: any) => o.id === connection.fromOutputId);
             if (output?.tableData) {
               connectedData[connection.targetInputName] = output.tableData;
               console.log(`📊 Added data source: ${connection.targetInputName}`, {
@@ -2604,7 +2604,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
               console.log(`⚠️ No tableData found for output:`, {
                 sourceNodeType: sourceNode.type,
                 sourceNodeName: sourceNode.name,
-                connectionOutputId: (connection as any).sourceOutputId,
+                connectionOutputId: connection.fromOutputId,
                 availableOutputs: sourceNode.outputs?.map((o: any) => ({ id: o.id, name: o.name, hasTableData: !!o.tableData }))
               });
             }
