@@ -2006,7 +2006,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
   const createConnection = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
     console.log('🔗 CreateConnection called with:', { fromNodeId, fromOutputId, toNodeId, toInputId });
     
-    // Include AI models in node search
+    // Include AI models and Final Goal nodes in search
     const allNodes = [...nodes];
     
     // Add AI models as virtual nodes if they don't exist
@@ -2027,6 +2027,14 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
       });
     }
     
+    // Add Final Goal nodes as virtual nodes if they don't exist in allNodes
+    const finalGoalNodes = nodes.filter(n => n.type === 'final-goal');
+    finalGoalNodes.forEach(goalNode => {
+      if (!allNodes.find(n => n.id === goalNode.id)) {
+        allNodes.push(goalNode);
+      }
+    });
+    
     console.log('🔗 Available nodes:', allNodes.map(n => ({ 
       id: n.id, 
       type: n.type, 
@@ -2046,9 +2054,23 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     if (!fromNode || !toNode) {
       console.error('❌ Node not found:', { fromNodeFound: !!fromNode, toNodeFound: !!toNode });
       
-      // If it's an AI model connection, just save the connection info
-      if (fromNodeId.startsWith('node-') && toNodeId.startsWith('model-')) {
-        console.log('✅ Creating connection for AI model (will be resolved at runtime)');
+      // If it's an AI model or Final Goal connection, just save the connection info
+      if ((fromNodeId.startsWith('node-') && toNodeId.startsWith('model-')) ||
+          (fromNodeId.startsWith('node-') && toNodeId.startsWith('node-') && toNode?.type === 'final-goal') ||
+          (fromNodeId.startsWith('model-') && toNodeId.startsWith('node-') && toNode?.type === 'final-goal')) {
+        
+        let connectionDescription = '';
+        if (toNodeId.startsWith('model-')) {
+          connectionDescription = '데이터가 AI 모델에 연결되었습니다';
+          console.log('✅ Creating connection for AI model (will be resolved at runtime)');
+        } else if (toNode?.type === 'final-goal') {
+          connectionDescription = '결과가 Final Goal에 연결되었습니다';
+          console.log('✅ Creating connection for Final Goal (will be resolved at runtime)');
+        } else {
+          connectionDescription = '노드 연결이 생성되었습니다';
+          console.log('✅ Creating general node connection (will be resolved at runtime)');
+        }
+        
         const newConnection = {
           id: `conn-${Date.now()}`,
           fromNodeId,
@@ -2064,7 +2086,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
         
         toast({
           title: "연결 성공",
-          description: `데이터가 AI 모델에 연결되었습니다`,
+          description: connectionDescription,
         });
         
         return true;
@@ -2596,8 +2618,27 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
       if (result.success) {
         console.log('Full execution result:', result);
         
+        // Filter results based on Final Goal connections
+        const finalGoalConnections = connections.filter(conn => {
+          const toNode = nodes.find(n => n.id === conn.toNodeId);
+          return toNode?.type === 'final-goal';
+        });
+        
+        console.log('Final Goal connections found:', finalGoalConnections);
+        
+        // Only save results that are connected to Final Goal nodes
+        const finalResults = result.results ? result.results.filter((r: any) => {
+          // Check if this result corresponds to a node connected to Final Goal
+          const resultNode = nodes.find(n => n.modelId === r.modelId);
+          if (!resultNode) return false;
+          
+          return finalGoalConnections.some(conn => conn.fromNodeId === resultNode.id);
+        }) : [];
+        
+        console.log('Filtered final results for Final Goal:', finalResults);
+        
         // Handle different result structures based on execution method
-        if (result.executionMethod === 'record_based_sequential') {
+        if (result.executionMethod === 'record_based_sequential' || result.executionMethod === 'stgcn_subprocess') {
           console.log('📊 Processing record-based results:', {
             batchResultsLength: result.batchResults?.length,
             summary: result.summary
@@ -2625,9 +2666,9 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
             description: `총 ${result.summary?.totalRecords || 0}개 레코드 처리: ${result.summary?.successfulRecords || 0}개 성공, ${result.summary?.failedRecords || 0}개 실패`,
           });
           
-          // Save batch results as data sources
+          // Save batch results as data sources only if connected to Final Goal
           console.log('Attempting to save batch results as data sources...');
-          if (result.batchResults && result.batchResults.length > 0) {
+          if (result.batchResults && result.batchResults.length > 0 && finalGoalConnections.length > 0) {
             const transformedResults = [{
               modelId: result.modelId,
               modelName: result.modelName,
@@ -2636,10 +2677,18 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                 summary: result.summary
               },
               executedAt: new Date().toISOString(),
-              executionMethod: 'record_based_sequential'
+              executionMethod: result.executionMethod || 'record_based_sequential',
+              finalGoalConnected: true
             }];
-            console.log('Calling saveExecutionResultsAsDataSources with batch results:', transformedResults);
+            console.log('Calling saveExecutionResultsAsDataSources with batch results (Final Goal connected):', transformedResults);
             await saveExecutionResultsAsDataSources(transformedResults);
+          } else if (finalGoalConnections.length === 0) {
+            console.log('No Final Goal connections - results not saved as data sources');
+            toast({
+              title: "결과 저장 안됨",
+              description: "Final Goal 노드에 연결된 결과만 Configuration 결과로 저장됩니다",
+              variant: "destructive"
+            });
           }
         } else {
           // Handle standard execution results
@@ -2667,11 +2716,18 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
             description: `${result.results?.length || 0} AI model(s) executed successfully. View results below.`,
           });
           
-          // Save execution results as data sources for View Setting
+          // Save execution results as data sources for View Setting only if connected to Final Goal
           console.log('Attempting to save results as data sources...');
-          if (result.results && result.results.length > 0) {
-            console.log('Calling saveExecutionResultsAsDataSources with:', result.results);
-            await saveExecutionResultsAsDataSources(result.results);
+          if (finalResults && finalResults.length > 0 && finalGoalConnections.length > 0) {
+            console.log('Calling saveExecutionResultsAsDataSources with Final Goal connected results:', finalResults);
+            await saveExecutionResultsAsDataSources(finalResults);
+          } else if (finalGoalConnections.length === 0) {
+            console.log('No Final Goal connections - results not saved as data sources');
+            toast({
+              title: "결과 저장 안됨", 
+              description: "Final Goal 노드에 연결된 결과만 Configuration 결과로 저장됩니다",
+              variant: "destructive"
+            });
           } else {
             console.log('No results to save or results is empty:', result.results);
           }
