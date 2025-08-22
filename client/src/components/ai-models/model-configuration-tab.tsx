@@ -2054,16 +2054,20 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     if (!fromNode || !toNode) {
       console.error('❌ Node not found:', { fromNodeFound: !!fromNode, toNodeFound: !!toNode });
       
-      // If it's an AI model or Final Goal connection, just save the connection info
+      // If it's an AI model or Final Goal connection, just save the connection info  
+      // Check for Final Goal connections more broadly
+      const isToFinalGoal = toNodeId.startsWith('node-') && (toNode?.type === 'final-goal' || 
+                           allNodes.find(n => n.id === toNodeId)?.type === 'final-goal');
+      
       if ((fromNodeId.startsWith('node-') && toNodeId.startsWith('model-')) ||
-          (fromNodeId.startsWith('node-') && toNodeId.startsWith('node-') && toNode?.type === 'final-goal') ||
-          (fromNodeId.startsWith('model-') && toNodeId.startsWith('node-') && toNode?.type === 'final-goal')) {
+          (fromNodeId.startsWith('node-') && isToFinalGoal) ||
+          (fromNodeId.startsWith('model-') && isToFinalGoal)) {
         
         let connectionDescription = '';
         if (toNodeId.startsWith('model-')) {
           connectionDescription = '데이터가 AI 모델에 연결되었습니다';
           console.log('✅ Creating connection for AI model (will be resolved at runtime)');
-        } else if (toNode?.type === 'final-goal') {
+        } else if (isToFinalGoal) {
           connectionDescription = '결과가 Final Goal에 연결되었습니다';
           console.log('✅ Creating connection for Final Goal (will be resolved at runtime)');
         } else {
@@ -2079,7 +2083,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
           toInputId,
           type: 'parameter' as const,
           sourceOutputName: fromOutputId.split('-').pop() || 'Data',
-          targetInputName: toInputId
+          targetInputName: toInputId.split('-').pop() || 'Goal'
         };
         
         setConnections(prev => [...prev, newConnection]);
