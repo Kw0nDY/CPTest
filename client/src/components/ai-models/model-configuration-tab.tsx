@@ -2019,7 +2019,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     // Add AI models as virtual nodes if they don't exist
     if (availableAIModels.length > 0) {
       availableAIModels.forEach(model => {
-        const modelNodeId = `model-${model.id}`;
+        // Use model ID as-is if it already starts with 'model-', otherwise add prefix
+        const modelNodeId = model.id.startsWith('model-') ? model.id : `model-${model.id}`;
         if (!allNodes.find(n => n.id === modelNodeId)) {
           allNodes.push({
             id: modelNodeId,
