@@ -2010,8 +2010,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     const allNodes = [...nodes];
     
     // Add AI models as virtual nodes if they don't exist
-    if (availableModels.length > 0) {
-      availableModels.forEach(model => {
+    if (availableAIModels.length > 0) {
+      availableAIModels.forEach(model => {
         const modelNodeId = `model-${model.id}`;
         if (!allNodes.find(n => n.id === modelNodeId)) {
           allNodes.push({
@@ -2451,7 +2451,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
       let response;
       
       // Check if this is an STGCN model configuration
-      const hasSTGCNModel = availableModels.some(model => 
+      const hasSTGCNModel = availableAIModels.some(model => 
         model.name.toLowerCase().includes('stgcn') || 
         model.type?.toLowerCase().includes('stgcn')
       );
@@ -2460,7 +2460,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
         console.log('🚀 Using STGCN execution with app.py command structure');
         
         // Get the STGCN model
-        const stgcnModel = availableModels.find(model => 
+        const stgcnModel = availableAIModels.find(model => 
           model.name.toLowerCase().includes('stgcn') || 
           model.type?.toLowerCase().includes('stgcn')
         );
