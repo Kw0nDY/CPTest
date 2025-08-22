@@ -2104,6 +2104,30 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
     const toInput = toNode.inputs.find(i => i.id === toInputId);
     
     if (!fromOutput || !toInput) {
+      // For Final Goal nodes, allow connection even if input validation fails
+      if (toNode?.type === 'final-goal') {
+        console.log('✅ Creating connection for Final Goal (bypassing input validation)');
+        const newConnection = {
+          id: `conn-${Date.now()}`,
+          fromNodeId,
+          fromOutputId,
+          toNodeId,
+          toInputId,
+          type: 'parameter' as const,
+          sourceOutputName: fromOutputId.split('-').pop() || 'Output',
+          targetInputName: toInputId.split('-').pop() || 'Goal'
+        };
+        
+        setConnections(prev => [...prev, newConnection]);
+        
+        toast({
+          title: "연결 성공",
+          description: "결과가 Final Goal에 연결되었습니다",
+        });
+        
+        return true;
+      }
+
       console.error('❌ Output or input not found:', { fromOutput, toInput });
       toast({
         title: "Connection Failed", 
