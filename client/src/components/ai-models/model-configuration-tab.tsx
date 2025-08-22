@@ -2406,7 +2406,20 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
             const output = sourceNode.outputs?.find(o => o.id === connection.sourceOutputId);
             if (output?.tableData) {
               connectedData[connection.targetInputName] = output.tableData;
-              console.log(`📊 Added data source: ${connection.targetInputName} with ${output.tableData.length} records`);
+              console.log(`📊 Added data source: ${connection.targetInputName}`, {
+                recordCount: output.tableData.length,
+                fieldName: output.fieldName,
+                outputName: output.name,
+                sampleRecord: output.tableData[0],
+                allRecords: output.tableData.length <= 10 ? output.tableData : 'Too many to show'
+              });
+            } else {
+              console.log(`⚠️ No tableData found for output:`, {
+                sourceNodeType: sourceNode.type,
+                sourceNodeName: sourceNode.name,
+                connectionOutputId: connection.sourceOutputId,
+                availableOutputs: sourceNode.outputs?.map(o => ({ id: o.id, name: o.name, hasTableData: !!o.tableData }))
+              });
             }
           }
         }

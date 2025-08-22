@@ -4299,8 +4299,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         modelName: model.name,
         nodeId,
         connectionsCount: connections?.length || 0,
-        connectedDataKeys: Object.keys(connectedData || {})
+        connectedDataKeys: Object.keys(connectedData || {}),
+        connectedDataSizes: Object.entries(connectedData || {}).map(([key, value]) => ({
+          key,
+          type: typeof value,
+          length: Array.isArray(value) ? value.length : 'not array',
+          firstRecord: Array.isArray(value) && value.length > 0 ? value[0] : 'no data'
+        }))
       });
+      
+      // Debug: Log the actual connected data structure
+      for (const [key, data] of Object.entries(connectedData || {})) {
+        console.log(`🔍 Connected data "${key}":`, {
+          type: typeof data,
+          isArray: Array.isArray(data),
+          length: Array.isArray(data) ? data.length : 'not array',
+          sample: Array.isArray(data) ? data.slice(0, 3) : data
+        });
+      }
       
       // Analyze connected data to extract records
       const recordSources: Array<{
