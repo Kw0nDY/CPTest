@@ -4294,8 +4294,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                         
                         {/* Possible Connections Button */}
                         <Dialog 
-                          open={connectionDialogOpen[`${node.id}-${input.id}`] || false}
-                          onOpenChange={(open) => setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: open}))}
+                          open={connectionDialogOpen[`${selectedModelForDetails?.id || selectedNodeForDetails?.id}-${input.id}`] || false}
+                          onOpenChange={(open) => setConnectionDialogOpen(prev => ({...prev, [`${selectedModelForDetails?.id || selectedNodeForDetails?.id}-${input.id}`]: open}))}
                         >
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="w-full">
@@ -4340,7 +4340,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                       const success = createConnection(
                                         output.nodeId,
                                         output.outputId,
-                                        node.id,
+                                        selectedModelForDetails?.id || selectedNodeForDetails?.id || '',
                                         input.id
                                       );
                                       if (success) {
@@ -4351,7 +4351,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                           variant: "default",
                                         });
                                         // Close the dialog after successful connection
-                                        setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: false}));
+                                        setConnectionDialogOpen(prev => ({...prev, [`${selectedModelForDetails?.id || selectedNodeForDetails?.id}-${input.id}`]: false}));
                                       } else {
                                         // Show error toast
                                         toast({
@@ -4419,7 +4419,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                             const success = createConnection(
                                               output.nodeId,
                                               output.outputId,
-                                              node.id,
+                                              selectedModelForDetails?.id || selectedNodeForDetails?.id || '',
                                               input.id
                                             );
                                             if (success) {
@@ -4430,7 +4430,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                                 variant: "default",
                                               });
                                               // Close the dialog after successful connection
-                                              setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: false}));
+                                              setConnectionDialogOpen(prev => ({...prev, [`${selectedModelForDetails?.id || selectedNodeForDetails?.id}-${input.id}`]: false}));
                                             } else {
                                               // Show error toast
                                               toast({
