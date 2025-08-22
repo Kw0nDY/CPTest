@@ -45,7 +45,7 @@ interface ModelUploadProps {
 
 interface ModelFile {
   file: File;
-  type: 'model' | 'config' | 'source' | 'documentation';
+  type: 'model' | 'config' | 'source' | 'documentation' | 'params';
   name: string;
   size: string;
 }
@@ -81,6 +81,11 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
   const [modelType, setModelType] = useState('');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [parsedConfig, setParsedConfig] = useState<ParsedConfig | null>(null);
+  const [autoDetectedConfig, setAutoDetectedConfig] = useState<ParsedConfig>({
+    inputs: [],
+    outputs: [],
+    modelInfo: { parameters: {} }
+  });
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [dragActive, setDragActive] = useState(false);
   
@@ -138,9 +143,13 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
         size: fileSize
       });
 
-      // If it's a config file, parse it immediately
+      // If it's a config file, parse it immediately to extract inputs/outputs
       if (fileType === 'config') {
         await parseConfigFile(file);
+      }
+      // Also parse params files to understand model parameters
+      if (fileType === 'params') {
+        await parseParamsFile(file);
       }
     }
     
@@ -151,7 +160,12 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
     const name = file.name.toLowerCase();
     const extension = name.split('.').pop();
     
-    if (name.includes('config') || extension === 'json' || extension === 'yaml' || extension === 'yml') {
+    // Check for parameters files first (scaler_params, model_params, etc.)
+    if (name.includes('param') || name.includes('scaler') || name.includes('weight') || name.includes('bias')) {
+      return 'params';
+    }
+    // Then check for config files
+    else if (name.includes('config') || (extension === 'json' && !name.includes('param')) || extension === 'yaml' || extension === 'yml') {
       return 'config';
     } else if (extension === 'py' || extension === 'ipynb' || extension === 'js' || extension === 'ts') {
       return 'source';
@@ -235,6 +249,7 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
       }
 
       setParsedConfig(parsed);
+      setAutoDetectedConfig(parsed);
       
       // Auto-fill model type based on config
       if (config.in_channels) {
@@ -251,6 +266,43 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
       toast({
         title: "Config Parsing Failed",
         description: error instanceof Error ? error.message : "Could not parse configuration file",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const parseParamsFile = async (file: File) => {
+    try {
+      console.log('Parsing params file:', file.name);
+      const text = await file.text();
+      let params;
+      
+      if (file.name.toLowerCase().endsWith('.json')) {
+        params = JSON.parse(text);
+        console.log('Parsed params:', params);
+        
+        // Update auto-detected configuration with parameter information
+        setAutoDetectedConfig(prev => ({
+          ...prev,
+          modelInfo: {
+            ...prev.modelInfo,
+            parameters: {
+              ...prev.modelInfo.parameters,
+              ...params
+            }
+          }
+        }));
+        
+        toast({
+          title: "Parameters Parsed",
+          description: `Successfully parsed ${file.name}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error parsing params file:', error);
+      toast({
+        title: "Params Parse Error",
+        description: "Failed to parse parameters file: " + (error as Error).message,
         variant: "destructive"
       });
     }
@@ -367,6 +419,7 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
     switch (type) {
       case 'model': return <Brain className="w-4 h-4" />;
       case 'config': return <Settings className="w-4 h-4" />;
+      case 'params': return <Zap className="w-4 h-4" />;
       case 'source': return <FileCode className="w-4 h-4" />;
       case 'documentation': return <FileText className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
@@ -377,6 +430,7 @@ export function EnhancedModelUpload({ onClose, folders: propsFolders = [] }: Mod
     switch (type) {
       case 'model': return 'bg-blue-500';
       case 'config': return 'bg-green-500';
+      case 'params': return 'bg-yellow-500';
       case 'source': return 'bg-purple-500';
       case 'documentation': return 'bg-gray-500';
       default: return 'bg-gray-500';
