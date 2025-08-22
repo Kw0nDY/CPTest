@@ -409,6 +409,7 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['user-models', 'quality-models', 'unorganized']));
   const [activeLeftTab, setActiveLeftTab] = useState<'models' | 'data' | 'views'>('models');
   const [connectionSearchQuery, setConnectionSearchQuery] = useState('');
+  const [connectionDialogOpen, setConnectionDialogOpen] = useState<{[key: string]: boolean}>({});
   const [testResults, setTestResults] = useState<{
     status: 'success' | 'error';
     message: string;
@@ -4292,7 +4293,10 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                         </p>
                         
                         {/* Possible Connections Button */}
-                        <Dialog>
+                        <Dialog 
+                          open={connectionDialogOpen[`${node.id}-${input.id}`] || false}
+                          onOpenChange={(open) => setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: open}))}
+                        >
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="w-full">
                               <Link2 className="w-3 h-3 mr-1" />
@@ -4330,7 +4334,33 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                 getAvailableOutputNodes(input.type).map((output, index) => (
                                   <div 
                                     key={index} 
-                                    className="p-3 border border-gray-200 rounded-lg transition-colors"
+                                    className="p-3 border border-gray-200 rounded-lg transition-colors hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
+                                    onClick={() => {
+                                      // Create the connection when clicked
+                                      const success = createConnection(
+                                        output.nodeId,
+                                        output.outputId,
+                                        node.id,
+                                        input.id
+                                      );
+                                      if (success) {
+                                        // Show success toast
+                                        toast({
+                                          title: "연결 성공",
+                                          description: `${output.nodeName}의 ${output.outputName}을(를) ${input.name}에 연결했습니다.`,
+                                          variant: "default",
+                                        });
+                                        // Close the dialog after successful connection
+                                        setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: false}));
+                                      } else {
+                                        // Show error toast
+                                        toast({
+                                          title: "연결 실패",
+                                          description: "연결을 생성하는데 문제가 발생했습니다.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }}
                                   >
                                     <div className="flex items-start gap-3">
                                       <div 
@@ -4339,7 +4369,8 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                           backgroundColor: 
                                             output.type === 'ai-model' ? '#3b82f6' :
                                             output.type === 'data-integration' ? '#22c55e' :
-                                            '#8b5cf6'
+                                            output.type === 'view-data' ? '#8b5cf6' :
+                                            '#f59e0b'
                                         }}
                                       />
                                       <div className="flex-1 min-w-0">
@@ -4352,15 +4383,18 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                               borderColor: 
                                                 output.type === 'ai-model' ? '#3b82f6' :
                                                 output.type === 'data-integration' ? '#22c55e' :
-                                                '#8b5cf6',
+                                                output.type === 'view-data' ? '#8b5cf6' :
+                                                '#f59e0b',
                                               color:
                                                 output.type === 'ai-model' ? '#3b82f6' :
                                                 output.type === 'data-integration' ? '#22c55e' :
-                                                '#8b5cf6'
+                                                output.type === 'view-data' ? '#8b5cf6' :
+                                                '#f59e0b'
                                             }}
                                           >
                                             {output.type === 'ai-model' ? 'AI Model' :
                                              output.type === 'data-integration' ? 'Data Source' :
+                                             output.type === 'view-data' ? 'View' :
                                              'Automation'}
                                           </Badge>
                                         </div>
@@ -4374,8 +4408,42 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
                                           <span className="text-xs text-gray-500">{input.type} type</span>
                                         </div>
                                       </div>
-                                      <div className="text-sm text-blue-600 font-medium">
-                                        Available for Connection
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="text-xs px-3 py-1 hover:bg-blue-100 hover:border-blue-300"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Create the connection when button is clicked
+                                            const success = createConnection(
+                                              output.nodeId,
+                                              output.outputId,
+                                              node.id,
+                                              input.id
+                                            );
+                                            if (success) {
+                                              // Show success toast
+                                              toast({
+                                                title: "연결 성공",
+                                                description: `${output.nodeName}의 ${output.outputName}을(를) ${input.name}에 연결했습니다.`,
+                                                variant: "default",
+                                              });
+                                              // Close the dialog after successful connection
+                                              setConnectionDialogOpen(prev => ({...prev, [`${node.id}-${input.id}`]: false}));
+                                            } else {
+                                              // Show error toast
+                                              toast({
+                                                title: "연결 실패",
+                                                description: "연결을 생성하는데 문제가 발생했습니다.",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          <Link2 className="w-3 h-3 mr-1" />
+                                          Connect
+                                        </Button>
                                       </div>
                                     </div>
                                   </div>
