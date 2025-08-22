@@ -4283,6 +4283,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Execute AI Model with Record-based Sequential Processing
+  // STGCN model execution endpoint with app.py command structure
+  app.post('/api/ai-models/:id/execute-stgcn', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { inputData, executionConfig = {} } = req.body;
+      
+      console.log(`🚀 STGCN execution request for model ${id}:`, { inputData, executionConfig });
+      
+      // Find the AI model
+      const model = await storage.getAiModel(id);
+      if (!model) {
+        return res.status(404).json({ error: 'AI model not found' });
+      }
+      
+      // Prepare execution using Python subprocess
+      const { spawn } = require('child_process');
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+      
+      // Create temporary input file
+      const tempDir = os.tmpdir();
+      const inputFile = path.join(tempDir, `stgcn_input_${Date.now()}.json`);
+      fs.writeFileSync(inputFile, JSON.stringify(inputData));
+      
+      // Find model directory (uploads folder)
+      const modelDir = path.dirname(model.filePath);
+      
+      // Execute STGCN runner
+      const pythonProcess = spawn('python3', [
+        path.join(__dirname, 'stgcnRunner.py'),
+        '--model_dir', modelDir,
+        '--input_data', inputFile
+      ], {
+        cwd: __dirname,
+        env: { ...process.env, PYTHONPATH: modelDir }
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        // Clean up temp file
+        try {
+          fs.unlinkSync(inputFile);
+        } catch (e) {}
+        
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            console.log('✅ STGCN execution successful');
+            
+            res.json({
+              status: 'success',
+              modelId: id,
+              modelName: model.name,
+              executedAt: new Date().toISOString(),
+              results: [result],
+              executionMethod: 'stgcn_subprocess',
+              summary: {
+                totalRecords: 1,
+                successfulRecords: result.status === 'success' ? 1 : 0,
+                failedRecords: result.status === 'error' ? 1 : 0,
+                averageExecutionTime: result.processingTime || 1000,
+                totalExecutionTime: result.processingTime || 1000
+              }
+            });
+          } catch (parseError) {
+            console.error('❌ Failed to parse STGCN output:', parseError);
+            res.status(500).json({
+              error: 'Failed to parse STGCN execution result',
+              stdout,
+              stderr
+            });
+          }
+        } else {
+          console.error('❌ STGCN execution failed:', stderr);
+          res.status(500).json({
+            error: 'STGCN execution failed',
+            exitCode: code,
+            stderr,
+            stdout
+          });
+        }
+      });
+      
+      // Set timeout
+      setTimeout(() => {
+        pythonProcess.kill();
+        res.status(500).json({ error: 'STGCN execution timeout' });
+      }, 300000); // 5 minutes timeout
+      
+    } catch (error) {
+      console.error('STGCN execution error:', error);
+      res.status(500).json({ 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   app.post("/api/ai-models/:id/execute-with-records", async (req, res) => {
     try {
       const { id } = req.params;

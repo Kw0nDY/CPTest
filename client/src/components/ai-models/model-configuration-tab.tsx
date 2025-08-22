@@ -2005,15 +2005,71 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
   // Enhanced connection creation with visual feedback
   const createConnection = (fromNodeId: string, fromOutputId: string, toNodeId: string, toInputId: string) => {
     console.log('🔗 CreateConnection called with:', { fromNodeId, fromOutputId, toNodeId, toInputId });
-    console.log('🔗 Available nodes:', nodes.map(n => ({ id: n.id, type: n.type, name: n.name, outputsCount: n.outputs?.length || 0 })));
     
-    const fromNode = nodes.find(n => n.id === fromNodeId);
-    const toNode = nodes.find(n => n.id === toNodeId);
+    // Include AI models in node search
+    const allNodes = [...nodes];
     
-    console.log('🔗 Found nodes:', { fromNode: fromNode?.id, toNode: toNode?.id });
+    // Add AI models as virtual nodes if they don't exist
+    if (availableModels.length > 0) {
+      availableModels.forEach(model => {
+        const modelNodeId = `model-${model.id}`;
+        if (!allNodes.find(n => n.id === modelNodeId)) {
+          allNodes.push({
+            id: modelNodeId,
+            type: 'ai-model',
+            name: model.name,
+            x: 0,
+            y: 0,
+            inputs: model.inputs || [],
+            outputs: model.outputs || []
+          });
+        }
+      });
+    }
+    
+    console.log('🔗 Available nodes:', allNodes.map(n => ({ 
+      id: n.id, 
+      type: n.type, 
+      name: n.name, 
+      outputsCount: n.outputs?.length || 0,
+      inputsCount: n.inputs?.length || 0 
+    })));
+    
+    const fromNode = allNodes.find(n => n.id === fromNodeId);
+    const toNode = allNodes.find(n => n.id === toNodeId);
+    
+    console.log('🔗 Found nodes:', { 
+      fromNode: fromNode ? `${fromNode.id} (${fromNode.type})` : 'NOT_FOUND', 
+      toNode: toNode ? `${toNode.id} (${toNode.type})` : 'NOT_FOUND' 
+    });
     
     if (!fromNode || !toNode) {
       console.error('❌ Node not found:', { fromNodeFound: !!fromNode, toNodeFound: !!toNode });
+      
+      // If it's an AI model connection, just save the connection info
+      if (fromNodeId.startsWith('node-') && toNodeId.startsWith('model-')) {
+        console.log('✅ Creating connection for AI model (will be resolved at runtime)');
+        const newConnection = {
+          id: `conn-${Date.now()}`,
+          fromNodeId,
+          fromOutputId,
+          toNodeId,
+          toInputId,
+          type: 'parameter' as const,
+          sourceOutputName: fromOutputId.split('-').pop() || 'Data',
+          targetInputName: toInputId
+        };
+        
+        setConnections(prev => [...prev, newConnection]);
+        
+        toast({
+          title: "연결 성공",
+          description: `데이터가 AI 모델에 연결되었습니다`,
+        });
+        
+        return true;
+      }
+      
       toast({
         title: "연결 실패",
         description: "소스 또는 대상 노드를 찾을 수 없습니다",
@@ -2394,7 +2450,80 @@ export default function ModelConfigurationTab({ selectedModel }: ModelConfigurat
 
       let response;
       
-      if (hasRecordBasedConnections) {
+      // Check if this is an STGCN model configuration
+      const hasSTGCNModel = availableModels.some(model => 
+        model.name.toLowerCase().includes('stgcn') || 
+        model.type?.toLowerCase().includes('stgcn')
+      );
+      
+      if (hasSTGCNModel && hasRecordBasedConnections) {
+        console.log('🚀 Using STGCN execution with app.py command structure');
+        
+        // Get the STGCN model
+        const stgcnModel = availableModels.find(model => 
+          model.name.toLowerCase().includes('stgcn') || 
+          model.type?.toLowerCase().includes('stgcn')
+        );
+        
+        if (stgcnModel) {
+          // Prepare data for STGCN execution
+          const connectedData: Record<string, any> = {};
+          
+          for (const connection of connections) {
+            const sourceNode = nodes.find(n => n.id === connection.fromNodeId);
+            if (sourceNode?.type === 'data-input') {
+              const output = sourceNode.outputs?.find((o: any) => o.id === (connection as any).sourceOutputId);
+              if (output?.tableData && Array.isArray(output.tableData)) {
+                connectedData[connection.targetInputName] = output.tableData;
+              }
+            }
+          }
+          
+          console.log('📊 STGCN Connected Data:', connectedData);
+          
+          // Convert data to STGCN format (KPI_X, KPI_Y, KPI_Z)
+          const stgcnInput: any = {};
+          
+          // Look for KPI data in connected data
+          for (const [inputName, data] of Object.entries(connectedData)) {
+            if (Array.isArray(data) && data.length > 0) {
+              // Take first record as target KPI
+              const firstRecord = data[0];
+              if (typeof firstRecord === 'object') {
+                // Map KPI fields
+                if ('KPI_X' in firstRecord) stgcnInput.KPI_X = firstRecord.KPI_X;
+                if ('KPI_Y' in firstRecord) stgcnInput.KPI_Y = firstRecord.KPI_Y;
+                if ('KPI_Z' in firstRecord) stgcnInput.KPI_Z = firstRecord.KPI_Z;
+                
+                // Also include raw data for analysis
+                stgcnInput._rawData = data;
+                stgcnInput._sourceTable = inputName;
+              }
+            }
+          }
+          
+          console.log('🎯 STGCN Target Input:', stgcnInput);
+          
+          // Execute STGCN model
+          response = await fetch(`/api/ai-models/${stgcnModel.id}/execute-stgcn`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              inputData: stgcnInput,
+              executionConfig: {
+                steps: 400,
+                alpha: 1.0,
+                beta: 2.0,
+                gamma: 0.1,
+                lr: 0.05
+              }
+            })
+          });
+        }
+      } else if (hasRecordBasedConnections) {
         console.log('🔄 Using record-based sequential processing');
         
         // Collect connected data for record-based processing
