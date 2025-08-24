@@ -11,7 +11,11 @@ import {
   Settings2,
   Zap,
   Eye,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  MessageCircle,
+  Shield,
+  Activity
 } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 
@@ -72,7 +76,7 @@ const sampleAssignedViews: AssignedView[] = [
 
 export default function Sidebar({ activeView, onViewChange, isCollapsed = false, onToggleCollapse }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['data-integration', 'main-menu'])
+    new Set(['data-pipeline', 'ai-laboratory', 'main-menu'])
   );
   
   // Fetch views from API
@@ -88,35 +92,76 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
     refetchViews();
   };
 
-  const settingsItems: MenuItem[] = [
+  const coreModules: MenuItem[] = [
     {
-      id: "data-integration",
-      label: "Data Integration",
+      id: "data-pipeline",
+      label: "Data Pipeline",
       icon: Database,
       items: [
-        { id: "data-integration", label: "Data Integration" },
-        { id: "view-setting", label: "View Setting" },
-        { id: "automation", label: "Automation" },
+        { id: "data-integration", label: "Data Sources" },
+        { id: "data-quality", label: "Data Quality & Security" },
+        { id: "data-monitoring", label: "Real-time Monitoring" },
       ]
     },
     {
-      id: "ai-fac",
-      label: "AI Fac",
+      id: "view-dashboard",
+      label: "View & Dashboard",
+      icon: Eye,
+      items: [
+        { id: "view-setting", label: "Dashboard Builder" },
+        { id: "team-workspaces", label: "Team Workspaces" },
+        { id: "performance-analytics", label: "Performance Analytics" },
+      ]
+    },
+    {
+      id: "automation-engine",
+      label: "Automation Engine",
+      icon: Zap,
+      items: [
+        { id: "automation", label: "Workflow Designer" },
+        { id: "process-automation", label: "Process Automation" },
+        { id: "trigger-management", label: "Trigger Management" },
+      ]
+    },
+    {
+      id: "ai-laboratory",
+      label: "AI Laboratory",
       icon: Bot,
       items: [
-        { id: "model-upload", label: "Upload Models" },
+        { id: "model-development", label: "Model Development" },
+        { id: "model-upload", label: "Model Upload" },
         { id: "model-configuration", label: "Model Configuration" },
+        { id: "model-testing", label: "Testing & Validation" },
       ]
     },
     {
-      id: "boi",
-      label: "BOI",
+      id: "intelligence-hub",
+      label: "Intelligence Hub",
+      icon: TrendingUp,
+      items: [
+        { id: "ai-results", label: "AI Results Analysis" },
+        { id: "performance-insights", label: "Performance Insights" },
+        { id: "prediction-analytics", label: "Prediction Analytics" },
+      ]
+    },
+    {
+      id: "business-intelligence",
+      label: "Business Intelligence",
       icon: BarChart,
       items: [
-        { id: "boi-overview", label: "Overview" },
-        { id: "boi-input-setting", label: "Input Setting" },
-        { id: "boi-insights", label: "AI Insights" },
-        { id: "boi-reports", label: "Reports" },
+        { id: "boi-overview", label: "Strategic Overview" },
+        { id: "organization-analytics", label: "Organization Analytics" },
+        { id: "ai-recommendations", label: "AI Recommendations" },
+      ]
+    },
+    {
+      id: "assistant",
+      label: "Assistant",
+      icon: MessageCircle,
+      items: [
+        { id: "ai-chat", label: "AI Chat Interface" },
+        { id: "knowledge-base", label: "Knowledge Base" },
+        { id: "task-automation", label: "Task Automation" },
       ]
     }
   ];
@@ -247,14 +292,14 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
       <nav className="p-5">
         {!isCollapsed ? (
           <>
-            {renderSection(settingsItems, "Settings")}
+            {renderSection(coreModules, "Core Modules")}
             {renderSection(managementItems, "Management")}
             {renderSection(mainMenuItems, "Main Menu")}
           </>
         ) : (
           <div className="space-y-4">
             {/* Collapsed view - just icons */}
-            {[...settingsItems, ...managementItems, ...mainMenuItems].map((section) => (
+            {[...coreModules, ...managementItems, ...mainMenuItems].map((section) => (
               <div key={section.id} className="flex flex-col items-center">
                 <button
                   onClick={() => toggleSection(section.id)}
