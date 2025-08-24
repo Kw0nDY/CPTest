@@ -5102,6 +5102,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // File download endpoint for source code
+  app.get("/download/source-code", (req, res) => {
+    const filePath = path.join(process.cwd(), 'collaboration-portal-source.tar.gz');
+    
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, 'collaboration-portal-source.tar.gz', (err) => {
+        if (err) {
+          console.error('Download error:', err);
+          res.status(500).json({ error: 'Download failed' });
+        }
+      });
+    } else {
+      res.status(404).json({ error: 'File not found' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
