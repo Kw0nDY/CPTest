@@ -1,67 +1,74 @@
-# Collaboration Portal
+# DXT Enterprise AI Fabric
 
 ## Overview
 
-This is a data integration and AI-powered workflow platform built with React, Express, and PostgreSQL. The application provides a comprehensive data management system with features for connecting various data sources (SAP, Salesforce, Oracle, etc.), mapping data fields, automating workflows, integrating AI models, and configuring BOI (Business Operations Intelligence) settings. The platform follows a step-by-step workflow design to guide users through the complete data integration process.
+This is a comprehensive enterprise AI integration platform evolved from a data integration workflow system to a full-scale 9-module professional AI fabric. Built with React, Express, and PostgreSQL, the platform provides enterprise-grade data management, AI model development, intelligent automation, and business intelligence capabilities. The platform follows JSON-DAG based workflows and maintains security-first principles with RBAC/ABAC, audit trails, and compliance features.
 
-The platform has been fully localized to English while maintaining Korean communication capabilities. All user interface elements, form labels, error messages, toast notifications, and component text are now displayed in English for a consistent enterprise experience.
+The platform has been fully restructured from a simple 3-section interface to a professional 9-module enterprise system while preserving all existing workflow editor functionality and AI model management capabilities.
 
-**Final Navigation Structure (January 2025):**
+**Enterprise Navigation Structure (January 2025 - 9 Core Modules):**
 
-**Settings Section:**
-- Data Integration (with sub-items: Data Integration, View Setting, Automation)
-- AI Fac (with sub-items: Upload Models, Model Configuration)  
-- BOI (with sub-items: Overview, Input Setting, AI Insights, Reports)
+**1. Data Pipeline** - JSON-DAG Pipeline Definition & Execution
+- Data Sources (existing Data Integration functionality preserved)
+- Pipeline Builder (visual node palette/canvas/properties editor)
+- Pipeline Runs (execution history with SSE streaming logs)
 
-**AI Model Management Features (Updated January 2025):**
-- Complete YAML/JSON config file lifecycle management system
-- Automatic config file generation during model upload (both automatic and manual modes)
-- Config file download functionality with proper YAML formatting
-- Config file upload and parsing with validation
-- Model-specific config file storage and retrieval
-- Integration with model analysis workflow for streamlined configuration
-- Support for updating existing config files and creating new ones
+**2. Data Quality & Security** - Independent Enterprise Module
+- Quality Rules (NULL/RANGE/REF validation with alerts)
+- Data Profiling (automated PII detection and statistical analysis)
+- PII Policies (existing security features: show|mask|deny column policies)
 
-**Data Type Standardization (January 2025):**
-- Complete migration from VARCHAR to STRING data types across all data sources
-- Automatic data type detection for Google Sheets integration:
-  * Numeric values → INTEGER or DECIMAL
-  * Date values → DATE
-  * Text values → STRING (replacing VARCHAR)
-- Consistent data type schema for AI model connections and configuration
+**3. Real-time Monitoring** - Independent System Health Module  
+- System Health (p95 latency and error rate monitoring)
+- Connector Status (real-time connector health with offline alerts)
+- Alert Management (webhook integration for Slack, Teams, etc.)
 
-**View Setting Features:**
-- Dynamic UI creation system for building custom dashboard views
-- Data source integration from connected systems (AVEVA PI, SAP ERP, Oracle, Salesforce)
-- Drag-and-drop component editor with charts, tables, metrics, and visualization elements
-- Assignment management system for users and departments
-- Full-screen editor interface with three main tabs:
-  * Design Tab: Visual component layout editor with drag-and-drop canvas
-  * Data Tab: Data source selection and field mapping interface
-  * Preview Tab: Live preview of the configured dashboard
+**4. View & Dashboard** - Team-Centric Interface System
+- Dashboard Builder (existing View Setting functionality preserved)
+- Team Workspaces (collaborative workspace management)
+- Performance Analytics (view usage and optimization insights)
 
-**View Editor Capabilities:**
-- Grid-based layout system with 12-column responsive design
-- Advanced component configuration with styling options (colors, fonts, spacing)
-- Real-time data field preview with sample values from connected sources
-- Component visibility controls and duplication features
-- Chart type selection (bar, line, pie, area, doughnut, scatter)
-- Refresh rate configuration and animation settings
-- Comprehensive properties panel for detailed customization
+**5. Automation Engine** - Intelligent Business Process Automation
+- Workflow Designer (existing Automation functionality preserved)
+- Process Automation (approval workflows for high-risk actions)
+- Trigger Management (CRON scheduling and event-driven triggers)
 
-**Management Section:**
-- Member (Member Management)
-- APIs (API Management)
+**6. AI Laboratory** - Model Development & Research Platform
+- Model Development (Study Studio with TTL datasets and lineage)
+- Model Upload (existing functionality preserved)
+- Model Configuration (existing AI Graph Builder preserved)
+- Testing & Validation (regression testing and deployment gates)
 
-**Main Menu Section:**
-- All Views
-- Dynamic view names from assignments (e.g., "Drilling Operations Monitor", "Production Performance Dashboard", "Equipment Maintenance Events")
+**7. Intelligence Hub** - AI Results Deep Analysis Center
+- AI Results Analysis (implemented with comprehensive metrics)
+- Performance Insights (AI drift detection and KPI tracking)
+- Prediction Analytics (forecasting templates and analytics)
 
-**Enhanced Design Features:**
-- Beautiful blue gradient header with "CP" logo and "Collaboration Portal" branding
-- Elegant sidebar with gradient background and improved hover effects
-- Three-tier navigation structure with clear section separations
-- User dropdown with role switching functionality for testing different perspectives
+**8. Business Intelligence** - Strategic Organization Analytics
+- Strategic Overview (existing BOI functionality preserved)
+- Organization Analytics (KPI tracking with provenance)
+- AI Recommendations (impact/effort scoring recommendations)
+
+**9. Assistant** - LLM-Powered Integrated Assistant
+- AI Chat Interface (tool registry with approval workflows)
+- Knowledge Base (vector search with document indexing)
+- Task Automation (natural language task execution)
+
+**Preserved Legacy Features:**
+- Complete YAML/JSON AI model config file lifecycle management
+- Workflow editor UX with drag-and-drop canvas and node palette
+- View editor with grid-based layout and component configuration
+- All existing AI model upload, configuration, and execution functionality
+- Data source integrations (Google Sheets, Excel, SAP, Oracle, Salesforce)
+- User role switching and permission management
+
+**Enhanced Enterprise Features:**
+- Audit trails for all read/write operations
+- Feature flags (FF_*) for controlled module rollouts
+- Performance SLO monitoring (read p95 < 300ms, write p95 < 1s)
+- OpenTelemetry traceId integration
+- KMS-based secret management
+- RLS/CLS row-level and column-level security
 
 ## User Preferences
 

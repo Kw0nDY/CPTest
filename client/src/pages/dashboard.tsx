@@ -137,7 +137,11 @@ function DynamicViewRenderer({ viewId }: { viewId: string }) {
 
 type ViewType = 
   // Data Pipeline
-  | "data-integration" | "data-quality" | "data-monitoring"
+  | "data-integration" | "pipeline-builder" | "pipeline-runs"
+  // Data Quality & Security
+  | "data-quality" | "data-profiling" | "pii-policies"
+  // Real-time Monitoring
+  | "system-health" | "connector-status" | "alert-management"
   // View & Dashboard  
   | "view-setting" | "team-workspaces" | "performance-analytics"
   // Automation Engine
@@ -168,63 +172,79 @@ export default function Dashboard() {
 
   const renderContent = () => {
     switch (activeView) {
-      // Data Pipeline
+      // Data Pipeline (JSON-DAG 파이프라인 정의·실행·스케줄)
       case "data-integration":
         return <DataIntegrationTab />;
-      case "data-quality":
-        return <DataQualitySecurity />;
-      case "data-monitoring":
-        return <PlaceholderModule title="Real-time Monitoring" description="Live data pipeline monitoring with alerts and performance metrics" />;
+      case "pipeline-builder":
+        return <PlaceholderModule title="Pipeline Builder" description="JSON-DAG based pipeline designer with node palette, canvas, and properties panel" />;
+      case "pipeline-runs":
+        return <PlaceholderModule title="Pipeline Runs" description="Pipeline execution history and real-time logs with SSE streaming" />;
       
-      // View & Dashboard
+      // Data Quality & Security (독립 모듈)
+      case "data-quality":
+        return <PlaceholderModule title="Quality Rules" description="NULL/RANGE/REF validation rules with violation detection and alerts" />;
+      case "data-profiling":
+        return <PlaceholderModule title="Data Profiling" description="Automated data profiling and PII detection with statistical analysis" />;
+      case "pii-policies":
+        return <DataQualitySecurity />; // 기존 컴포넌트 재사용
+      
+      // Real-time Monitoring (독립 모듈)
+      case "system-health":
+        return <PlaceholderModule title="System Health" description="Overall system health monitoring with p95 latency and error rates" />;
+      case "connector-status":
+        return <PlaceholderModule title="Connector Status" description="Real-time connector health monitoring with offline alerts" />;
+      case "alert-management":
+        return <PlaceholderModule title="Alert Management" description="Alert configuration and webhook integration (Slack, Teams, etc.)" />;
+      
+      // View & Dashboard (에디터 UX 유지)
       case "view-setting":
         return <ViewSettingTab />;
       case "team-workspaces":
-        return <PlaceholderModule title="Team Workspaces" description="Collaborative dashboards and team-specific view management" />;
+        return <PlaceholderModule title="Team Workspaces" description="Collaborative workspaces with member management and shared views" />;
       case "performance-analytics":
-        return <PlaceholderModule title="Performance Analytics" description="Dashboard usage analytics and performance optimization insights" />;
+        return <PlaceholderModule title="Performance Analytics" description="View usage analytics and performance optimization insights" />;
       
-      // Automation Engine
+      // Automation Engine (워크플로우 에디터 유지)
       case "automation":
         return <AutomationListTab />;
       case "process-automation":
-        return <PlaceholderModule title="Process Automation" description="Advanced business process automation with conditional logic" />;
+        return <PlaceholderModule title="Process Automation" description="Business process automation with approval workflows" />;
       case "trigger-management":
-        return <PlaceholderModule title="Trigger Management" description="Event-driven automation triggers and scheduling" />;
+        return <PlaceholderModule title="Trigger Management" description="Event-driven triggers and CRON scheduling management" />;
       
-      // AI Laboratory
+      // AI Laboratory (모델 에디터 UX 유지)
       case "model-development":
-        return <PlaceholderModule title="Model Development" description="Train AI models using your integrated data with automated ML pipelines" />;
+        return <PlaceholderModule title="Model Development" description="Study Studio with TTL datasets, lineage tracking, and ML experiments" />;
       case "model-upload":
         return <AIModelManagementTab activeTab={activeView} />;
       case "model-configuration":
         return <ModelConfigurationTab />;
       case "model-testing":
-        return <PlaceholderModule title="Testing & Validation" description="Model performance testing, A/B testing, and validation frameworks" />;
+        return <PlaceholderModule title="Testing & Validation" description="Regression testing and A/B testing with deployment gates" />;
       
       // Intelligence Hub
       case "ai-results":
         return <AIResultsAnalysis />;
       case "performance-insights":
-        return <PlaceholderModule title="Performance Insights" description="AI performance metrics, trends, and optimization recommendations" />;
+        return <PlaceholderModule title="Performance Insights" description="AI model drift detection and KPI tracking with alerts" />;
       case "prediction-analytics":
-        return <PlaceholderModule title="Prediction Analytics" description="Predictive analytics dashboard with forecasting and trend analysis" />;
+        return <PlaceholderModule title="Prediction Analytics" description="Prediction templates and forecasting analytics dashboard" />;
       
       // Business Intelligence
       case "boi-overview":
         return <BOIOverviewTab activeTab={activeView} />;
       case "organization-analytics":
-        return <PlaceholderModule title="Organization Analytics" description="Company-wide analytics, team performance, and strategic insights" />;
+        return <PlaceholderModule title="Organization Analytics" description="KPI tracking with provenance links and audit trails" />;
       case "ai-recommendations":
-        return <PlaceholderModule title="AI Recommendations" description="AI-powered strategic recommendations for business optimization" />;
+        return <PlaceholderModule title="AI Recommendations" description="AI-powered recommendations with impact and effort scoring" />;
       
-      // Assistant
+      // Assistant (LLM 도구 레지스트리)
       case "ai-chat":
-        return <PlaceholderModule title="AI Chat Interface" description="Intelligent assistant for querying data, executing workflows, and getting insights" />;
+        return <PlaceholderModule title="AI Chat Interface" description="LLM chat with tool registry and approval workflows for high-risk actions" />;
       case "knowledge-base":
-        return <PlaceholderModule title="Knowledge Base" description="Centralized knowledge management with AI-powered search and recommendations" />;
+        return <PlaceholderModule title="Knowledge Base" description="Vector search knowledge base with document indexing" />;
       case "task-automation":
-        return <PlaceholderModule title="Task Automation" description="Natural language task automation and workflow generation" />;
+        return <PlaceholderModule title="Task Automation" description="Natural language task automation with scoped tool execution" />;
       
       // Management & Other
       case "member":

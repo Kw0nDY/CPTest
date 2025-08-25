@@ -80,7 +80,7 @@ const sampleAssignedViews: AssignedView[] = [
 
 export default function Sidebar({ activeView, onViewChange, isCollapsed = false, onToggleCollapse }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['data-pipeline', 'ai-laboratory', 'main-menu'])
+    new Set(['data-pipeline', 'data-quality-security', 'ai-laboratory', 'main-menu'])
   );
   
   // Fetch views from API
@@ -103,8 +103,28 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
       icon: Database,
       items: [
         { id: "data-integration", label: "Data Sources" },
-        { id: "data-quality", label: "Data Quality & Security" },
-        { id: "data-monitoring", label: "Real-time Monitoring" },
+        { id: "pipeline-builder", label: "Pipeline Builder" },
+        { id: "pipeline-runs", label: "Pipeline Runs" },
+      ]
+    },
+    {
+      id: "data-quality-security",
+      label: "Data Quality & Security",
+      icon: Shield,
+      items: [
+        { id: "data-quality", label: "Quality Rules" },
+        { id: "data-profiling", label: "Data Profiling" },
+        { id: "pii-policies", label: "PII Policies" },
+      ]
+    },
+    {
+      id: "realtime-monitoring",
+      label: "Real-time Monitoring",
+      icon: Activity,
+      items: [
+        { id: "system-health", label: "System Health" },
+        { id: "connector-status", label: "Connector Status" },
+        { id: "alert-management", label: "Alert Management" },
       ]
     },
     {
