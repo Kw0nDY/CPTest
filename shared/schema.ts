@@ -237,6 +237,54 @@ export const piDrillingOperations = pgTable('pi_drilling_operations', {
   timestamp: timestamp('timestamp').defaultNow()
 });
 
+// Semiconductor Manufacturing Data Tables
+export const waferData = pgTable('wafer_data', {
+  id: text('id').primaryKey(),
+  waferId: text('wafer_id').notNull(),
+  lotId: text('lot_id').notNull(),
+  processStep: text('process_step').notNull(),
+  equipmentId: text('equipment_id').notNull(),
+  processedAt: timestamp('processed_at').defaultNow(),
+  lastUpdate: timestamp('last_update').defaultNow()
+});
+
+export const processParameters = pgTable('process_parameters', {
+  id: text('id').primaryKey(),
+  waferId: text('wafer_id').notNull(),
+  equipmentId: text('equipment_id').notNull(),
+  processStep: text('process_step').notNull(),
+  temperature: integer('temperature'), // Celsius
+  pressure: integer('pressure'), // mTorr
+  gasFlow: integer('gas_flow'), // sccm
+  rfPower: integer('rf_power'), // Watts
+  processTime: integer('process_time'), // seconds
+  recordedAt: timestamp('recorded_at').defaultNow()
+});
+
+export const qualityInspection = pgTable('quality_inspection', {
+  id: text('id').primaryKey(),
+  waferId: text('wafer_id').notNull(),
+  inspectionType: text('inspection_type').notNull(), // 'defect_scan', 'thickness_measurement', 'cd_measurement'
+  defectCount: integer('defect_count'),
+  thicknessMeasurement: integer('thickness_measurement'), // Angstroms
+  criticalDimension: integer('critical_dimension'), // nm
+  yield: integer('yield'), // percentage * 100
+  inspectedAt: timestamp('inspected_at').defaultNow()
+});
+
+export const equipmentStatus = pgTable('equipment_status', {
+  id: text('id').primaryKey(),
+  equipmentId: text('equipment_id').notNull(),
+  equipmentType: text('equipment_type').notNull(), // 'etcher', 'depositor', 'lithography', 'cleaner'
+  status: text('status').notNull(), // 'running', 'idle', 'maintenance', 'error'
+  utilizationRate: integer('utilization_rate'), // percentage * 100
+  chamberPressure: integer('chamber_pressure'), // mTorr
+  chamberTemperature: integer('chamber_temperature'), // Celsius
+  errorCode: text('error_code'),
+  lastMaintenanceDate: timestamp('last_maintenance_date'),
+  statusUpdatedAt: timestamp('status_updated_at').defaultNow()
+});
+
 // Google API Configurations
 export const googleApiConfigs = pgTable('google_api_configs', {
   id: text('id').primaryKey(),
