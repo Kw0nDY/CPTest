@@ -15,7 +15,11 @@ import {
   TrendingUp,
   MessageCircle,
   Shield,
-  Activity
+  Activity,
+  Menu,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 
@@ -217,6 +221,20 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
     setExpandedSections(newExpanded);
   };
 
+  // Handle collapsed icon click - expand sidebar and section
+  const handleCollapsedIconClick = (sectionId: string) => {
+    if (isCollapsed && onToggleCollapse) {
+      onToggleCollapse(); // Expand sidebar
+      setTimeout(() => {
+        const newExpanded = new Set(expandedSections);
+        newExpanded.add(sectionId);
+        setExpandedSections(newExpanded);
+      }, 100); // Small delay to allow sidebar animation
+    } else {
+      toggleSection(sectionId);
+    }
+  };
+
   const renderSection = (sections: MenuItem[], title: string) => (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
@@ -278,13 +296,14 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
       {onToggleCollapse && (
         <button
           onClick={onToggleCollapse}
-          className="absolute top-4 -right-3 z-10 bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:shadow-md transition-shadow"
+          className="absolute top-4 -right-3 z-10 bg-white border border-gray-200 rounded-full p-2 shadow-sm hover:shadow-md hover:bg-gray-50 transition-all duration-200 group"
           data-testid="sidebar-collapse-toggle"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-gray-600" />
+            <PanelLeftOpen className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" />
           ) : (
-            <ChevronLeft className="w-4 h-4 text-gray-600" />
+            <PanelLeftClose className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" />
           )}
         </button>
       )}
@@ -297,19 +316,33 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
             {renderSection(mainMenuItems, "Main Menu")}
           </>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Collapsed view - just icons */}
-            {[...coreModules, ...managementItems, ...mainMenuItems].map((section) => (
-              <div key={section.id} className="flex flex-col items-center">
-                <button
-                  onClick={() => toggleSection(section.id)}
-                  className="flex items-center justify-center w-10 h-10 text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                  title={section.label}
-                >
-                  <section.icon className="w-5 h-5" />
-                </button>
+            <div className="mb-6">
+              <div className="text-center mb-4">
+                <div className="w-8 h-8 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">CP</span>
+                </div>
               </div>
-            ))}
+              
+              {[...coreModules, ...managementItems, ...mainMenuItems].map((section) => (
+                <div key={section.id} className="mb-3">
+                  <button
+                    onClick={() => handleCollapsedIconClick(section.id)}
+                    className="group flex items-center justify-center w-12 h-12 mx-auto text-gray-600 rounded-xl hover:bg-blue-50 hover:text-blue-700 hover:scale-105 transition-all duration-200 relative"
+                    title={section.label}
+                  >
+                    <section.icon className="w-6 h-6 transition-transform group-hover:scale-110" />
+                    
+                    {/* Hover tooltip */}
+                    <div className="absolute left-16 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                      {section.label}
+                      <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </nav>
