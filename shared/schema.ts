@@ -285,6 +285,32 @@ export const equipmentStatus = pgTable('equipment_status', {
   statusUpdatedAt: timestamp('status_updated_at').defaultNow()
 });
 
+// AVEVA PI System Tables
+export const piTagValues = pgTable('pi_tag_values', {
+  id: text('id').primaryKey(),
+  tagName: text('tag_name').notNull(),
+  assetPath: text('asset_path'),
+  value: integer('value'), // Using integer for storage, will be divided by scale factor
+  quality: text('quality').notNull().default('Good'), // Good, Bad, Questionable, Substituted
+  timestamp: timestamp('timestamp').defaultNow(),
+  scaleFlag: integer('scale_flag').default(1000), // Scale factor for decimal values
+  recordedAt: timestamp('recorded_at').defaultNow()
+});
+
+export const piEventFrames = pgTable('pi_event_frames', {
+  id: text('id').primaryKey(),
+  eventName: text('event_name').notNull(),
+  templateName: text('template_name').notNull(),
+  assetPath: text('asset_path').notNull(),
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time'),
+  duration: integer('duration'), // seconds
+  eventType: text('event_type'), // 'batch', 'campaign', 'maintenance', 'alarm'
+  acknowledged: integer('acknowledged').default(0), // 0 = false, 1 = true
+  severity: text('severity').default('Normal'), // Critical, High, Medium, Low, Normal
+  createdAt: timestamp('created_at').defaultNow()
+});
+
 // Google API Configurations
 export const googleApiConfigs = pgTable('google_api_configs', {
   id: text('id').primaryKey(),
