@@ -238,7 +238,7 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
   const renderSection = (sections: MenuItem[], title: string) => (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wider">{title}</h2>
+        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wider truncate">{title}</h2>
         {title === "Main Menu" && (
           <button
             onClick={handleRefreshViews}
@@ -256,15 +256,17 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
               onClick={() => toggleSection(section.id)}
               className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors"
             >
-              <div className="flex items-center">
-                <section.icon className="w-4 h-4 mr-3" />
-                {section.label}
+              <div className="flex items-center min-w-0 flex-1 mr-2">
+                <section.icon className="w-4 h-4 mr-3 flex-shrink-0" />
+                <span className="truncate">{section.label}</span>
               </div>
-              {expandedSections.has(section.id) ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
+              <div className="flex-shrink-0">
+                {expandedSections.has(section.id) ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </div>
             </button>
             {expandedSections.has(section.id) && (
               <ul className="ml-6 mt-1 space-y-1">
@@ -278,7 +280,7 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
                       }`}
                     >
-                      {item.label}
+                      <span className="truncate">{item.label}</span>
                     </button>
                   </li>
                 ))}
@@ -316,32 +318,34 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
             {renderSection(mainMenuItems, "Main Menu")}
           </>
         ) : (
-          <div className="space-y-3">
+          <div className="flex flex-col items-center py-4">
             {/* Collapsed view - just icons */}
-            <div className="mb-6">
-              <div className="text-center mb-4">
+            <div className="w-full flex flex-col items-center">
+              <div className="text-center mb-6">
                 <div className="w-8 h-8 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">CP</span>
+                  <span className="text-white text-sm font-bold truncate">CP</span>
                 </div>
               </div>
               
-              {[...coreModules, ...managementItems, ...mainMenuItems].map((section) => (
-                <div key={section.id} className="mb-3">
-                  <button
-                    onClick={() => handleCollapsedIconClick(section.id)}
-                    className="group flex items-center justify-center w-12 h-12 mx-auto text-gray-600 rounded-xl hover:bg-blue-50 hover:text-blue-700 hover:scale-105 transition-all duration-200 relative"
-                    title={section.label}
-                  >
-                    <section.icon className="w-6 h-6 transition-transform group-hover:scale-110" />
-                    
-                    {/* Hover tooltip */}
-                    <div className="absolute left-16 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
-                      {section.label}
-                      <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-                    </div>
-                  </button>
-                </div>
-              ))}
+              <div className="space-y-4 w-full flex flex-col items-center">
+                {[...coreModules, ...managementItems, ...mainMenuItems].map((section) => (
+                  <div key={section.id} className="flex justify-center">
+                    <button
+                      onClick={() => handleCollapsedIconClick(section.id)}
+                      className="group flex items-center justify-center w-10 h-10 text-gray-600 rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:scale-105 transition-all duration-200 relative"
+                      title={section.label}
+                    >
+                      <section.icon className="w-5 h-5 transition-transform group-hover:scale-110" />
+                      
+                      {/* Hover tooltip */}
+                      <div className="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none max-w-32 truncate">
+                        <span className="block truncate">{section.label}</span>
+                        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                      </div>
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
