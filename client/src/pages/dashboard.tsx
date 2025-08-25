@@ -75,6 +75,7 @@ function PlaceholderModule({ title, description }: { title: string; description:
 import ViewComponentRenderer from "@/components/view/view-component-renderer";
 import AIResultsAnalysis from "@/components/intelligence/ai-results-analysis";
 import DataQualitySecurity from "@/components/data-pipeline/data-quality-security";
+import { PipelineBuilder } from "@/components/data-pipeline/pipeline-builder";
 import { useQuery } from "@tanstack/react-query";
 import type { View } from "@shared/schema";
 
@@ -176,7 +177,7 @@ export default function Dashboard() {
       case "data-integration":
         return <DataIntegrationTab />;
       case "pipeline-builder":
-        return <PlaceholderModule title="Pipeline Builder" description="JSON-DAG based pipeline designer with node palette, canvas, and properties panel" />;
+        return <PipelineBuilder />;
       case "pipeline-runs":
         return <PlaceholderModule title="Pipeline Runs" description="Pipeline execution history and real-time logs with SSE streaming" />;
       
