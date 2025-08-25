@@ -294,23 +294,19 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
 
   return (
     <aside className={`${isCollapsed ? 'w-16' : 'w-72'} bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 h-full overflow-y-auto shadow-sm transition-all duration-300 relative`}>
-      {/* Collapse Toggle Button */}
-      {onToggleCollapse && (
+      {/* Collapse Toggle Button - Only show when expanded */}
+      {onToggleCollapse && !isCollapsed && (
         <button
           onClick={onToggleCollapse}
-          className="absolute top-4 -right-3 z-10 bg-white border border-gray-200 rounded-full p-2 shadow-sm hover:shadow-md hover:bg-gray-50 transition-all duration-200 group"
+          className="absolute top-6 right-4 z-10 bg-white border border-gray-200 rounded-lg p-2 shadow-sm hover:shadow-md hover:bg-gray-50 transition-all duration-200 group"
           data-testid="sidebar-collapse-toggle"
-          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title="Collapse sidebar"
         >
-          {isCollapsed ? (
-            <PanelLeftOpen className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" />
-          ) : (
-            <PanelLeftClose className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" />
-          )}
+          <PanelLeftClose className="w-4 h-4 text-gray-600 group-hover:text-blue-600 transition-colors" />
         </button>
       )}
       
-      <nav className="p-5">
+      <nav className={`${!isCollapsed ? 'p-5 pr-16' : 'p-5'}`}>
         {!isCollapsed ? (
           <>
             {renderSection(coreModules, "Core Modules")}
@@ -322,9 +318,13 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
             {/* Collapsed view - just icons */}
             <div className="w-full flex flex-col items-center">
               <div className="text-center mb-6">
-                <div className="w-8 h-8 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm font-bold truncate">CP</span>
-                </div>
+                <button
+                  onClick={onToggleCollapse}
+                  className="w-10 h-10 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center hover:scale-105 transition-all duration-200"
+                  title="Expand sidebar"
+                >
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </button>
               </div>
               
               <div className="space-y-4 w-full flex flex-col items-center">
