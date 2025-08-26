@@ -3023,9 +3023,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (model.filePath && fs.existsSync(model.filePath)) {
         try {
           fs.unlinkSync(model.filePath);
-          console.log(`Deleted model file: ${model.filePath}`);
+          const safePath = path.basename(model.filePath);
+          console.log(`Deleted model file: ${safePath}`);
         } catch (fileError) {
-          console.warn(`Could not delete model file: ${model.filePath}`, fileError);
+          const safePath = path.basename(model.filePath);
+          console.warn(`Could not delete model file: ${safePath}`, fileError);
           // Continue with database deletion even if file deletion fails
         }
       }
