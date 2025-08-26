@@ -7,6 +7,7 @@ import json
 import tempfile
 import argparse
 import subprocess
+import shlex
 from typing import Dict, Any, List, Optional
 import pandas as pd
 import numpy as np
@@ -27,7 +28,7 @@ class STGCNRunner:
         if not os.path.exists(self.app_path):
             raise FileNotFoundError(f"App file not found: {self.app_path}")
     
-    def execute_with_data(self, input_data: Dict[str, Any], execution_config: Dict[str, Any] = None) -> Dict[str, Any]:
+    def execute_with_data(self, input_data: Dict[str, Any], execution_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute STGCN model with provided input data"""
         try:
             # Create temporary CSV file for input data
@@ -70,18 +71,12 @@ class STGCNRunner:
                 '--out_path', output_path
             ]
             
-            # Add optional parameters from execution config
+            # Add optional parameters from execution config with validation
             if execution_config:
-                if 'steps' in execution_config:
-                    cmd_args.extend(['--steps', str(execution_config['steps'])])
-                if 'alpha' in execution_config:
-                    cmd_args.extend(['--alpha', str(execution_config['alpha'])])
-                if 'beta' in execution_config:
-                    cmd_args.extend(['--beta', str(execution_config['beta'])])
-                if 'gamma' in execution_config:
-                    cmd_args.extend(['--gamma', str(execution_config['gamma'])])
-                if 'lr' in execution_config:
-                    cmd_args.extend(['--lr', str(execution_config['lr'])])
+                # Validate and sanitize execution parameters to prevent command injection
+                safe_params = self._validate_execution_params(execution_config)
+                for param, value in safe_params.items():
+                    cmd_args.extend([f'--{param}', str(value)])
             
             # Execute the STGCN model
             print(f"🚀 Executing STGCN: {' '.join(cmd_args)}")
@@ -103,11 +98,11 @@ class STGCNRunner:
                 
                 # Convert to our expected output format
                 predictions = []
-                for idx, row in result_df.iterrows():
+                for i, (idx, row) in enumerate(result_df.iterrows()):
                     pred = {
-                        'prediction_id': idx + 1,
+                        'prediction_id': i + 1,
                         'optimized_parameters': row.to_dict(),
-                        'metadata': f'STGCN optimization result {idx + 1}'
+                        'metadata': f'STGCN optimization result {i + 1}'
                     }
                     predictions.append(pred)
                 
@@ -203,6 +198,57 @@ class STGCNRunner:
             return analysis
         except Exception as e:
             return {'error': f'KPI analysis failed: {str(e)}'}
+    
+    def _validate_execution_params(self, execution_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and sanitize execution parameters to prevent command injection"""
+        safe_params = {}
+        
+        # Define allowed parameters with their validation rules
+        param_validators = {
+            'steps': lambda x: self._validate_int_range(x, 1, 10000),
+            'alpha': lambda x: self._validate_float_range(x, 0.0, 100.0),
+            'beta': lambda x: self._validate_float_range(x, 0.0, 100.0),
+            'gamma': lambda x: self._validate_float_range(x, 0.0, 100.0),
+            'lr': lambda x: self._validate_float_range(x, 1e-6, 1.0),
+            'zmin': lambda x: self._validate_float_range(x, -10.0, 10.0),
+            'zmax': lambda x: self._validate_float_range(x, -10.0, 10.0)
+        }
+        
+        for param, value in execution_config.items():
+            if param in param_validators:
+                try:
+                    safe_value = param_validators[param](value)
+                    safe_params[param] = safe_value
+                except (ValueError, TypeError) as e:
+                    print(f"⚠️ Invalid parameter {param}={value}: {e}")
+                    # Skip invalid parameters rather than failing
+                    continue
+            else:
+                print(f"⚠️ Unknown parameter ignored: {param}")
+        
+        return safe_params
+    
+    def _validate_int_range(self, value: Any, min_val: int, max_val: int) -> int:
+        """Validate integer parameter within range"""
+        try:
+            int_val = int(float(value))  # Handle string numbers
+            if min_val <= int_val <= max_val:
+                return int_val
+            else:
+                raise ValueError(f"Value {int_val} out of range [{min_val}, {max_val}]")
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid integer value: {value}")
+    
+    def _validate_float_range(self, value: Any, min_val: float, max_val: float) -> float:
+        """Validate float parameter within range"""
+        try:
+            float_val = float(value)
+            if min_val <= float_val <= max_val:
+                return float_val
+            else:
+                raise ValueError(f"Value {float_val} out of range [{min_val}, {max_val}]")
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid float value: {value}")
 
 def main():
     """CLI interface for testing"""
