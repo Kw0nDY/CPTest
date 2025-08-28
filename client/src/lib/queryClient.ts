@@ -11,7 +11,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown
-): Promise<Response> {
+): Promise<any> {
   const shouldIncludeBody = method !== 'GET' && method !== 'HEAD' && data;
   
   console.log(`API Request: ${method} ${url}`, data ? { data } : '');
@@ -34,7 +34,7 @@ export async function apiRequest(
     throw new Error(`${res.status}: ${text}`);
   }
   
-  return res;
+  return await res.json();
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

@@ -38,9 +38,11 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   const createSession = async () => {
     try {
       const response = await apiRequest('POST', '/api/chat/session');
-      setSessionId(response.sessionId);
-      console.log('세션 생성됨:', response.sessionId);
-      return response.sessionId;
+      console.log('전체 응답:', response);
+      const sessionId = response.sessionId;
+      setSessionId(sessionId);
+      console.log('세션 생성됨:', sessionId);
+      return sessionId;
     } catch (error) {
       console.error('세션 생성 실패:', error);
       return null;
@@ -115,8 +117,10 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
         message: messageText 
       });
 
+      console.log('메시지 응답:', response);
+
       // 응답 메시지를 UI에 추가
-      if (response.botMessage) {
+      if (response && response.botMessage) {
         const botMessage: ChatMessage = {
           id: response.botMessage.id || `bot-${Date.now()}`,
           sessionId: currentSessionId,
@@ -124,6 +128,16 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           message: response.botMessage.message,
           timestamp: response.botMessage.timestamp || response.botMessage.createdAt,
           metadata: response.botMessage.metadata
+        };
+        setMessages(prev => [...prev, botMessage]);
+      } else {
+        // 응답이 없으면 기본 메시지
+        const botMessage: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          sessionId: currentSessionId,
+          type: 'bot',
+          message: '죄송합니다. 응답을 처리하는 중 문제가 발생했습니다.',
+          timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, botMessage]);
       }
