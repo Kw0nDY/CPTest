@@ -1,0 +1,101 @@
+1. Available Data Sources (연결 가능한 시스템)
+CRM 시스템:
+Salesforce CRM
+Type: REST API
+Features: Real-time sync, OAuth 2.0, Bulk API, Custom fields
+ERP 시스템:
+SAP ERP
+
+Type: SOAP/REST
+Features: RFC connector, IDoc support, BAPI integration, Real-time
+Oracle Database
+
+Type: Database
+Features: JDBC connector, Stored procedures, Triggers, Views
+MySQL Database
+
+Type: Database
+Features: JDBC connector, Replication, Clustering, JSON support
+제조/운영 시스템:
+Manufacturing Execution System (MES)
+
+Type: REST API
+Features: Real-time production data, Quality tracking, Equipment monitoring
+Product Lifecycle Management (PLM)
+
+Type: REST API
+Features: Design data, BOM management, Change tracking, Collaboration
+Quality Management System (QMS)
+
+Type: REST API
+Features: Audit trails, Compliance reporting, Defect tracking, Certificates
+Supply Chain Management (SCM)
+
+Type: REST API
+Features: Demand planning, Inventory optimization, Supplier management, Logistics
+AVEVA PI System
+
+Type: PI Web API
+Features: Real-time data streaming, Time-series database, Asset Framework, Event monitoring, PI Vision dashboards
+2. Connected Data Sources (연결된 시스템의 실제 데이터)
+SAP ERP Production
+CUSTOMERS 테이블:
+
+Fields: CUSTOMER_ID, CUSTOMER_NAME, COUNTRY, CREDIT_LIMIT, CREATED_DATE
+샘플 데이터:
+CUST001: Acme Manufacturing Co. (USA, $500K 신용한도)
+CUST002: Global Tech Solutions (Germany, $750K 신용한도)
+CUST003: Pacific Industries Ltd. (Japan, $1M 신용한도)
+CUST004: European Parts Supplier (France, $300K 신용한도)
+CUST005: Nordic Components AS (Norway, $450K 신용한도)
+ORDERS 테이블:
+
+Fields: ORDER_ID, CUSTOMER_ID, ORDER_DATE, TOTAL_AMOUNT, STATUS
+샘플 데이터:
+ORD25-001: $125K (Processing)
+ORD25-002: $89.5K (Confirmed)
+ORD25-003: $245K (Shipped)
+ORD25-004: $67.8K (Delivered)
+ORD25-005: $34.5K (Processing)
+Salesforce CRM
+ACCOUNTS 테이블:
+
+Fields: Id, Name, Industry, AnnualRevenue, NumberOfEmployees
+샘플 데이터:
+TechCorp Solutions (Technology, $25M 매출, 250명)
+Manufacturing Plus (Manufacturing, $45M 매출, 580명)
+Healthcare Innovations (Healthcare, $18M 매출, 180명)
+Retail Dynamics (Retail, $32M 매출, 420명)
+Energy Solutions Ltd (Energy, $78M 매출, 890명)
+OPPORTUNITIES 테이블:
+
+Fields: Id, Name, AccountId, Amount, StageName, CloseDate
+샘플 데이터:
+Q1 Software License Deal ($150K, Negotiation)
+Manufacturing Equipment Upgrade ($850K, Proposal)
+Healthcare System Integration ($320K, Closed Won)
+Retail Analytics Platform ($95K, Prospecting)
+Energy Management Solution ($1.2M, Qualification)
+AVEVA PI System
+ASSET_HIERARCHY 테이블:
+
+Fields: AssetName, AssetPath, AssetType, Location, OperationalStatus
+샘플 데이터:
+PetroLux Corporation (Root/Corporation)
+Upstream Operations (Business Unit)
+Conventional Oil (Asset Group)
+Fort McMurray Field (Field)
+Well Pad 001 (Well Pad)
+DRILLING_OPERATIONS 테이블:
+
+Fields: WellPadID, BitWeight, BlockHeight, DiffPress, FlowInRate, HoleDepth, HookLoad, PumpPressure, TopDriveRPM, TopDriveTorque
+샘플 데이터: 5개 Well Pad의 실시간 드릴링 파라미터
+STREAMING_VIEWS 테이블:
+
+Fields: ViewName, RunStatus, ViewType, RunMode, StartTime, Interval
+샘플 데이터:
+Cristal_Demo_Exercise (Stopped By User)
+Compressor Rollup (Not Yet Published)
+Concentrator Modes (Publishing)
+BSQUASSONI - LRS 2018 (Not Yet Published)
+BWK Test for DCP (Not Yet Published)

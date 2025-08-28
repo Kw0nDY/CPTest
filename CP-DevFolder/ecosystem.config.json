@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "name": "my-app",
+      "script": "./dist/index.js",
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": 80
+      },
+      "env_production": {
+        "NODE_ENV": "production",
+        "PORT": 80
+      },
+"env_file": ".env"
+    }
+  ]
+}

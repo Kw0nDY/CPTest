@@ -1,0 +1,39 @@
+model:
+  name: stgcn_residual
+  framework: pytorch
+  artifact_uri: s3://models/stgcn/1.2.0/model.pth
+  runtime: python:3.11-cuda12.1
+  entrypoint: "app:predict"
+  resources:
+    gpu: 1
+    cpu: "2"
+    mem: "6Gi"
+signature:
+  inputs:
+    - name: temperature_a
+      dtype: float32
+      shape: [null]
+      required: true
+    - name: gasflow_b
+      dtype: float32
+      shape: [null]
+  outputs:
+    - name: kpi_x
+      dtype: float32
+      shape: [null]
+preprocess:
+  - type: sql_query
+    connection: "pg_main"
+    sql: "SELECT * FROM sensors WHERE ts BETWEEN :start AND :end"
+  - type: normalize
+    params: { method: zscore, columns: ["temperature_a", "gasflow_b"] }
+postprocess:
+  - type: denormalize
+    params: { method: zscore, columns: ["kpi_x"] }
+connectors:
+  - name: pg_main
+    kind: postgres
+    dsn: "postgresql://.../factory"
+  - name: redis_cache
+    kind: redis
+    uri: "redis://..."

@@ -1,0 +1,71 @@
+1. Views (대시보드/뷰 관리)
+현재 생성된 뷰들:
+
+view-1755242769457: "KOO" (대시보드, 활성)
+view-1755256090948: "testTTT" (분석, 초안) - 다양한 컴포넌트 포함
+view-1755244923189: "TEST2" (대시보드, 초안)
+view-1755244922647: "TEST2" (SAP ERP 연결, 텍스트 컴포넌트 포함)
+2. Data Sources (연결된 데이터 소스)
+연결된 시스템:
+
+sap-erp: SAP ERP (ERP, 연결됨)
+salesforce-crm: Salesforce CRM (CRM, 연결됨)
+aveva-pi: AVEVA PI System (Historian, 연결됨)
+ds-1755587089608: Google Sheets - 자동차 데이터
+CarData: 차량 모델, 제조업체, 연식, 주행거리, 색상, 가격
+UserData: 구매자 정보, 연락처, 주소, 구매 정보
+ds-1755652529123: UserList - 사용자/제품 데이터
+User_Data: 20개 필드 (ID, 이름, 이메일, 나이, 제품정보 등)
+Product_Data: 5개 필드 (제품ID, 이름, 카테고리, 가격, 재고)
+3. SAP ERP 데이터
+sap_customers 테이블:
+
+CUST001: Acme Manufacturing Co. (미국, $500K)
+CUST002: Global Tech Solutions (독일, $750K)
+CUST003: Pacific Industries Ltd. (일본, $1M)
+CUST004: European Parts Supplier (프랑스, $300K)
+CUST005: Nordic Components AS (노르웨이, $450K)
+sap_orders 테이블:
+
+ORD001: $125K (완료)
+ORD002: $89.5K (처리중)
+ORD003: $245K (배송)
+ORD004: $67.8K (완료)
+ORD005: $156K (처리중)
+4. Salesforce CRM 데이터
+salesforce_accounts 테이블:
+
+ACC001: TechCorp Solutions (기술, $15M, 250명)
+ACC002: Global Manufacturing Inc (제조, $45M, 850명)
+ACC003: Energy Systems Ltd (에너지, $28M, 420명)
+ACC004: Healthcare Innovations (헬스케어, $12M, 180명)
+ACC005: Financial Services Group (금융, $67M, 1200명)
+salesforce_opportunities 테이블:
+
+OPP001: Q1 소프트웨어 라이선스 갱신 ($250K, 협상)
+OPP002: 제조 장비 업그레이드 ($1.2M, 제안)
+OPP003: 에너지 관리 시스템 ($850K, 성사)
+OPP004: 헬스케어 플랫폼 통합 ($180K, 자격심사)
+OPP005: 금융 분석 솔루션 ($450K, 니즈분석)
+5. AVEVA PI System 데이터
+pi_asset_hierarchy 테이블:
+
+1: PetroLux Corporation (루트/본사)
+2: Upstream Operations (사업부)
+3: Conventional Oil (자산그룹)
+4: Fort McMurray Field (유전)
+5: Well Pad 001 (웰패드)
+pi_drilling_operations 테이블:
+
+Well Pad 001: 드릴링 파라미터 (비트무게 25K, 깊이 8942ft 등)
+Well Pad 002: 드릴링 파라미터 (비트무게 23.5K, 깊이 9156ft 등)
+Well Pad 003: 드릴링 파라미터 (비트무게 26.2K, 깊이 8755ft 등)
+6. Google Sheets 연동 데이터
+자동차 판매 데이터:
+
+현대/기아 차량 40대 정보 (쏘나타, 그랜저, K5, 쏘렌토, 아반떼)
+구매자 9명 정보 (김철수, 이영희, 박민준, 최지혜, 정대현 등)
+사용자/제품 관리 데이터:
+
+30개 사용자 레코드 (John Doe, Jane Smith, Peter Jones 등)
+5개 제품 데이터 (노트북, 스마트폰, 태블릿, 헤드폰, 모니터)

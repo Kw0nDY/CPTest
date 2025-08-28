@@ -1,0 +1,276 @@
+# DXT Enterprise AI Fabric — Master Build Spec (FINAL, MENU-ALIGNED ONE-PAGER)
+
+## 0) SYSTEM GUARDRAILS (apply to all PRs)
+- Stack: React+TypeScript(Vite) · Express(Node18+) · PostgreSQL+Drizzle · BullMQ+Redis · SSE/WebSocket
+- Security: SSO(OIDC/SAML), RBAC+ABAC, RLS/CLS, KMS-based secrets, TLS, **audit trail for ALL reads/writes**
+- Data-Minimal: column/row/time projection; previews hard-capped 100 rows; any snapshot requires TTL
+- API: JSON under `/api`, Zod validation, `Idempotency-Key` header, error `{code,message,details?}`
+- IDs & Time: `uuid v7`/ULID; timestamps ISO-8601 UTC
+- Observability: OpenTelemetry traceId; domain events (`*.created`, `*.updated`, `*.run.started|finished`, `*.violation`)
+- Feature Flags: each module behind `FF_*`; default OFF until DOD met
+- Performance SLO: read p95 < 300ms, write p95 < 1s; streams separate SLO
+- Monorepo dirs: `client/  server/  shared/  worker/  scripts/  samples/`
+- PR Checklist: schema+migration / routes+Zod / RBAC+RLS / audit events / docs & API examples / screenshots / tests
+
+---
+
+## 1) CORE — DATA PIPELINE
+**Goal**: JSON-DAG 파이프라인 정의·실행·스케줄·로그(후속 Data Sources와 결합되는 엔진)
+
+### API
+POST /api/pipelines  
+GET /api/pipelines?projectId=…  
+GET /api/pipelines/:id  
+PATCH /api/pipelines/:id  
+POST /api/pipelines/:id/run  
+GET /api/pipeline-runs/:runId  
+GET /api/pipeline-runs/:runId/logs/stream  # SSE  
+POST /api/pipeline-schedules
+
+### DB (Drizzle)
+pipelines(id, projectId, name, version, graph_json, createdBy, createdAt, updatedAt, archived)  
+pipeline_runs(id, pipelineId, status['queued'|'running'|'succeeded'|'failed'], stats_json, error, startedAt, finishedAt, createdBy)  
+pipeline_logs(id, runId, ts, level['info'|'warn'|'error'], nodeId, message, sample_json)  
+pipeline_schedules(id, pipelineId, cron, enabled, lastRunId, createdBy)
+
+### Node Types (MVP)
+source.fileDrop{path,hasHeader,delimiter} · transform.select{columns[]} · transform.filter{expr} · validate.null{columns[]} · sink.featureCache{name,ttlHours}
+
+### FE Pages
+/pipelines (list) · /pipelines/new (builder: palette/canvas/props) · /pipelines/:id/runs (history+SSE)
+
+### Acceptance
+DAG validation 필수 · 100k rows CSV streaming · schedule fires ≥2회 · SSE 로그에 node times/rows · RBAC로 viewer는 read-only
+
+---
+
+### 1-A) SUBTAB — DATA SOURCES
+**Goal**: 커넥터 연결/테스트/미리보기/동기화 (비밀 KMS 암호화, preview 100행)
+
+#### API
+POST/GET/DELETE /api/connections  
+POST /api/connections/:id/test  
+POST/GET /api/datasets  
+GET /api/datasets/:id/preview?limit=100  
+POST /api/datasets/:id/sync
+
+#### DB
+connections(id, tenantId, projectId, name, type['gsheets'|'excel'|'rest'|'s3'], config_json, createdBy, createdAt, archived)  
+credentials(id, connectionId, encrypted, createdAt)  
+datasets(id, connectionId, name, sourcePath, columns_json, rowFilter, profile_json, createdAt)  
+sync_runs(id, datasetId, status, rowsIn, rowsOut, error, startedAt, finishedAt)
+
+#### Connectors (initial)
+Google Sheets(OAuth) · Excel/CSV Upload · Generic REST(templated URL) · S3/MinIO(prefix)
+
+#### Acceptance
+secrets는 credentials.encrypted에만 저장 · preview capped 100 · rowFilter 적용 · sync 성공/실패 기록
+
+---
+
+## 2) CORE — DATA QUALITY & SECURITY
+**Goal**: 프로파일/품질규칙/PII 마스킹/정책 위반 알림 + RLS/CLS 연계
+
+### API
+GET/POST /api/datasets/:id/profile  
+GET/POST /api/datasets/:id/policies  # column policy show|mask|deny + roles  
+GET/POST /api/quality/rules          # NULL/RANGE/REF  
+POST /api/quality/runs
+
+### DB
+data_policies(id, datasetId, column, policy['show'|'mask'|'deny'], roles_json, maskType['hash'|'partial'|'zero'])  
+quality_rules(id, datasetId, type['null'|'range'|'ref'], config_json, severity)  
+quality_runs(id, ruleId, status, stats_json, error, startedAt, finishedAt)  
+quality_violations(id, runId, sample_json, count)
+
+### Acceptance
+정책 미적용 상태의 preview/view → 403(reason) · 위반시 violation 생성 + `quality.violation` 이벤트
+
+---
+
+## 3) CORE — REAL-TIME MONITORING
+**Goal**: 커넥터·파이프라인·품질·자동화 런 헬스/지연/오류 모니터링
+
+### API
+GET /api/monitor/overview  
+GET /api/monitor/connectors  
+GET /api/monitor/pipelines  
+POST /api/monitor/webhooks/slack
+
+### DB
+connectors_health(connectionId, status, latencyMs, lastCheckedAt, error)  
+ops_events(id, type, refId, payload_json, level, ts)
+
+### Acceptance
+offline connector 알림 · p95 latency/err rate 차트
+
+---
+
+## 4) CORE — VIEW & DASHBOARD
+Subtabs: **Dashboard Builder · Team Workspaces · Performance Analytics**
+
+### API
+POST/GET/PATCH/DELETE /api/views  
+POST /api/views/:id/publish              # review/approval  
+GET  /api/views/:id/data?params=…        # server-side RLS/CLS  
+POST/GET /api/workspaces  
+GET  /api/views/:id/metrics              # usage/perf
+
+### DB
+views(id, projectId, name, layout_json, bindings_json, visibility['private'|'shared'|'org'], version, createdBy, createdAt)  
+view_reviews(id, viewId, status['proposed'|'approved'|'rejected'], reviewers_json, notes, createdAt)  
+workspaces(id, projectId, name, members_json, defaultViewId)  
+view_usage(viewId, userId, ts)  
+view_perf(viewId, date, loads, avgLatencyMs)
+
+### Acceptance
+publish 승인 필요 · org 공개 전 리뷰 필수 · 사용량 수집 · 다른 역할/부서에서 RLS/CLS 결과 상이
+
+---
+
+## 5) CORE — AUTOMATION ENGINE
+Subtabs: **Workflow Designer · Process Automation · Trigger Management**
+
+### API
+POST/GET/PATCH /api/automations  
+POST /api/automations/:id/run  
+POST /api/automations/:id/approve        # high-risk gate  
+GET  /api/automations/:id/stream          # SSE
+
+### DB
+automations(id, projectId, name, trigger_json, conditions_json, actions_json, approvers_json, status)  
+automation_runs(id, automationId, status, inputSnapshot_json, outputSnapshot_json, error, startedAt, finishedAt, approvedBy)  
+approvals(id, automationId, runId, approverId, status, reason, ts)
+
+### Acceptance
+고위험 액션 승인 없으면 403 · 실행 스냅샷/감사 보존 · 재시도/백오프
+
+---
+
+## 6) CORE — AI LABORATORY
+Subtabs: **Model Development · Model Upload · Model Configuration · Testing & Validation**
+
+### 6.1 Model Development (Study Studio)
+API: POST/GET /api/study/datasets · POST /api/study/runs · GET /api/study/runs/:id/metrics  
+DB: datasets(id, projectId, templateId, masking_json, ttl, schema_json, lineage_json, createdBy, createdAt) · ml_experiments(id, projectId, name, task['cls'|'reg'|'ts'], createdAt) · ml_runs(id, experimentId, datasetId, params_json, metrics_json, artifacts, cost, startedAt, endedAt, status)  
+Acceptance: TTL 필수 · lineage 캡처 · 슬라이스 메트릭
+
+### 6.2 Model Upload (Registry)
+API: POST /api/ai-models/upload · POST /api/ai-models/:id/introspect · POST /api/ai-models/:id/deploy  
+DB: ai_models(id, projectId, name, framework, version, schemaIn_json, schemaOut_json, securityReport_json, limits_json, deployedAt) · ai_model_files(id, modelId, path, sha256, size)  
+Acceptance: 보안스캔 통과 + 리소스 한도 필수 · 샌드박스 추론 OK
+
+### 6.3 Model Configuration (AI Graph Builder, 에디터 UX 유지)
+API: POST/GET/PATCH /api/ai-graphs · POST /api/ai-graphs/:id/simulate · POST /api/ai-graphs/:id/deploy · POST /api/ai-graphs/:id/run  
+Contract 예:
+{
+ "inputs":[{"key":"dataset","policy":"template:allowed_17"}],
+ "steps":[{"id":"fx","type":"feature","compute":"edge"},{"id":"mdl","type":"model","ref":"models/xgb@1.2.0","slo":{"p95_ms":800}},{"id":"rule","type":"rule","ref":"rules/escalation_v2"}],
+ "outputs":[{"key":"risk_score","type":"number"},{"key":"recommendations","type":"array<string>"}],
+ "guardrails":{"allowed_actions":["ticket:create"],"approval_thresholds":{"risk_score":0.8}}
+}
+DB: ai_graphs(id, projectId, name, contract_json, version, publishedAt, createdBy) · ai_runs(id, graphId, inputsRef, outputs_json, metrics_json, cost, traceId, startedAt, endedAt, status)  
+Acceptance: SLO/guardrails 누락 → run 거절 · simulate→approve→deploy
+
+### 6.4 Testing & Validation
+API: POST/GET /api/ai-tests · POST /api/ai-tests/:id/run  
+DB: ai_tests(id, scope['model'|'graph'], datasets_json, metrics_json, thresholds_json, owner) · ai_test_runs(id, testId, runId, results_json, pass, startedAt, endedAt)  
+Acceptance: 회귀 테스트 통과 전 배포 차단
+
+---
+
+## 7) CORE — INTELLIGENCE HUB
+Subtabs: **AI Results Analysis · Performance Insights · Prediction Analytics**
+
+### API
+GET /api/intel/results?model=…&graph=…&from=…&to=…  
+GET /api/intel/drift  
+GET /api/intel/kpis  
+GET /api/intel/predictions?template=…
+
+### DB
+ai_drifts(id, runId|modelId, kind['data'|'perf'], stats_json, threshold, alertedAt)  
+ai_kpis_daily(modelId|graphId, date, latencyP95, cost, accuracy, alerts)  
+prediction_templates(id, name, spec_json, defaultParams_json)
+
+### Acceptance
+“verified” 결과만 View/Automation 바인딩(FF로 제어) · 드리프트 경보 동작
+
+---
+
+## 8) CORE — BUSINESS INTELLIGENCE
+Subtabs: **Strategic Overview · Organization Analytics · AI Recommendations**
+
+### API
+GET/POST /api/bi/kpis | /api/bi/snapshots  
+GET /api/bi/overview  
+POST /api/bi/recommendations?period=weekly
+
+### DB
+bi_kpis(id, scope['org'|'project'|'dept'], name, formula, target, owner)  
+bi_snapshots(id, kpiId, date, value, sourceRef)  
+bi_recommendations(id, period, title, rationale, links_json, impactScore, effortScore)
+
+### Acceptance
+모든 수치에 근거 링크(출처) 포함 · 변경 이력/감사 보존
+
+---
+
+## 9) CORE — ASSISTANT
+Subtabs: **AI Chat Interface · Knowledge Base · Task Automation**
+
+### API
+POST /api/kb/docs              # 문서/스키마/뷰/그래프 요약 인덱싱  
+GET  /api/kb/search?q=…  
+POST /api/llm/tools/register   # tool registry (method,path,inputSchema,outputSchema,scope)  
+POST /api/assistant/ask        # {answer, toolPlan[], approvalsRequired?}  
+POST /api/assistant/approve
+
+### DB
+kb_docs(id, projectId, kind, path_or_url, vectorRef, meta_json)  
+llm_tools(id, projectId, name, spec_json, scope, createdBy)  
+llm_sessions(id, userId, title, createdAt)  
+llm_messages(id, sessionId, role, content, toolPlan_json, ts)  
+assistant_tasks(id, sessionId, tool, params_json, status, result_json, approvedBy)
+
+### Acceptance
+Viewer는 변이 툴 실행 불가 · high-risk는 승인 필수 · tool 실행 traceId+감사
+
+---
+
+## 10) MANUAL TEST MATRIX (smoke)
+Pipeline: create→run→SSE→schedule;  
+Sources: connect(GSheets/Excel/REST/S3)→preview100→sync;  
+DQ/Sec: add PII policy→viewer masked; rule run→violation event;  
+Monitoring: connector offline→alert;  
+Views: build→publish(review)→org visible; RLS rows differ by role;  
+Automation: high-risk action requires approval; retry/backoff;  
+AI Lab: dataset snapshot TTL enforced→train run; upload→introspect→deploy; graph simulate→deploy;  
+Intel Hub: drift alert on shifted inputs;  
+BI: overview shows KPI with provenance;  
+Assistant: ask→toolPlan within scope; high-risk requires approval.
+
+---
+
+## 11) SAMPLE DATA (put under /samples)
+sales_q3.csv  
+date,sku,qty,price,region  
+2025-07-01,A100,3,12.5,KR  
+2025-07-01,A200,0,9.9,KR  
+2025-07-02,A100,5,12.5,US  
+2025-07-02,A300,2,7.0,JP
+
+sensor_small.csv  
+ts,asset,temp,pressure,status  
+2025-07-01T00:00:00Z,PUMP_01,62.1,3.1,OK  
+2025-07-01T00:01:00Z,PUMP_01,NaN,3.2,OK  
+2025-07-01T00:02:00Z,PUMP_01,65.4,3.4,OK
+
+---
+
+## 12) ROLLOUT (feature flags)
+1) `FF_PIPELINE` + `FF_SOURCES`  
+2) `FF_DQSEC` + `FF_MONITOR`  
+3) `FF_VIEWS` + `FF_AUTOMATION`  
+4) `FF_AI_LAB` (dev→upload→graph→validate)  
+5) `FF_INTEL_HUB` + `FF_BI` + `FF_ASSISTANT`
