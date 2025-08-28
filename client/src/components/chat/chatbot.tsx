@@ -100,7 +100,21 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !sessionId) return;
+    if (!inputMessage.trim()) return;
+    
+    // Create session if it doesn't exist
+    if (!sessionId) {
+      createSession();
+      // Wait a bit for session creation and then send message
+      setTimeout(() => {
+        if (sessionId) {
+          setInputMessage('');
+          setIsLoading(true);
+          sendMessageMutation.mutate(inputMessage.trim());
+        }
+      }, 1000);
+      return;
+    }
 
     setInputMessage('');
     setIsLoading(true);
@@ -283,11 +297,11 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                   onKeyPress={handleKeyPress}
                   placeholder="질문을 입력하세요..."
                   className="flex-1 text-sm"
-                  disabled={isLoading || !sessionId}
+                  disabled={isLoading}
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || isLoading || !sessionId}
+                  disabled={!inputMessage.trim() || isLoading}
                   size="sm"
                   className="px-3"
                 >
