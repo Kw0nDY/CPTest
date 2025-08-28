@@ -5214,7 +5214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const session = await storage.createChatSession({ sessionId });
-      res.json(session);
+      res.json({ sessionId: session.sessionId });
     } catch (error: any) {
       console.error("채팅 세션 생성 오류:", error);
       res.status(500).json({ 
