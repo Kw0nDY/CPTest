@@ -176,7 +176,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     }
   };
 
-  // CSV 업로드 실행
+  // CSV 업로드 실행 (Flowise 벡터 데이터베이스 연동)
   const handleUploadCsv = async () => {
     if (!csvFile) return;
 
@@ -185,6 +185,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       const formData = new FormData();
       formData.append('csvFile', csvFile);
       
+      // 로컬 데이터베이스에 업로드
       const response = await fetch('/api/uploaded-data/upload', {
         method: 'POST',
         body: formData
@@ -192,17 +193,54 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
       if (response.ok) {
         const result = await response.json();
-        setCsvFile(null);
         
-        // 성공 메시지를 채팅에 추가
-        const successMessage: ChatMessage = {
-          id: `upload-${Date.now()}`,
-          sessionId: sessionId || 'unknown',
-          type: 'bot',
-          message: `CSV 파일이 성공적으로 업로드되었습니다! ${result.recordCount}개의 레코드가 저장되었습니다. 이제 업로드된 데이터에 대해 질문해보세요.`,
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, successMessage]);
+        // Flowise 벡터 데이터베이스에도 업로드
+        try {
+          const flowiseFormData = new FormData();
+          flowiseFormData.append('files', csvFile);
+          flowiseFormData.append('columnName', 'all');
+          flowiseFormData.append('metadata', JSON.stringify({ source: 'csv_upload', filename: csvFile.name }));
+          
+          const flowiseResponse = await fetch('http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484', {
+            method: 'POST',
+            body: flowiseFormData
+          });
+          
+          let flowiseSuccess = false;
+          if (flowiseResponse.ok) {
+            const flowiseResult = await flowiseResponse.json();
+            console.log('Flowise 업로드 결과:', flowiseResult);
+            flowiseSuccess = true;
+          } else {
+            console.error('Flowise 업로드 실패:', flowiseResponse.status);
+          }
+          
+          setCsvFile(null);
+          
+          // 성공 메시지를 채팅에 추가
+          const successMessage: ChatMessage = {
+            id: `upload-${Date.now()}`,
+            sessionId: sessionId || 'unknown',
+            type: 'bot',
+            message: `CSV 파일이 성공적으로 업로드되었습니다! ${result.recordCount}개의 레코드가 저장되었습니다.${flowiseSuccess ? ' AI 벡터 데이터베이스에도 연동되었습니다.' : ''}\n\n이제 업로드된 데이터에 대해 질문해보세요. 예: "설비 목록을 알려줘", "유지보수 이력을 보여줘"`,
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, successMessage]);
+          
+        } catch (flowiseError) {
+          console.error('Flowise 업로드 실패:', flowiseError);
+          setCsvFile(null);
+          
+          const partialSuccessMessage: ChatMessage = {
+            id: `upload-${Date.now()}`,
+            sessionId: sessionId || 'unknown',
+            type: 'bot',
+            message: `CSV 파일이 로컬 데이터베이스에 업로드되었습니다 (${result.recordCount}개 레코드). AI 벡터 데이터베이스 연동은 실패했지만 기본 검색은 가능합니다.\n\n데이터에 대해 질문해보세요.`,
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, partialSuccessMessage]);
+        }
+        
       } else {
         throw new Error('업로드 실패');
       }

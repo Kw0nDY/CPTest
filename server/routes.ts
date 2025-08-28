@@ -5280,64 +5280,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update session activity
       await storage.updateChatSessionActivity(sessionId);
 
-      // Search uploaded data for relevant information
-      const searchResults = await storage.searchUploadedData(message);
-      console.log(`검색 결과: ${searchResults.length}개 항목 발견`);
-
+      // Use Flowise API for intelligent responses
       let botResponse = '';
-      let searchQuery = '';
+      let searchQuery = message;
       let foundMatches = 0;
       let confidence = 0;
 
-      if (searchResults.length > 0) {
-        // Found relevant maintenance data
-        foundMatches = searchResults.length;
-        searchQuery = message;
+      try {
+        // Call Flowise chat API
+        console.log(`Flowise API 호출: "${message}"`);
+        const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            question: message,
+            history: []
+          })
+        });
 
-        if (searchResults.length === 1) {
-          // Single exact match
-          const result = searchResults[0];
-          confidence = 0.95;
-          // Dynamic formatting for any CSV data structure
-          botResponse = `찾은 정보:\n\n`;
-          Object.entries(result).forEach(([key, value]) => {
-            if (value && key !== 'id') {
-              botResponse += `**${key}:** ${value}\n`;
-            }
-          });
-          botResponse += `\n이 정보가 도움이 되시나요? 추가 질문이 있으시면 언제든 말씀해 주세요.`;
-        } else if (searchResults.length <= 3) {
-          // Multiple relevant matches
-          confidence = 0.80;
-          botResponse = `관련된 ${searchResults.length}개의 결과를 찾았습니다:\n\n`;
-          searchResults.forEach((result, index) => {
-            botResponse += `**${index + 1}번 결과:**\n`;
-            Object.entries(result).forEach(([key, value]) => {
-              if (value && key !== 'id') {
-                botResponse += `${key}: ${value}\n`;
-              }
-            });
-            botResponse += `\n`;
-          });
-          botResponse += `가장 적합한 정보를 참고해 주세요.`;
+        if (flowiseResponse.ok) {
+          const flowiseResult = await flowiseResponse.json();
+          console.log(`Flowise 응답:`, flowiseResult);
+          botResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "응답을 받을 수 없습니다.";
+          confidence = 0.90;
+          foundMatches = 1;
         } else {
-          // Too many matches, show top 3
-          confidence = 0.60;
-          botResponse = `${searchResults.length}개의 관련 결과를 찾았습니다. 상위 3개 결과를 보여드립니다:\n\n`;
-          searchResults.slice(0, 3).forEach((result, index) => {
-            botResponse += `**${index + 1}번 결과:**\n`;
+          throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
+        }
+      } catch (error) {
+        console.error("Flowise API 호출 실패:", error);
+        
+        // Fallback to local data search
+        const searchResults = await storage.searchUploadedData(message);
+        console.log(`로컬 검색 결과: ${searchResults.length}개 항목 발견`);
+
+        if (searchResults.length > 0) {
+          foundMatches = searchResults.length;
+          confidence = 0.70;
+          botResponse = `업로드된 데이터에서 찾은 정보:\n\n`;
+          
+          if (searchResults.length === 1) {
+            const result = searchResults[0];
             Object.entries(result).forEach(([key, value]) => {
               if (value && key !== 'id') {
-                botResponse += `${key}: ${value}\n`;
+                botResponse += `**${key}:** ${value}\n`;
               }
             });
-            botResponse += `\n`;
-          });
-          botResponse += `더 구체적인 검색을 위해 키워드를 추가해 보세요.`;
+          } else {
+            botResponse += `관련된 ${searchResults.length}개의 결과를 찾았습니다:\n\n`;
+            searchResults.slice(0, 3).forEach((result, index) => {
+              botResponse += `**${index + 1}번 결과:**\n`;
+              Object.entries(result).forEach(([key, value]) => {
+                if (value && key !== 'id') {
+                  botResponse += `- ${key}: ${value}\n`;
+                }
+              });
+              botResponse += `\n`;
+            });
+          }
+        } else {
+          confidence = 0;
+          botResponse = `죄송합니다. "${message}"와 관련된 정보를 찾을 수 없습니다.\n\nFlowise API와의 연결에 문제가 있어 로컬 데이터만 검색했습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 키워드를 입력해 주세요\n• 다른 검색어나 관련 용어를 사용해 보세요\n• CSV 파일을 업로드했는지 확인해 주세요`;
         }
-      } else {
-        // No matches found
-        botResponse = `죄송합니다. "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 키워드를 입력해 주세요\n• 다른 검색어나 관련 용어를 사용해 보세요\n• 오타가 있는지 확인해 주세요\n\n데이터 파일이 업로드되어 있는지도 확인해 주세요.`;
       }
 
       // Save bot response
