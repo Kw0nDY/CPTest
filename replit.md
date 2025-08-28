@@ -97,6 +97,14 @@ Preferred communication style: Korean language communication requested. Always r
 - Upload and parsing system supporting both YAML and JSON formats
 - Config file lifecycle management including updates and modifications
 
+**Flowise API Integration Requirements (완료 - 2025년 8월 28일):**
+- 완전한 Flowise API 통합으로 AI 기반 채팅봇 구현
+- CSV/Excel 업로드 시 자동 Flowise 벡터 데이터베이스 연동
+- 채팅 응답에 Flowise prediction API 활용 (업로드된 데이터만 사용)
+- API 엔드포인트: http://220.118.23.185:3000/api/v1/ (prediction/vector upsert)
+- 로컬 데이터베이스와 벡터 DB 이중화로 안정성 확보
+- 실시간 대화형 인터페이스로 GPT 스타일 상호작용 지원
+
 **AI Model Folder Management System (January 2025):**
 - Complete folder-based organization system for AI models with hierarchical database structure
 - Custom folder creation with name, description, color, and icon customization
