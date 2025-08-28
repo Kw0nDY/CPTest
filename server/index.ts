@@ -59,13 +59,13 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Health check endpoint for ALB
+  // Health check endpoint for ALB (specific path for AWS)
   app.get('/health', (req, res) => {
     res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
   });
 
-  // Root health check endpoint for AWS domain
-  app.get('/', (req, res) => {
+  // API health check endpoint 
+  app.get('/api/health', (req, res) => {
     res.status(200).json({ 
       status: 'healthy', 
       message: 'Collaboration Portal API is running',
@@ -77,6 +77,16 @@ app.use((req, res, next) => {
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
+    // AWS production: Root path for health check
+    app.get('/', (req, res) => {
+      res.status(200).json({ 
+        status: 'healthy', 
+        message: 'Collaboration Portal API is running',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0'
+      });
+    });
+    
     // Correctly serve the static files from the build directory
     const clientBuildPath = path.join(__dirname, '..', 'dist', 'public');
     app.use(express.static(clientBuildPath));
