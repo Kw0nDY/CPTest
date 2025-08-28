@@ -5151,7 +5151,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`CSV 업로드: ${data.length}개 레코드 파싱 완료`);
       console.log('헤더:', headers);
 
-      // Upload to database
+      // Upload to both generic and legacy maintenance tables
+      await storage.uploadGenericCSV(req.file.originalname, req.file.originalname, data);
       await storage.uploadMaintenanceCSV(req.file.originalname, data);
 
       res.json({
@@ -5279,8 +5280,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update session activity
       await storage.updateChatSessionActivity(sessionId);
 
-      // Search maintenance data for relevant information
-      const searchResults = await storage.searchMaintenanceData(message);
+      // Search uploaded data for relevant information
+      const searchResults = await storage.searchUploadedData(message);
       console.log(`검색 결과: ${searchResults.length}개 항목 발견`);
 
       let botResponse = '';
@@ -5297,31 +5298,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Single exact match
           const result = searchResults[0];
           confidence = 0.95;
-          botResponse = `**문제 유형:** ${result.type}\n\n**문제 상황:** ${result.fault}\n\n**해결 방법:** ${result.action}\n\n이 정보가 도움이 되시나요? 추가 질문이 있으시면 언제든 말씀해 주세요.`;
+          // Dynamic formatting for any CSV data structure
+          botResponse = `찾은 정보:\n\n`;
+          Object.entries(result).forEach(([key, value]) => {
+            if (value && key !== 'id') {
+              botResponse += `**${key}:** ${value}\n`;
+            }
+          });
+          botResponse += `\n이 정보가 도움이 되시나요? 추가 질문이 있으시면 언제든 말씀해 주세요.`;
         } else if (searchResults.length <= 3) {
           // Multiple relevant matches
           confidence = 0.80;
-          botResponse = `관련된 ${searchResults.length}개의 해결책을 찾았습니다:\n\n`;
+          botResponse = `관련된 ${searchResults.length}개의 결과를 찾았습니다:\n\n`;
           searchResults.forEach((result, index) => {
-            botResponse += `**${index + 1}. ${result.type}**\n`;
-            botResponse += `문제: ${result.fault}\n`;
-            botResponse += `해결책: ${result.action}\n\n`;
+            botResponse += `**${index + 1}번 결과:**\n`;
+            Object.entries(result).forEach(([key, value]) => {
+              if (value && key !== 'id') {
+                botResponse += `${key}: ${value}\n`;
+              }
+            });
+            botResponse += `\n`;
           });
-          botResponse += `가장 적합한 해결책을 선택해서 적용해 보세요.`;
+          botResponse += `가장 적합한 정보를 참고해 주세요.`;
         } else {
           // Too many matches, show top 3
           confidence = 0.60;
           botResponse = `${searchResults.length}개의 관련 결과를 찾았습니다. 상위 3개 결과를 보여드립니다:\n\n`;
           searchResults.slice(0, 3).forEach((result, index) => {
-            botResponse += `**${index + 1}. ${result.type}**\n`;
-            botResponse += `문제: ${result.fault}\n`;
-            botResponse += `해결책: ${result.action}\n\n`;
+            botResponse += `**${index + 1}번 결과:**\n`;
+            Object.entries(result).forEach(([key, value]) => {
+              if (value && key !== 'id') {
+                botResponse += `${key}: ${value}\n`;
+              }
+            });
+            botResponse += `\n`;
           });
           botResponse += `더 구체적인 검색을 위해 키워드를 추가해 보세요.`;
         }
       } else {
         // No matches found
-        botResponse = `죄송합니다. "${message}"와 관련된 설비 유지보수 정보를 찾을 수 없습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 장비명이나 문제 상황을 입력해 주세요\n• 한국어로 된 설비 종류(예: MFC, RF, 진공시스템)를 포함해 주세요\n• 오타가 있는지 확인해 주세요\n\n설비 유지보수 데이터가 업로드되어 있는지도 확인해 주세요.`;
+        botResponse = `죄송합니다. "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 키워드를 입력해 주세요\n• 다른 검색어나 관련 용어를 사용해 보세요\n• 오타가 있는지 확인해 주세요\n\n데이터 파일이 업로드되어 있는지도 확인해 주세요.`;
       }
 
       // Save bot response

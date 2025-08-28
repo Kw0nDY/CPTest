@@ -47,7 +47,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
   // Create session mutation
   const createSessionMutation = useMutation({
-    mutationFn: () => apiRequest('/api/chat/session', { method: 'POST' }),
+    mutationFn: () => apiRequest('POST', '/api/chat/session'),
     onSuccess: (data) => {
       setSessionId(data.sessionId);
     }
@@ -56,10 +56,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: (message: string) => 
-      apiRequest(`/api/chat/${sessionId}/message`, {
-        method: 'POST',
-        body: { message }
-      }),
+      apiRequest('POST', `/api/chat/${sessionId}/message`, { message }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/chat', sessionId, 'messages'] });
       setIsLoading(false);
@@ -143,7 +140,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
-              <CardTitle className="text-sm font-medium">설비 유지보수 어시스턴트</CardTitle>
+              <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
               <Badge variant="secondary" className="text-xs bg-green-500 text-white border-green-400">
                 {sessionId ? 'Online' : 'Connecting...'}
               </Badge>
@@ -154,7 +151,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                 size="sm"
                 className="h-6 w-6 p-0 text-white hover:bg-blue-500"
                 onClick={() => fileInputRef.current?.click()}
-                title="CSV 파일 업로드"
+                title="데이터 파일 업로드"
               >
                 <Upload className="w-3 h-3" />
               </Button>

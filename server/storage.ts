@@ -2,14 +2,14 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
-  maintenanceData, chatSessions, chatMessages,
+  uploadedData, maintenanceData, chatSessions, chatMessages,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
   type ModelConfigurationFolder, type InsertModelConfigurationFolder,
-  type MaintenanceData, type InsertMaintenanceData, type ChatSession, type InsertChatSession,
-  type ChatMessage, type InsertChatMessage
+  type UploadedData, type InsertUploadedData, type MaintenanceData, type InsertMaintenanceData, 
+  type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -93,7 +93,12 @@ export interface IStorage {
   updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder>;
   deleteModelConfigurationFolder(id: string): Promise<void>;
 
-  // Maintenance Data methods (for chatbot)
+  // Generic Data Upload methods
+  uploadGenericCSV(originalFileName: string, data: any[]): Promise<void>;
+  searchUploadedData(query: string): Promise<any[]>;
+  getAllUploadedData(): Promise<any[]>;
+  
+  // Maintenance Data methods (legacy support)
   getMaintenanceData(): Promise<MaintenanceData[]>;
   createMaintenanceData(data: InsertMaintenanceData): Promise<MaintenanceData>;
   uploadMaintenanceCSV(fileName: string, data: any[]): Promise<void>;
@@ -866,7 +871,61 @@ export class DatabaseStorage implements IStorage {
     await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
   }
 
-  // Maintenance Data methods (for chatbot)
+  // Generic Data Upload methods
+  async uploadGenericCSV(originalFileName: string, data: any[]): Promise<void> {
+    // Clear existing data for this file and insert new data
+    await db.delete(uploadedData).where(eq(uploadedData.originalFileName, originalFileName));
+    
+    if (data.length === 0) return;
+    
+    // Extract column names from first row
+    const columns = Object.keys(data[0]);
+    
+    const insertData = {
+      fileName: `upload-${Date.now()}.csv`,
+      originalFileName: originalFileName,
+      dataType: 'csv',
+      columns: columns,
+      data: data,
+      recordCount: data.length
+    };
+
+    await db.insert(uploadedData).values(insertData);
+  }
+
+  async searchUploadedData(query: string): Promise<any[]> {
+    const searchQuery = query.toLowerCase();
+    const allUploads = await db.select().from(uploadedData);
+    
+    const results: any[] = [];
+    
+    for (const upload of allUploads) {
+      const matchingRows = upload.data.filter((row: any) => {
+        return Object.values(row).some((value: any) => 
+          String(value).toLowerCase().includes(searchQuery)
+        );
+      });
+      
+      if (matchingRows.length > 0) {
+        results.push(...matchingRows);
+      }
+    }
+    
+    return results;
+  }
+
+  async getAllUploadedData(): Promise<any[]> {
+    const allUploads = await db.select().from(uploadedData);
+    const results: any[] = [];
+    
+    for (const upload of allUploads) {
+      results.push(...upload.data);
+    }
+    
+    return results;
+  }
+
+  // Maintenance Data methods (legacy support)
   async getMaintenanceData(): Promise<MaintenanceData[]> {
     return await db.select().from(maintenanceData);
   }
@@ -892,6 +951,69 @@ export class DatabaseStorage implements IStorage {
     }));
 
     await db.insert(maintenanceData).values(insertData);
+  }
+
+  // Generic CSV upload for any data type
+  async uploadGenericCSV(originalFileName: string, fileName: string, data: any[]): Promise<void> {
+    try {
+      console.log('uploadGenericCSV called with:', { originalFileName, fileName, dataLength: data?.length });
+      
+      if (!data || data.length === 0) {
+        console.log('No data provided, returning');
+        return;
+      }
+      
+      // Extract column names from first row
+      const columns = Object.keys(data[0]);
+      console.log('Extracted columns:', columns);
+      
+      // Store the generic data
+      const insertData = {
+        fileName,
+        originalFileName,
+        dataType: 'csv',
+        columns,
+        data,
+        recordCount: data.length
+      };
+      
+      console.log('Inserting data:', { ...insertData, data: '[DATA_ARRAY]' });
+      
+      await db.insert(uploadedData).values(insertData);
+      
+      console.log('Generic CSV upload completed successfully');
+    } catch (error) {
+      console.error('Error in uploadGenericCSV:', error);
+      throw error;
+    }
+  }
+
+  // Generic search function for uploaded data
+  async searchUploadedData(query: string): Promise<any[]> {
+    const uploadedFiles = await db.select().from(uploadedData);
+    
+    if (uploadedFiles.length === 0) return [];
+    
+    const allResults: any[] = [];
+    
+    // Search through all uploaded data
+    for (const file of uploadedFiles) {
+      const data = file.data as Record<string, any>[];
+      
+      // Search each record for the query term
+      const matches = data.filter(record => {
+        return Object.values(record).some(value => {
+          if (typeof value === 'string') {
+            return value.toLowerCase().includes(query.toLowerCase());
+          }
+          return false;
+        });
+      });
+      
+      allResults.push(...matches);
+    }
+    
+    return allResults;
   }
 
   async searchMaintenanceData(query: string): Promise<MaintenanceData[]> {

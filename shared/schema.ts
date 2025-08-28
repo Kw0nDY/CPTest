@@ -74,7 +74,19 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const insertViewSchema = createInsertSchema(views);
 
-// Chat and Equipment Maintenance tables
+// Chat and Generic Data Upload tables
+export const uploadedData = pgTable('uploaded_data', {
+  id: serial('id').primaryKey(),
+  fileName: text('file_name').notNull(),
+  originalFileName: text('original_file_name').notNull(),
+  dataType: text('data_type').default('csv'), // csv, excel, json 등
+  columns: json('columns').$type<string[]>().notNull(), // 컬럼명 배열
+  data: json('data').$type<Record<string, any>[]>().notNull(), // 실제 데이터
+  recordCount: integer('record_count').notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow()
+});
+
+// Legacy maintenance data table (for backward compatibility)
 export const maintenanceData = pgTable('maintenance_data', {
   id: serial('id').primaryKey(),
   index: integer('index').notNull(),
@@ -603,7 +615,11 @@ export const insertModelConfigurationFolderSchema = createInsertSchema(modelConf
   updatedAt: true
 });
 
-// New schemas for chat and maintenance
+// New schemas for chat and data upload
+export const insertUploadedDataSchema = createInsertSchema(uploadedData).omit({
+  id: true,
+  uploadedAt: true
+});
 export const insertMaintenanceDataSchema = createInsertSchema(maintenanceData).omit({
   id: true,
   uploadedAt: true
@@ -643,6 +659,8 @@ export type AiModelFolder = typeof aiModelFolders.$inferSelect;
 export type InsertAiModelFolder = z.infer<typeof insertAiModelFolderSchema>;
 export type ModelConfigurationFolder = typeof modelConfigurationFolders.$inferSelect;
 export type InsertModelConfigurationFolder = z.infer<typeof insertModelConfigurationFolderSchema>;
+export type UploadedData = typeof uploadedData.$inferSelect;
+export type InsertUploadedData = z.infer<typeof insertUploadedDataSchema>;
 export type MaintenanceData = typeof maintenanceData.$inferSelect;
 export type InsertMaintenanceData = z.infer<typeof insertMaintenanceDataSchema>;
 export type ChatSession = typeof chatSessions.$inferSelect;
