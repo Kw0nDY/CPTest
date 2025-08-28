@@ -2,11 +2,14 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
+  maintenanceData, chatSessions, chatMessages,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
-  type ModelConfigurationFolder, type InsertModelConfigurationFolder
+  type ModelConfigurationFolder, type InsertModelConfigurationFolder,
+  type MaintenanceData, type InsertMaintenanceData, type ChatSession, type InsertChatSession,
+  type ChatMessage, type InsertChatMessage
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -89,6 +92,21 @@ export interface IStorage {
   createModelConfigurationFolder(folder: InsertModelConfigurationFolder): Promise<ModelConfigurationFolder>;
   updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder>;
   deleteModelConfigurationFolder(id: string): Promise<void>;
+
+  // Maintenance Data methods (for chatbot)
+  getMaintenanceData(): Promise<MaintenanceData[]>;
+  createMaintenanceData(data: InsertMaintenanceData): Promise<MaintenanceData>;
+  uploadMaintenanceCSV(fileName: string, data: any[]): Promise<void>;
+  searchMaintenanceData(query: string): Promise<MaintenanceData[]>;
+
+  // Chat Session methods
+  getChatSession(sessionId: string): Promise<ChatSession | undefined>;
+  createChatSession(session: InsertChatSession): Promise<ChatSession>;
+  updateChatSessionActivity(sessionId: string): Promise<void>;
+
+  // Chat Message methods
+  getChatMessages(sessionId: string): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -846,6 +864,79 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelFile(id: string): Promise<void> {
     await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
+  }
+
+  // Maintenance Data methods (for chatbot)
+  async getMaintenanceData(): Promise<MaintenanceData[]> {
+    return await db.select().from(maintenanceData);
+  }
+
+  async createMaintenanceData(data: InsertMaintenanceData): Promise<MaintenanceData> {
+    const [created] = await db
+      .insert(maintenanceData)
+      .values(data)
+      .returning();
+    return created;
+  }
+
+  async uploadMaintenanceCSV(fileName: string, data: any[]): Promise<void> {
+    // Clear existing data and insert new CSV data
+    await db.delete(maintenanceData);
+    
+    const insertData = data.map((row, index) => ({
+      index: parseInt(row.Index) || index + 1,
+      type: row.Type || '',
+      fault: row.Falut || row.Fault || '', // Handle typo in CSV header
+      action: row.Action || '',
+      fileName: fileName
+    }));
+
+    await db.insert(maintenanceData).values(insertData);
+  }
+
+  async searchMaintenanceData(query: string): Promise<MaintenanceData[]> {
+    const searchQuery = query.toLowerCase();
+    const allData = await this.getMaintenanceData();
+    
+    return allData.filter(item => 
+      item.type.toLowerCase().includes(searchQuery) ||
+      item.fault.toLowerCase().includes(searchQuery) ||
+      item.action.toLowerCase().includes(searchQuery)
+    );
+  }
+
+  // Chat Session methods
+  async getChatSession(sessionId: string): Promise<ChatSession | undefined> {
+    const [session] = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
+    return session || undefined;
+  }
+
+  async createChatSession(session: InsertChatSession): Promise<ChatSession> {
+    const [created] = await db
+      .insert(chatSessions)
+      .values(session)
+      .returning();
+    return created;
+  }
+
+  async updateChatSessionActivity(sessionId: string): Promise<void> {
+    await db
+      .update(chatSessions)
+      .set({ lastActivity: new Date() })
+      .where(eq(chatSessions.sessionId, sessionId));
+  }
+
+  // Chat Message methods
+  async getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+    return await db.select().from(chatMessages).where(eq(chatMessages.sessionId, sessionId));
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    const [created] = await db
+      .insert(chatMessages)
+      .values(message)
+      .returning();
+    return created;
   }
 }
 

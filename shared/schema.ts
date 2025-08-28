@@ -74,6 +74,37 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const insertViewSchema = createInsertSchema(views);
 
+// Chat and Equipment Maintenance tables
+export const maintenanceData = pgTable('maintenance_data', {
+  id: serial('id').primaryKey(),
+  index: integer('index').notNull(),
+  type: text('type').notNull(),
+  fault: text('fault').notNull(),
+  action: text('action').notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+  fileName: text('file_name')
+});
+
+export const chatSessions = pgTable('chat_sessions', {
+  id: serial('id').primaryKey(),
+  sessionId: text('session_id').notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow(),
+  lastActivity: timestamp('last_activity').defaultNow()
+});
+
+export const chatMessages = pgTable('chat_messages', {
+  id: serial('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  type: text('type').notNull(), // 'user' | 'bot'
+  message: text('message').notNull(),
+  metadata: json('metadata').$type<{
+    searchQuery?: string;
+    foundMatches?: number;
+    confidence?: number;
+  }>(),
+  timestamp: timestamp('timestamp').defaultNow()
+});
+
 // Types
 // Data Sources table for integration
 export const dataSources = pgTable('data_sources', {
@@ -572,6 +603,21 @@ export const insertModelConfigurationFolderSchema = createInsertSchema(modelConf
   updatedAt: true
 });
 
+// New schemas for chat and maintenance
+export const insertMaintenanceDataSchema = createInsertSchema(maintenanceData).omit({
+  id: true,
+  uploadedAt: true
+});
+export const insertChatSessionSchema = createInsertSchema(chatSessions).omit({
+  id: true,
+  createdAt: true,
+  lastActivity: true
+});
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  timestamp: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -597,3 +643,9 @@ export type AiModelFolder = typeof aiModelFolders.$inferSelect;
 export type InsertAiModelFolder = z.infer<typeof insertAiModelFolderSchema>;
 export type ModelConfigurationFolder = typeof modelConfigurationFolders.$inferSelect;
 export type InsertModelConfigurationFolder = z.infer<typeof insertModelConfigurationFolderSchema>;
+export type MaintenanceData = typeof maintenanceData.$inferSelect;
+export type InsertMaintenanceData = z.infer<typeof insertMaintenanceDataSchema>;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;

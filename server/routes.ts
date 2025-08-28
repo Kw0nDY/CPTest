@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema, insertMaintenanceDataSchema, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
@@ -5117,6 +5117,242 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } else {
       res.status(404).json({ error: 'File not found' });
+    }
+  });
+
+  // ============= CHATBOT & MAINTENANCE DATA ENDPOINTS =============
+
+  // Upload CSV file for maintenance data
+  app.post("/api/maintenance/upload", upload.single('csvFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "CSV 파일이 필요합니다" });
+      }
+
+      // Read and parse CSV file from buffer (memory storage)
+      const fileContent = req.file.buffer.toString('utf-8');
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ error: "CSV 파일에 유효한 데이터가 없습니다" });
+      }
+
+      // Parse CSV headers and data
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      });
+
+      console.log(`CSV 업로드: ${data.length}개 레코드 파싱 완료`);
+      console.log('헤더:', headers);
+
+      // Upload to database
+      await storage.uploadMaintenanceCSV(req.file.originalname, data);
+
+      res.json({
+        success: true,
+        message: `${data.length}개의 설비 유지보수 데이터가 성공적으로 업로드되었습니다`,
+        recordCount: data.length,
+        fileName: req.file.originalname
+      });
+
+    } catch (error: any) {
+      console.error("CSV 업로드 오류:", error);
+      res.status(500).json({ 
+        error: "CSV 파일 업로드에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  // Get all maintenance data
+  app.get("/api/maintenance", async (req, res) => {
+    try {
+      const data = await storage.getMaintenanceData();
+      res.json(data);
+    } catch (error: any) {
+      console.error("설비 데이터 조회 오류:", error);
+      res.status(500).json({ 
+        error: "설비 데이터 조회에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  // Search maintenance data
+  app.get("/api/maintenance/search", async (req, res) => {
+    try {
+      const { q } = req.query;
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ error: "검색어가 필요합니다" });
+      }
+
+      const results = await storage.searchMaintenanceData(q);
+      res.json({
+        query: q,
+        results: results,
+        count: results.length
+      });
+
+    } catch (error: any) {
+      console.error("설비 데이터 검색 오류:", error);
+      res.status(500).json({ 
+        error: "설비 데이터 검색에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  // Chat session endpoints
+  app.post("/api/chat/session", async (req, res) => {
+    try {
+      const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const session = await storage.createChatSession({ sessionId });
+      res.json(session);
+    } catch (error: any) {
+      console.error("채팅 세션 생성 오류:", error);
+      res.status(500).json({ 
+        error: "채팅 세션 생성에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  app.get("/api/chat/session/:sessionId", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getChatSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "채팅 세션을 찾을 수 없습니다" });
+      }
+
+      res.json(session);
+    } catch (error: any) {
+      console.error("채팅 세션 조회 오류:", error);
+      res.status(500).json({ 
+        error: "채팅 세션 조회에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  // Chat message endpoints
+  app.get("/api/chat/:sessionId/messages", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const messages = await storage.getChatMessages(sessionId);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("채팅 메시지 조회 오류:", error);
+      res.status(500).json({ 
+        error: "채팅 메시지 조회에 실패했습니다",
+        details: error.message 
+      });
+    }
+  });
+
+  // AI-powered chat endpoint
+  app.post("/api/chat/:sessionId/message", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { message } = req.body;
+
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: "메시지가 필요합니다" });
+      }
+
+      console.log(`채팅 요청: ${sessionId} - "${message}"`);
+
+      // Save user message
+      const userMessage = await storage.createChatMessage({
+        sessionId,
+        type: 'user',
+        message: message.trim()
+      });
+
+      // Update session activity
+      await storage.updateChatSessionActivity(sessionId);
+
+      // Search maintenance data for relevant information
+      const searchResults = await storage.searchMaintenanceData(message);
+      console.log(`검색 결과: ${searchResults.length}개 항목 발견`);
+
+      let botResponse = '';
+      let searchQuery = '';
+      let foundMatches = 0;
+      let confidence = 0;
+
+      if (searchResults.length > 0) {
+        // Found relevant maintenance data
+        foundMatches = searchResults.length;
+        searchQuery = message;
+
+        if (searchResults.length === 1) {
+          // Single exact match
+          const result = searchResults[0];
+          confidence = 0.95;
+          botResponse = `**문제 유형:** ${result.type}\n\n**문제 상황:** ${result.fault}\n\n**해결 방법:** ${result.action}\n\n이 정보가 도움이 되시나요? 추가 질문이 있으시면 언제든 말씀해 주세요.`;
+        } else if (searchResults.length <= 3) {
+          // Multiple relevant matches
+          confidence = 0.80;
+          botResponse = `관련된 ${searchResults.length}개의 해결책을 찾았습니다:\n\n`;
+          searchResults.forEach((result, index) => {
+            botResponse += `**${index + 1}. ${result.type}**\n`;
+            botResponse += `문제: ${result.fault}\n`;
+            botResponse += `해결책: ${result.action}\n\n`;
+          });
+          botResponse += `가장 적합한 해결책을 선택해서 적용해 보세요.`;
+        } else {
+          // Too many matches, show top 3
+          confidence = 0.60;
+          botResponse = `${searchResults.length}개의 관련 결과를 찾았습니다. 상위 3개 결과를 보여드립니다:\n\n`;
+          searchResults.slice(0, 3).forEach((result, index) => {
+            botResponse += `**${index + 1}. ${result.type}**\n`;
+            botResponse += `문제: ${result.fault}\n`;
+            botResponse += `해결책: ${result.action}\n\n`;
+          });
+          botResponse += `더 구체적인 검색을 위해 키워드를 추가해 보세요.`;
+        }
+      } else {
+        // No matches found
+        botResponse = `죄송합니다. "${message}"와 관련된 설비 유지보수 정보를 찾을 수 없습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 장비명이나 문제 상황을 입력해 주세요\n• 한국어로 된 설비 종류(예: MFC, RF, 진공시스템)를 포함해 주세요\n• 오타가 있는지 확인해 주세요\n\n설비 유지보수 데이터가 업로드되어 있는지도 확인해 주세요.`;
+      }
+
+      // Save bot response
+      const botMessage = await storage.createChatMessage({
+        sessionId,
+        type: 'bot',
+        message: botResponse,
+        metadata: {
+          searchQuery,
+          foundMatches,
+          confidence
+        }
+      });
+
+      res.json({
+        userMessage,
+        botMessage,
+        searchInfo: {
+          query: searchQuery,
+          foundMatches,
+          confidence,
+          hasResults: foundMatches > 0
+        }
+      });
+
+    } catch (error: any) {
+      console.error("채팅 메시지 처리 오류:", error);
+      res.status(500).json({ 
+        error: "채팅 메시지 처리에 실패했습니다",
+        details: error.message 
+      });
     }
   });
 
