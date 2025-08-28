@@ -1,10 +1,22 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import helmet from "helmet";
+import hpp from "hpp";
+import morgan from "morgan";
+import path from "path";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(hpp());
+  app.use(helmet());
+  app.use(morgan('combined'));
+} else {
+  app.use(morgan('dev'));
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -47,19 +59,32 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  // Health check endpoint for ALB
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
+  });
+
+  // Root health check endpoint for AWS domain
+  app.get('/', (req, res) => {
+    res.status(200).json({ 
+      status: 'healthy', 
+      message: 'Collaboration Portal API is running',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  });
+
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    // Correctly serve the static files from the build directory
+    const clientBuildPath = path.join(__dirname, '..', 'dist', 'public');
+    app.use(express.static(clientBuildPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    });
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,

@@ -2,14 +2,11 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
-  uploadedData, maintenanceData, chatSessions, chatMessages,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
-  type ModelConfigurationFolder, type InsertModelConfigurationFolder,
-  type UploadedData, type InsertUploadedData, type MaintenanceData, type InsertMaintenanceData, 
-  type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage
+  type ModelConfigurationFolder, type InsertModelConfigurationFolder
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -92,26 +89,6 @@ export interface IStorage {
   createModelConfigurationFolder(folder: InsertModelConfigurationFolder): Promise<ModelConfigurationFolder>;
   updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder>;
   deleteModelConfigurationFolder(id: string): Promise<void>;
-
-  // Generic Data Upload methods
-  uploadGenericCSV(originalFileName: string, data: any[]): Promise<void>;
-  searchUploadedData(query: string): Promise<any[]>;
-  getAllUploadedData(): Promise<any[]>;
-  
-  // Maintenance Data methods (legacy support)
-  getMaintenanceData(): Promise<MaintenanceData[]>;
-  createMaintenanceData(data: InsertMaintenanceData): Promise<MaintenanceData>;
-  uploadMaintenanceCSV(fileName: string, data: any[]): Promise<void>;
-  searchMaintenanceData(query: string): Promise<MaintenanceData[]>;
-
-  // Chat Session methods
-  getChatSession(sessionId: string): Promise<ChatSession | undefined>;
-  createChatSession(session: InsertChatSession): Promise<ChatSession>;
-  updateChatSessionActivity(sessionId: string): Promise<void>;
-
-  // Chat Message methods
-  getChatMessages(sessionId: string): Promise<ChatMessage[]>;
-  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -388,21 +365,7 @@ export class DatabaseStorage implements IStorage {
     return tableSchemas[dataSourceId as keyof typeof tableSchemas] || [];
   }
 
-  async updateDataSource(id: string, updates: Partial<DataSource>): Promise<DataSource> {
-    const [dataSource] = await db
-      .update(dataSources)
-      .set({ 
-        ...updates, 
-        updatedAt: new Date()
-      })
-      .where(eq(dataSources.id, id))
-      .returning();
-    return dataSource;
-  }
-
-  async deleteDataSource(id: string): Promise<void> {
-    await db.delete(dataSources).where(eq(dataSources.id, id));
-  }
+  // updateDataSource and deleteDataSource are already defined above
 
   async getExcelFiles(dataSourceId: string): Promise<ExcelFile[]> {
     return await db.select().from(excelFiles).where(eq(excelFiles.dataSourceId, dataSourceId));
@@ -869,196 +832,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelFile(id: string): Promise<void> {
     await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
-  }
-
-  // Generic Data Upload methods
-  async uploadGenericCSV(originalFileName: string, data: any[]): Promise<void> {
-    // Clear existing data for this file and insert new data
-    await db.delete(uploadedData).where(eq(uploadedData.originalFileName, originalFileName));
-    
-    if (data.length === 0) return;
-    
-    // Extract column names from first row
-    const columns = Object.keys(data[0]);
-    
-    const insertData = {
-      fileName: `upload-${Date.now()}.csv`,
-      originalFileName: originalFileName,
-      dataType: 'csv',
-      columns: columns,
-      data: data,
-      recordCount: data.length
-    };
-
-    await db.insert(uploadedData).values(insertData);
-  }
-
-  async searchUploadedData(query: string): Promise<any[]> {
-    const searchQuery = query.toLowerCase();
-    const allUploads = await db.select().from(uploadedData);
-    
-    const results: any[] = [];
-    
-    for (const upload of allUploads) {
-      const matchingRows = upload.data.filter((row: any) => {
-        return Object.values(row).some((value: any) => 
-          String(value).toLowerCase().includes(searchQuery)
-        );
-      });
-      
-      if (matchingRows.length > 0) {
-        results.push(...matchingRows);
-      }
-    }
-    
-    return results;
-  }
-
-  async getAllUploadedData(): Promise<any[]> {
-    const allUploads = await db.select().from(uploadedData);
-    const results: any[] = [];
-    
-    for (const upload of allUploads) {
-      results.push(...upload.data);
-    }
-    
-    return results;
-  }
-
-  // Maintenance Data methods (legacy support)
-  async getMaintenanceData(): Promise<MaintenanceData[]> {
-    return await db.select().from(maintenanceData);
-  }
-
-  async createMaintenanceData(data: InsertMaintenanceData): Promise<MaintenanceData> {
-    const [created] = await db
-      .insert(maintenanceData)
-      .values(data)
-      .returning();
-    return created;
-  }
-
-  async uploadMaintenanceCSV(fileName: string, data: any[]): Promise<void> {
-    // Clear existing data and insert new CSV data
-    await db.delete(maintenanceData);
-    
-    const insertData = data.map((row, index) => ({
-      index: parseInt(row.Index) || index + 1,
-      type: row.Type || '',
-      fault: row.Falut || row.Fault || '', // Handle typo in CSV header
-      action: row.Action || '',
-      fileName: fileName
-    }));
-
-    await db.insert(maintenanceData).values(insertData);
-  }
-
-  // Generic CSV upload for any data type
-  async uploadGenericCSV(originalFileName: string, fileName: string, data: any[]): Promise<void> {
-    try {
-      console.log('uploadGenericCSV called with:', { originalFileName, fileName, dataLength: data?.length });
-      
-      if (!data || data.length === 0) {
-        console.log('No data provided, returning');
-        return;
-      }
-      
-      // Extract column names from first row
-      const columns = Object.keys(data[0]);
-      console.log('Extracted columns:', columns);
-      
-      // Store the generic data
-      const insertData = {
-        fileName,
-        originalFileName,
-        dataType: 'csv',
-        columns,
-        data,
-        recordCount: data.length
-      };
-      
-      console.log('Inserting data:', { ...insertData, data: '[DATA_ARRAY]' });
-      
-      await db.insert(uploadedData).values(insertData);
-      
-      console.log('Generic CSV upload completed successfully');
-    } catch (error) {
-      console.error('Error in uploadGenericCSV:', error);
-      throw error;
-    }
-  }
-
-  // Generic search function for uploaded data
-  async searchUploadedData(query: string): Promise<any[]> {
-    const uploadedFiles = await db.select().from(uploadedData);
-    
-    if (uploadedFiles.length === 0) return [];
-    
-    const allResults: any[] = [];
-    
-    // Search through all uploaded data
-    for (const file of uploadedFiles) {
-      const data = file.data as Record<string, any>[];
-      
-      // Search each record for the query term
-      const matches = data.filter(record => {
-        return Object.values(record).some(value => {
-          if (typeof value === 'string') {
-            return value.toLowerCase().includes(query.toLowerCase());
-          }
-          return false;
-        });
-      });
-      
-      allResults.push(...matches);
-    }
-    
-    return allResults;
-  }
-
-  async searchMaintenanceData(query: string): Promise<MaintenanceData[]> {
-    const searchQuery = query.toLowerCase();
-    const allData = await this.getMaintenanceData();
-    
-    return allData.filter(item => 
-      item.type.toLowerCase().includes(searchQuery) ||
-      item.fault.toLowerCase().includes(searchQuery) ||
-      item.action.toLowerCase().includes(searchQuery)
-    );
-  }
-
-  // Chat Session methods
-  async getChatSession(sessionId: string): Promise<ChatSession | undefined> {
-    const [session] = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
-    return session || undefined;
-  }
-
-  async createChatSession(session: InsertChatSession): Promise<ChatSession> {
-    const [created] = await db
-      .insert(chatSessions)
-      .values(session)
-      .returning();
-    return created;
-  }
-
-  async updateChatSessionActivity(sessionId: string): Promise<void> {
-    await db
-      .update(chatSessions)
-      .set({ lastActivity: new Date() })
-      .where(eq(chatSessions.sessionId, sessionId));
-  }
-
-  // Chat Message methods
-  async getChatMessages(sessionId: string): Promise<ChatMessage[]> {
-    return await db.select().from(chatMessages).where(eq(chatMessages.sessionId, sessionId));
-  }
-
-  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
-    const [created] = await db
-      .insert(chatMessages)
-      .values(message)
-      .returning();
-    return created;
   }
 }
 

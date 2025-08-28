@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema, insertMaintenanceDataSchema, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
@@ -1738,12 +1738,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const createdDataSource = await storage.createDataSource(dataSource);
         
+        // Upload Google Sheets data to Flowise vector database for AI chat
+        try {
+          console.log('Uploading Google Sheets data to Flowise vector database...');
+          
+          // Convert all worksheet data to Flowise format
+          const flowiseDocuments = [];
+          
+          for (const [sheetName, data] of Object.entries(sampleData)) {
+            if (Array.isArray(data) && data.length > 0) {
+              data.forEach((row, index) => {
+                const textContent = Object.entries(row)
+                  .filter(([key, value]) => value !== null && value !== undefined && value !== '')
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join('; ');
+                
+                if (textContent.length > 0) {
+                  flowiseDocuments.push({
+                    pageContent: textContent,
+                    metadata: {
+                      fileName: dataSource.name,
+                      sheetName: sheetName,
+                      rowIndex: index,
+                      source: 'google_sheets',
+                      uploadedAt: new Date().toISOString()
+                    }
+                  });
+                }
+              });
+            }
+          }
+
+          if (flowiseDocuments.length > 0) {
+            const flowiseUploadResponse = await fetch("http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                document: flowiseDocuments
+              })
+            });
+
+            if (flowiseUploadResponse.ok) {
+              const flowiseResult = await flowiseUploadResponse.json();
+              console.log(`Successfully uploaded ${flowiseDocuments.length} Google Sheets documents to Flowise vector database`);
+            } else {
+              console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText}`);
+            }
+          }
+        } catch (flowiseError) {
+          console.error('Error uploading Google Sheets to Flowise vector database:', flowiseError);
+        }
+        
         return res.json({
           success: true,
           dataSource: createdDataSource,
           message: "Google Sheets 연결이 완료되었습니다",
           connectionType: 'oauth',
-          tablesFound: dataSchema.length
+          tablesFound: dataSchema.length,
+          flowiseUpload: flowiseDocuments?.length > 0 ? 
+            `${flowiseDocuments.length} documents uploaded to AI database` : 
+            'No data uploaded to AI database'
         });
       }
       
@@ -1839,14 +1895,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create proper data source config for Google Sheets
       const googleSheetsDataSource = {
-        name: config.title || 'Google Sheets',
+        name: 'Google Sheets',
         type: 'Google Sheets',
         category: 'file',
         vendor: 'Google',
         status: 'connected',
         config: {
-          title: config.title,
-          description: config.description,
+          title: 'Google Sheets',
+          description: 'Connected Google Sheets data source',
           selectedSheets: selectedSheets,
           account: req.session?.googleAccount,
           dataSchema: dataSchema,
@@ -1998,16 +2054,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Using OAuth tokens to refresh data');
       
       const { google } = await import('googleapis');
-      const driveConfig = req.session.selectedDriveConfig;
-      const sheetsConfig = req.session.selectedSheetsConfig;
-      
-      if (!driveConfig || !sheetsConfig) {
-        return res.status(400).json({ error: "API configuration missing" });
-      }
-      
+      // Use default Google API configuration
       const auth = new google.auth.OAuth2(
-        driveConfig.clientId,
-        driveConfig.clientSecret,
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
         `${req.protocol}://${req.get('host')}/api/google-sheets/oauth/callback`
       );
       
@@ -2249,8 +2299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "API configuration is valid",
           authUrl: authUrl,
           config: {
-            title: config.title,
-            type: config.type,
+            title: 'Google API',
+            type: 'Google',
             clientId: config.clientId,
             projectId: config.projectId
           }
@@ -2368,6 +2418,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
+      // Upload processed data to Flowise vector database for AI chat
+      try {
+        console.log('Uploading Excel data to Flowise vector database...');
+        
+        // Convert all worksheet data to Flowise format
+        const flowiseDocuments = [];
+        
+        for (const [sheetName, data] of Object.entries(sampleData)) {
+          if (Array.isArray(data) && data.length > 0) {
+            data.forEach((row, index) => {
+              const textContent = Object.entries(row)
+                .filter(([key, value]) => value !== null && value !== undefined && value !== '')
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('; ');
+              
+              if (textContent.length > 0) {
+                flowiseDocuments.push({
+                  pageContent: textContent,
+                  metadata: {
+                    fileName: fileName,
+                    sheetName: sheetName,
+                    rowIndex: index,
+                    source: 'excel_upload',
+                    uploadedAt: new Date().toISOString()
+                  }
+                });
+              }
+            });
+          }
+        }
+
+        if (flowiseDocuments.length > 0) {
+          const flowiseUploadResponse = await fetch("http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              document: flowiseDocuments
+            })
+          });
+
+          if (flowiseUploadResponse.ok) {
+            const flowiseResult = await flowiseUploadResponse.json();
+            console.log(`Successfully uploaded ${flowiseDocuments.length} documents to Flowise vector database`);
+          } else {
+            console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText}`);
+          }
+        }
+      } catch (flowiseError) {
+        console.error('Error uploading to Flowise vector database:', flowiseError);
+      }
+
       res.json({
         success: true,
         data: {
@@ -2376,7 +2479,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sampleData,
           recordCounts,
           dataSchema
-        }
+        },
+        flowiseUpload: flowiseDocuments?.length > 0 ? 
+          `${flowiseDocuments.length} documents uploaded to AI database` : 
+          'No data uploaded to AI database'
       });
       
     } catch (error) {
@@ -5104,119 +5210,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // File download endpoint for source code
-  app.get("/download/source-code", (req, res) => {
-    const filePath = path.join(process.cwd(), 'collaboration-portal-source.tar.gz');
-    
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, 'collaboration-portal-source.tar.gz', (err) => {
-        if (err) {
-          console.error('Download error:', err);
-          res.status(500).json({ error: 'Download failed' });
-        }
-      });
-    } else {
-      res.status(404).json({ error: 'File not found' });
-    }
-  });
-
-  // ============= CHATBOT & MAINTENANCE DATA ENDPOINTS =============
-
-  // Upload CSV file for maintenance data
-  app.post("/api/maintenance/upload", upload.single('csvFile'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "CSV 파일이 필요합니다" });
-      }
-
-      // Read and parse CSV file from buffer (memory storage)
-      const fileContent = req.file.buffer.toString('utf-8');
-      const lines = fileContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length < 2) {
-        return res.status(400).json({ error: "CSV 파일에 유효한 데이터가 없습니다" });
-      }
-
-      // Parse CSV headers and data
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      const data = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-        const row: any = {};
-        headers.forEach((header, index) => {
-          row[header] = values[index] || '';
-        });
-        return row;
-      });
-
-      console.log(`CSV 업로드: ${data.length}개 레코드 파싱 완료`);
-      console.log('헤더:', headers);
-
-      // Upload to both generic and legacy maintenance tables
-      await storage.uploadGenericCSV(req.file.originalname, req.file.originalname, data);
-      await storage.uploadMaintenanceCSV(req.file.originalname, data);
-
-      res.json({
-        success: true,
-        message: `${data.length}개의 설비 유지보수 데이터가 성공적으로 업로드되었습니다`,
-        recordCount: data.length,
-        fileName: req.file.originalname
-      });
-
-    } catch (error: any) {
-      console.error("CSV 업로드 오류:", error);
-      res.status(500).json({ 
-        error: "CSV 파일 업로드에 실패했습니다",
-        details: error.message 
-      });
-    }
-  });
-
-  // Get all maintenance data
-  app.get("/api/maintenance", async (req, res) => {
-    try {
-      const data = await storage.getMaintenanceData();
-      res.json(data);
-    } catch (error: any) {
-      console.error("설비 데이터 조회 오류:", error);
-      res.status(500).json({ 
-        error: "설비 데이터 조회에 실패했습니다",
-        details: error.message 
-      });
-    }
-  });
-
-  // Search maintenance data
-  app.get("/api/maintenance/search", async (req, res) => {
-    try {
-      const { q } = req.query;
-      if (!q || typeof q !== 'string') {
-        return res.status(400).json({ error: "검색어가 필요합니다" });
-      }
-
-      const results = await storage.searchMaintenanceData(q);
-      res.json({
-        query: q,
-        results: results,
-        count: results.length
-      });
-
-    } catch (error: any) {
-      console.error("설비 데이터 검색 오류:", error);
-      res.status(500).json({ 
-        error: "설비 데이터 검색에 실패했습니다",
-        details: error.message 
-      });
-    }
-  });
-
   // Chat session endpoints
   app.post("/api/chat/session", async (req, res) => {
     try {
       const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const session = await storage.createChatSession({ sessionId });
+      
+      const session = await storage.createChatSession({
+        sessionId,
+        title: "새 채팅",
+        createdAt: new Date().toISOString()
+      });
+
       res.json({ sessionId: session.sessionId });
-    } catch (error: any) {
-      console.error("채팅 세션 생성 오류:", error);
+    } catch (error) {
+      console.error('Error creating chat session:', error);
       res.status(500).json({ 
         error: "채팅 세션 생성에 실패했습니다",
         details: error.message 
@@ -5224,33 +5231,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/chat/session/:sessionId", async (req, res) => {
-    try {
-      const { sessionId } = req.params;
-      const session = await storage.getChatSession(sessionId);
-      
-      if (!session) {
-        return res.status(404).json({ error: "채팅 세션을 찾을 수 없습니다" });
-      }
-
-      res.json(session);
-    } catch (error: any) {
-      console.error("채팅 세션 조회 오류:", error);
-      res.status(500).json({ 
-        error: "채팅 세션 조회에 실패했습니다",
-        details: error.message 
-      });
-    }
-  });
-
-  // Chat message endpoints
   app.get("/api/chat/:sessionId/messages", async (req, res) => {
     try {
       const { sessionId } = req.params;
       const messages = await storage.getChatMessages(sessionId);
       res.json(messages);
-    } catch (error: any) {
-      console.error("채팅 메시지 조회 오류:", error);
+    } catch (error) {
+      console.error('Error getting chat messages:', error);
       res.status(500).json({ 
         error: "채팅 메시지 조회에 실패했습니다",
         details: error.message 
@@ -5258,7 +5245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI-powered chat endpoint
+  // AI-powered chat endpoint with Flowise integration
   app.post("/api/chat/:sessionId/message", async (req, res) => {
     try {
       const { sessionId } = req.params;
@@ -5352,9 +5339,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'bot',
         message: botResponse,
         metadata: {
+          confidence,
           searchQuery,
-          foundMatches,
-          confidence
+          foundMatches
         }
       });
 
@@ -5369,12 +5356,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-    } catch (error: any) {
-      console.error("채팅 메시지 처리 오류:", error);
+    } catch (error) {
+      console.error('Error handling chat message:', error);
       res.status(500).json({ 
-        error: "채팅 메시지 처리에 실패했습니다",
+        error: "메시지 처리에 실패했습니다",
         details: error.message 
       });
+    }
+  });
+
+  // File download endpoint for source code
+  app.get("/download/source-code", (req, res) => {
+    const filePath = path.join(process.cwd(), 'collaboration-portal-source.tar.gz');
+    
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, 'collaboration-portal-source.tar.gz', (err) => {
+        if (err) {
+          console.error('Download error:', err);
+          res.status(500).json({ error: 'Download failed' });
+        }
+      });
+    } else {
+      res.status(404).json({ error: 'File not found' });
     }
   });
 

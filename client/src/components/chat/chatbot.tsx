@@ -4,18 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, X, Bot, User, Minimize2, Maximize2, Upload } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { Send, X, Bot, User, Minimize2, Maximize2 } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
-  sessionId: string;
   type: 'user' | 'bot';
   message: string;
-  timestamp?: string;
-  createdAt?: string;
-  metadata?: any;
+  timestamp: Date;
 }
 
 interface ChatBotProps {
@@ -24,57 +19,19 @@ interface ChatBotProps {
 }
 
 export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      type: 'bot',
+      message: '안녕하세요! AI 어시스턴트입니다. 데이터 통합, AI 모델 구성, 또는 뷰 설정에 대해 도움을 드릴 수 있습니다. 무엇을 도와드릴까요?',
+      timestamp: new Date()
+    }
+  ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 세션 생성
-  const createSession = async () => {
-    try {
-      const response = await apiRequest('POST', '/api/chat/session');
-      console.log('전체 응답:', response);
-      const sessionId = response.sessionId;
-      setSessionId(sessionId);
-      console.log('세션 생성됨:', sessionId);
-      return sessionId;
-    } catch (error) {
-      console.error('세션 생성 실패:', error);
-      return null;
-    }
-  };
-
-  // 메시지 불러오기
-  const loadMessages = async (sessionId: string) => {
-    try {
-      const response = await apiRequest('GET', `/api/chat/${sessionId}/messages`);
-      setMessages(response || []);
-    } catch (error) {
-      console.error('메시지 로드 실패:', error);
-      setMessages([]);
-    }
-  };
-
-  // 컴포넌트 마운트 시 세션 생성
-  useEffect(() => {
-    if (isOpen && !sessionId) {
-      createSession();
-    }
-  }, [isOpen]);
-
-  // 세션이 생성되면 메시지 로드
-  useEffect(() => {
-    if (sessionId) {
-      loadMessages(sessionId);
-    }
-  }, [sessionId]);
-
-  // 메시지 자동 스크롤
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -83,82 +40,59 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     scrollToBottom();
   }, [messages]);
 
-  // 메시지 전송
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
-    const messageText = inputMessage.trim();
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      message: inputMessage.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
 
-    try {
-      let currentSessionId = sessionId;
-      
-      // 세션이 없으면 생성
-      if (!currentSessionId) {
-        currentSessionId = await createSession();
-        if (!currentSessionId) {
-          throw new Error('세션 생성 실패');
-        }
-      }
-
-      // 사용자 메시지를 즉시 UI에 추가
-      const userMessage: ChatMessage = {
-        id: `user-${Date.now()}`,
-        sessionId: currentSessionId,
-        type: 'user',
-        message: messageText,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, userMessage]);
-
-      // 서버로 메시지 전송
-      const response = await apiRequest('POST', `/api/chat/${currentSessionId}/message`, { 
-        message: messageText 
-      });
-
-      console.log('메시지 응답:', response);
-
-      // 응답 메시지를 UI에 추가
-      if (response && response.botMessage) {
-        const botMessage: ChatMessage = {
-          id: response.botMessage.id || `bot-${Date.now()}`,
-          sessionId: currentSessionId,
-          type: 'bot',
-          message: response.botMessage.message,
-          timestamp: response.botMessage.timestamp || response.botMessage.createdAt,
-          metadata: response.botMessage.metadata
-        };
-        setMessages(prev => [...prev, botMessage]);
-      } else {
-        // 응답이 없으면 기본 메시지
-        const botMessage: ChatMessage = {
-          id: `bot-${Date.now()}`,
-          sessionId: currentSessionId,
-          type: 'bot',
-          message: '죄송합니다. 응답을 처리하는 중 문제가 발생했습니다.',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, botMessage]);
-      }
-
-    } catch (error) {
-      console.error('메시지 전송 실패:', error);
-      // 에러 메시지 추가
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        sessionId: sessionId || 'unknown',
+    // Simulate AI response
+    setTimeout(() => {
+      const botMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
         type: 'bot',
-        message: '죄송합니다. 메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.',
-        timestamp: new Date().toISOString()
+        message: generateBotResponse(userMessage.message),
+        timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
+      setMessages(prev => [...prev, botMessage]);
       setIsLoading(false);
-    }
+    }, 1000 + Math.random() * 2000);
   };
 
-  // 엔터키 처리
+  const generateBotResponse = (userInput: string): string => {
+    const input = userInput.toLowerCase();
+    
+    if (input.includes('ai 모델') || input.includes('모델')) {
+      return 'AI 모델과 관련해서 도움을 드릴 수 있습니다:\n\n• 모델 업로드 및 설정\n• 블록 연결 및 매핑 구성\n• 모델 테스트 및 결과 확인\n• View Setting에 결과 추가\n\n구체적으로 어떤 부분에 대해 알고 싶으신가요?';
+    }
+    
+    if (input.includes('view') || input.includes('뷰') || input.includes('대시보드')) {
+      return 'View Setting과 대시보드에 대해 도움을 드릴 수 있습니다:\n\n• 새로운 뷰 생성\n• 컴포넌트 추가 및 배치\n• 데이터 소스 연결\n• AI 모델 결과 시각화\n\n어떤 작업을 진행하고 계신가요?';
+    }
+    
+    if (input.includes('데이터') || input.includes('연결')) {
+      return '데이터 통합에 대해 도움을 드릴 수 있습니다:\n\n• SAP, Salesforce, Oracle 등 데이터 소스 연결\n• Google Sheets 및 Excel 파일 통합\n• 필드 매핑 및 변환\n• 자동화 워크플로우 설정\n\n어떤 데이터 소스를 연결하려고 하시나요?';
+    }
+    
+    if (input.includes('테스트') || input.includes('결과')) {
+      return 'AI 모델 테스트 결과를 View Setting에 추가하는 방법:\n\n1. AI 모델 구성 탭에서 모델을 테스트합니다\n2. 테스트 완료 후 "Add to View" 버튼을 클릭합니다\n3. 뷰 이름과 시각화 유형을 선택합니다\n4. View Setting에서 새로운 뷰를 확인할 수 있습니다\n\n더 자세한 설명이 필요하시면 말씀해 주세요!';
+    }
+    
+    if (input.includes('안녕') || input.includes('hello')) {
+      return '안녕하세요! Collaboration Portal에 오신 것을 환영합니다. 저는 여러분의 AI 어시스턴트입니다. 데이터 통합, AI 모델 관리, 뷰 설정 등에 대해 도움을 드릴 수 있습니다. 무엇을 도와드릴까요?';
+    }
+    
+    return '궁금한 점에 대해 더 구체적으로 설명해 주시면 더 정확한 도움을 드릴 수 있습니다. 다음과 같은 주제들에 대해 도움을 드릴 수 있습니다:\n\n• AI 모델 업로드 및 구성\n• 데이터 소스 연결 및 통합\n• View Setting 및 대시보드 생성\n• 블록 연결 및 매핑\n• 테스트 결과 시각화';
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -166,172 +100,47 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     }
   };
 
-  // CSV 파일 업로드
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === 'text/csv') {
-      setCsvFile(file);
-    } else {
-      alert('CSV 파일만 업로드 가능합니다.');
-    }
-  };
-
-  // CSV 업로드 실행 (Flowise 벡터 데이터베이스 연동)
-  const handleUploadCsv = async () => {
-    if (!csvFile) return;
-
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('csvFile', csvFile);
-      
-      // 로컬 데이터베이스에 업로드
-      const response = await fetch('/api/uploaded-data/upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Flowise 벡터 데이터베이스에도 업로드
-        try {
-          const flowiseFormData = new FormData();
-          flowiseFormData.append('files', csvFile);
-          flowiseFormData.append('columnName', 'all');
-          flowiseFormData.append('metadata', JSON.stringify({ source: 'csv_upload', filename: csvFile.name }));
-          
-          const flowiseResponse = await fetch('http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484', {
-            method: 'POST',
-            body: flowiseFormData
-          });
-          
-          let flowiseSuccess = false;
-          if (flowiseResponse.ok) {
-            const flowiseResult = await flowiseResponse.json();
-            console.log('Flowise 업로드 결과:', flowiseResult);
-            flowiseSuccess = true;
-          } else {
-            console.error('Flowise 업로드 실패:', flowiseResponse.status);
-          }
-          
-          setCsvFile(null);
-          
-          // 성공 메시지를 채팅에 추가
-          const successMessage: ChatMessage = {
-            id: `upload-${Date.now()}`,
-            sessionId: sessionId || 'unknown',
-            type: 'bot',
-            message: `CSV 파일이 성공적으로 업로드되었습니다! ${result.recordCount}개의 레코드가 저장되었습니다.${flowiseSuccess ? ' AI 벡터 데이터베이스에도 연동되었습니다.' : ''}\n\n이제 업로드된 데이터에 대해 질문해보세요. 예: "설비 목록을 알려줘", "유지보수 이력을 보여줘"`,
-            timestamp: new Date().toISOString()
-          };
-          setMessages(prev => [...prev, successMessage]);
-          
-        } catch (flowiseError) {
-          console.error('Flowise 업로드 실패:', flowiseError);
-          setCsvFile(null);
-          
-          const partialSuccessMessage: ChatMessage = {
-            id: `upload-${Date.now()}`,
-            sessionId: sessionId || 'unknown',
-            type: 'bot',
-            message: `CSV 파일이 로컬 데이터베이스에 업로드되었습니다 (${result.recordCount}개 레코드). AI 벡터 데이터베이스 연동은 실패했지만 기본 검색은 가능합니다.\n\n데이터에 대해 질문해보세요.`,
-            timestamp: new Date().toISOString()
-          };
-          setMessages(prev => [...prev, partialSuccessMessage]);
-        }
-        
-      } else {
-        throw new Error('업로드 실패');
-      }
-    } catch (error) {
-      console.error('CSV 업로드 실패:', error);
-      alert('CSV 파일 업로드에 실패했습니다.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <Card className={`w-96 ${isMinimized ? 'h-14' : 'h-[600px]'} shadow-lg border border-gray-200 bg-white transition-all duration-200`}>
+      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-96'} transition-all duration-300`}>
         {/* Header */}
-        <CardHeader className="p-3 border-b border-gray-200 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Bot className="w-4 h-4" />
-            AI Assistant
-            {sessionId && <Badge variant="outline" className="text-xs">연결됨</Badge>}
-          </CardTitle>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMinimized(!isMinimized)}
-              className="h-6 w-6 p-0"
-            >
-              {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-6 w-6 p-0"
-            >
-              <X className="w-3 h-3" />
-            </Button>
+        <CardHeader className="pb-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5" />
+              <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
+              <Badge variant="secondary" className="text-xs bg-blue-500 text-white border-blue-400">
+                Online
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-white hover:bg-blue-500"
+                onClick={() => setIsMinimized(!isMinimized)}
+              >
+                {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-white hover:bg-blue-500"
+                onClick={onClose}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="p-0 flex flex-col h-[calc(600px-60px)]">
-            {/* CSV Upload Section */}
-            {csvFile && (
-              <div className="p-3 bg-blue-50 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-blue-800">{csvFile.name}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleUploadCsv}
-                      disabled={isUploading}
-                      size="sm"
-                      className="h-6 text-xs"
-                    >
-                      {isUploading ? '업로드 중...' : '업로드'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCsvFile(null)}
-                      className="h-6 text-xs"
-                    >
-                      취소
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
+          <CardContent className="p-0 flex flex-col h-80">
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
-                {messages.length === 0 && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-800 p-3 rounded-lg max-w-[75%]">
-                      <div className="flex items-start gap-2">
-                        <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm">
-                          안녕하세요! AI Assistant입니다. CSV 파일을 업로드하고 데이터에 대해 질문해보세요.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -352,16 +161,11 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                       <div className={`text-xs mt-1 ${
                         message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
                       }`}>
-                        {new Date(message.timestamp || message.createdAt || Date.now()).toLocaleTimeString('ko-KR', { 
+                        {message.timestamp.toLocaleTimeString('ko-KR', { 
                           hour: '2-digit', 
                           minute: '2-digit' 
                         })}
                       </div>
-                      {message.metadata?.confidence && (
-                        <div className="text-xs mt-1 text-gray-500">
-                          신뢰도: {(message.metadata.confidence * 100).toFixed(0)}%
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -391,42 +195,22 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="질문을 입력하세요..."
+                  placeholder="메시지를 입력하세요..."
                   className="flex-1 text-sm"
                   disabled={isLoading}
-                  data-testid="input-chat-message"
                 />
                 <Button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading}
                   size="sm"
                   className="px-3"
-                  data-testid="button-send-message"
                 >
                   <Send className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3"
-                  data-testid="button-upload-csv"
-                >
-                  <Upload className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           </CardContent>
         )}
-        
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
       </Card>
     </div>
   );

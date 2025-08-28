@@ -112,11 +112,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-[hsl(220,13%,91%)];
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-[hsl(0,0%,100%)] text-[hsl(20,14.3%,4.1%)];
     font-family: "Apple SD Gothic Neo", "Segoe UI", sans-serif;
   }
 }
