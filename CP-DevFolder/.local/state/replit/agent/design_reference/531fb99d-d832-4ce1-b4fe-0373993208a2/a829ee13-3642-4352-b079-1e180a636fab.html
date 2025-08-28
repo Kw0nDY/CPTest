@@ -1,0 +1,1227 @@
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CP - Collaboration Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cp-blue': '#4A90E2',
+                        'cp-blue-light': '#E8F4FD',
+                        'cp-blue-dark': '#2E5BBA',
+                        'cp-gray': '#F8F9FA',
+                        'cp-text': '#333333'
+                    },
+                    fontFamily: {
+                        'korean': ['"Apple SD Gothic Neo"', '"Segoe UI"', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body { font-family: "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+        .tab-active { border-bottom: 2px solid #4A90E2; color: #4A90E2; }
+        .drag-zone { transition: all 0.2s ease; }
+        .drag-zone:hover { background-color: #E8F4FD; border-color: #4A90E2; }
+    </style>
+</head>
+<body class="bg-gray-50 font-korean">
+    <!-- Header -->
+    <header class="bg-cp-blue text-white h-12 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-50">
+        <div class="flex items-center space-x-4">
+            <h1 class="text-lg font-semibold">Collaboration Portal</h1>
+            <i class="fas fa-home text-yellow-300"></i>
+        </div>
+        <div class="flex items-center space-x-4 text-sm">
+            <span>관리자님안녕</span>
+            <span>로그아웃</span>
+        </div>
+    </header>
+
+    <div class="flex pt-12 h-screen">
+        <!-- @COMPONENT: Sidebar [navigation menu] -->
+        <aside class="w-60 bg-white border-r border-gray-200 h-full overflow-y-auto">
+            <nav class="p-4">
+                <div class="mb-6">
+                    <h2 class="text-sm font-medium text-gray-600 mb-3">메인메뉴</h2>
+                    <ul class="space-y-1">
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-home w-4 mr-3"></i>홈</a></li>
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm bg-cp-blue-light text-cp-blue rounded"><i class="fas fa-database w-4 mr-3"></i>데이터 통합</a></li>
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-robot w-4 mr-3"></i>AI 모델 관리</a></li>
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-cogs w-4 mr-3"></i>워크플로우</a></li>
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-chart-bar w-4 mr-3"></i>대시보드</a></li>
+                    </ul>
+                </div>
+                <div class="mb-6">
+                    <h2 class="text-sm font-medium text-gray-600 mb-3">설정</h2>
+                    <ul class="space-y-1">
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-users w-4 mr-3"></i>사용자 관리</a></li>
+                        <li><a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-100"><i class="fas fa-key w-4 mr-3"></i>API 키 관리</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        <!-- @END_COMPONENT: Sidebar -->
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-hidden">
+            <!-- Tab Navigation -->
+            <div class="bg-white border-b border-gray-200 px-6 py-3">
+                <div class="flex space-x-6">
+                    <button class="px-4 py-2 text-sm font-medium tab-active" data-tab="data-sources">데이터 소스 연결</button>
+                    <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="data-mapping">데이터 매핑</button>
+                    <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="automation">자동화 설정</button>
+                    <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="ai-config">AI 모델 연동</button>
+                    <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="boi-settings">BOI 설정</button>
+                </div>
+            </div>
+
+            <div class="h-full overflow-y-auto">
+                <!-- @COMPONENT: DataSourcesTab [API source selection and configuration] -->
+                <div id="data-sources-tab" class="p-6 space-y-6">
+                    <!-- Progress Indicator -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">데이터 소스 연결 진행 상황</h3>
+                            <span class="text-sm text-gray-500">1/5 단계</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-cp-blue h-2 rounded-full" style="width: 20%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Available Data Sources -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">사용 가능한 데이터 소스</h3>
+                                <p class="text-sm text-gray-600 mt-1">연결할 시스템을 선택하세요</p>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <!-- ERP Systems -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-3">ERP 시스템</h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-cp-blue hover:bg-cp-blue-light cursor-pointer transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                                                    <i class="fas fa-building text-blue-600"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium">SAP ERP</h5>
+                                                    <p class="text-xs text-gray-500">Enterprise Resource Planning</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-cp-blue hover:bg-cp-blue-light cursor-pointer transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
+                                                    <i class="fas fa-chart-line text-green-600"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium">Oracle ERP</h5>
+                                                    <p class="text-xs text-gray-500">Cloud Applications</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CRM Systems -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-3">CRM 시스템</h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="border border-cp-blue bg-cp-blue-light rounded-lg p-4 cursor-pointer">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-blue-500 rounded flex items-center justify-center">
+                                                    <i class="fas fa-users text-white"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium text-cp-blue">Salesforce</h5>
+                                                    <p class="text-xs text-gray-500">선택됨</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-cp-blue hover:bg-cp-blue-light cursor-pointer transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
+                                                    <i class="fas fa-handshake text-orange-600"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium">HubSpot</h5>
+                                                    <p class="text-xs text-gray-500">Customer Platform</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Other Systems -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-3">기타 시스템</h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-cp-blue hover:bg-cp-blue-light cursor-pointer transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-purple-100 rounded flex items-center justify-center">
+                                                    <i class="fas fa-database text-purple-600"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium">MySQL</h5>
+                                                    <p class="text-xs text-gray-500">Database</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-cp-blue hover:bg-cp-blue-light cursor-pointer transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 bg-red-100 rounded flex items-center justify-center">
+                                                    <i class="fas fa-file-excel text-red-600"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="text-sm font-medium">Excel/CSV</h5>
+                                                    <p class="text-xs text-gray-500">File Import</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuration Panel -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">Salesforce 연결 설정</h3>
+                                <p class="text-sm text-gray-600 mt-1">API 연결 정보를 입력하세요</p>
+                            </div>
+                            <div class="p-6 space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">연결 이름</label>
+                                    <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue focus:border-transparent" placeholder="예: 영업팀 Salesforce" data-mock="true">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">API 엔드포인트</label>
+                                    <input type="url" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue focus:border-transparent" placeholder="https://your-domain.salesforce.com" data-mock="true">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">인증 방식</label>
+                                    <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue focus:border-transparent" data-mock="true">
+                                        <option>OAuth 2.0</option>
+                                        <option>API Token</option>
+                                        <option>Basic Auth</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">클라이언트 ID</label>
+                                        <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue focus:border-transparent" placeholder="입력하세요" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">클라이언트 시크릿</label>
+                                        <input type="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue focus:border-transparent" placeholder="••••••••" data-mock="true">
+                                    </div>
+                                </div>
+
+                                <div class="flex space-x-3">
+                                    <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors" data-event="click:testConnection">연결 테스트</button>
+                                    <button class="px-4 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:saveConnection">저장 및 계속</button>
+                                </div>
+
+                                <!-- Connection Status -->
+                                <div class="border border-green-200 bg-green-50 rounded-lg p-3">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-check-circle text-green-600"></i>
+                                        <span class="text-sm font-medium text-green-800">연결 성공</span>
+                                    </div>
+                                    <p class="text-sm text-green-700 mt-1">Salesforce API 연결이 정상적으로 설정되었습니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: DataSourcesTab -->
+
+                <!-- @COMPONENT: DataMappingTab [data structure configuration] -->
+                <div id="data-mapping-tab" class="p-6 space-y-6 hidden">
+                    <!-- Progress Indicator -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">데이터 매핑 설정</h3>
+                            <span class="text-sm text-gray-500">2/5 단계</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-cp-blue h-2 rounded-full" style="width: 40%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Source Data -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">소스 데이터</h3>
+                                <p class="text-sm text-gray-600">Salesforce에서 가져온 데이터</p>
+                            </div>
+                            <div class="p-4 max-h-96 overflow-y-auto">
+                                <div class="space-y-2">
+                                    <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium">Account.Name</span>
+                                            <i class="fas fa-grip-vertical text-gray-400"></i>
+                                        </div>
+                                        <p class="text-xs text-gray-500">문자열</p>
+                                    </div>
+                                    <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium">Account.Industry</span>
+                                            <i class="fas fa-grip-vertical text-gray-400"></i>
+                                        </div>
+                                        <p class="text-xs text-gray-500">문자열</p>
+                                    </div>
+                                    <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium">Account.Revenue</span>
+                                            <i class="fas fa-grip-vertical text-gray-400"></i>
+                                        </div>
+                                        <p class="text-xs text-gray-500">숫자</p>
+                                    </div>
+                                    <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium">Contact.Email</span>
+                                            <i class="fas fa-grip-vertical text-gray-400"></i>
+                                        </div>
+                                        <p class="text-xs text-gray-500">이메일</p>
+                                    </div>
+                                    <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium">Opportunity.Amount</span>
+                                            <i class="fas fa-grip-vertical text-gray-400"></i>
+                                        </div>
+                                        <p class="text-xs text-gray-500">통화</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Transformation Rules -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">변환 규칙</h3>
+                                <p class="text-sm text-gray-600">데이터 처리 규칙 설정</p>
+                            </div>
+                            <div class="p-4 space-y-4">
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">필터</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center space-x-2">
+                                            <select class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                                <option>Account.Industry</option>
+                                                <option>Account.Revenue</option>
+                                            </select>
+                                            <select class="px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                                <option>equals</option>
+                                                <option>contains</option>
+                                                <option>greater than</option>
+                                            </select>
+                                        </div>
+                                        <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="값 입력" data-mock="true">
+                                    </div>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">그룹화</h4>
+                                    <select class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                        <option>필드 선택</option>
+                                        <option>Account.Industry</option>
+                                        <option>Account.Type</option>
+                                    </select>
+                                </div>
+
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">정렬</h4>
+                                    <div class="flex space-x-2">
+                                        <select class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                            <option>Account.Revenue</option>
+                                            <option>Account.Name</option>
+                                        </select>
+                                        <select class="px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                            <option>내림차순</option>
+                                            <option>오름차순</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Target Schema -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">대상 스키마</h3>
+                                <p class="text-sm text-gray-600">생성될 오브젝트 구조</p>
+                            </div>
+                            <div class="p-4 space-y-3">
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-24 drag-zone">
+                                    <p class="text-sm text-gray-500 text-center">필드를 여기로 드래그하세요</p>
+                                </div>
+                                
+                                <!-- Mapped Fields -->
+                                <div class="space-y-2">
+                                    <div class="bg-cp-blue-light border border-cp-blue rounded p-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium text-cp-blue">company_name</span>
+                                            <button class="text-gray-400 hover:text-red-500">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-gray-600">← Account.Name</p>
+                                    </div>
+                                    <div class="bg-cp-blue-light border border-cp-blue rounded p-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium text-cp-blue">industry_type</span>
+                                            <button class="text-gray-400 hover:text-red-500">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-gray-600">← Account.Industry</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Preview -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">데이터 미리보기</h3>
+                            <p class="text-sm text-gray-600">변환된 데이터 샘플</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">company_name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">industry_type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">annual_revenue</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">contact_email</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" data-mock="true">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">삼성전자</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Technology</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₩200,000,000,000</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">contact@samsung.com</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">LG화학</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Chemical</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₩50,000,000,000</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">info@lgchem.com</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between">
+                        <button class="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">이전</button>
+                        <button class="px-6 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:proceedToAutomation">자동화 설정으로 계속</button>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: DataMappingTab -->
+
+                <!-- @COMPONENT: AutomationTab [workflow automation setup] -->
+                <div id="automation-tab" class="p-6 space-y-6 hidden">
+                    <!-- Progress Indicator -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">자동화 워크플로우 설정</h3>
+                            <span class="text-sm text-gray-500">3/5 단계</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-cp-blue h-2 rounded-full" style="width: 60%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Workflow Builder -->
+                        <div class="lg:col-span-2 bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">워크플로우 빌더</h3>
+                                <p class="text-sm text-gray-600">드래그 앤 드롭으로 자동화 프로세스를 구성하세요</p>
+                            </div>
+                            <div class="p-6 relative" style="min-height: 400px; background-image: radial-gradient(circle, #e5e7eb 1px, transparent 1px); background-size: 20px 20px;">
+                                <!-- Start Node -->
+                                <div class="absolute top-4 left-4 bg-green-100 border-2 border-green-300 rounded-lg p-4 w-48">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-play text-green-600"></i>
+                                        <span class="text-sm font-medium">데이터 수집 시작</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">Salesforce에서 데이터를 가져옵니다</p>
+                                </div>
+
+                                <!-- Processing Node -->
+                                <div class="absolute top-4 left-60 bg-blue-100 border-2 border-blue-300 rounded-lg p-4 w-48">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-cogs text-blue-600"></i>
+                                        <span class="text-sm font-medium">데이터 변환</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">설정된 규칙에 따라 데이터를 변환합니다</p>
+                                </div>
+
+                                <!-- Decision Node -->
+                                <div class="absolute top-32 left-32 bg-yellow-100 border-2 border-yellow-300 rounded-lg p-4 w-48">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-question text-yellow-600"></i>
+                                        <span class="text-sm font-medium">조건 확인</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">매출액 > 10억원</p>
+                                </div>
+
+                                <!-- Action Nodes -->
+                                <div class="absolute top-60 left-8 bg-purple-100 border-2 border-purple-300 rounded-lg p-4 w-48">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-envelope text-purple-600"></i>
+                                        <span class="text-sm font-medium">이메일 발송</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">영업팀에 알림 발송</p>
+                                </div>
+
+                                <div class="absolute top-60 left-60 bg-orange-100 border-2 border-orange-300 rounded-lg p-4 w-48">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-database text-orange-600"></i>
+                                        <span class="text-sm font-medium">데이터 저장</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">고객 DB에 저장</p>
+                                </div>
+
+                                <!-- Connection Lines -->
+                                <svg class="absolute inset-0 w-full h-full pointer-events-none">
+                                    <path d="M 192 32 L 240 32" stroke="#6B7280" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                                    <path d="M 384 48 L 384 80 L 160 80 L 160 144" stroke="#6B7280" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                                    <path d="M 160 176 L 160 200 L 132 200 L 132 240" stroke="#6B7280" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                                    <path d="M 160 176 L 160 200 L 184 200 L 184 240" stroke="#6B7280" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                                    <defs>
+                                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                                            <polygon points="0 0, 10 3.5, 0 7" fill="#6B7280"/>
+                                        </marker>
+                                    </defs>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Actions Panel -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">사용 가능한 액션</h3>
+                            </div>
+                            <div class="p-4 space-y-3">
+                                <!-- Triggers -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">트리거</h4>
+                                    <div class="space-y-2">
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-clock text-blue-500"></i>
+                                                <span class="text-sm">스케줄</span>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-webhook text-green-500"></i>
+                                                <span class="text-sm">웹훅</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Actions -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">액션</h4>
+                                    <div class="space-y-2">
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-envelope text-purple-500"></i>
+                                                <span class="text-sm">이메일 발송</span>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-slack text-purple-500"></i>
+                                                <span class="text-sm">슬랙 메시지</span>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-database text-orange-500"></i>
+                                                <span class="text-sm">데이터베이스 저장</span>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-robot text-red-500"></i>
+                                                <span class="text-sm">AI 모델 실행</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Conditions -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">조건</h4>
+                                    <div class="space-y-2">
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-question text-yellow-500"></i>
+                                                <span class="text-sm">IF/ELSE</span>
+                                            </div>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50">
+                                            <div class="flex items-center space-x-2">
+                                                <i class="fas fa-filter text-blue-500"></i>
+                                                <span class="text-sm">필터</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Workflow Settings -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">워크플로우 설정</h3>
+                        </div>
+                        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">워크플로우 이름</label>
+                                <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue" placeholder="예: 고객사 데이터 자동 분석" data-mock="true">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">실행 주기</label>
+                                <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue" data-mock="true">
+                                    <option>매일</option>
+                                    <option>매주</option>
+                                    <option>매월</option>
+                                    <option>실시간</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">알림 설정</label>
+                                <div class="flex items-center space-x-4">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="rounded border-gray-300 text-cp-blue focus:ring-cp-blue" checked data-mock="true">
+                                        <span class="ml-2 text-sm text-gray-600">성공시</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="rounded border-gray-300 text-cp-blue focus:ring-cp-blue" checked data-mock="true">
+                                        <span class="ml-2 text-sm text-gray-600">실패시</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between">
+                        <button class="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">이전</button>
+                        <button class="px-6 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:proceedToAI">AI 모델 연동으로 계속</button>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: AutomationTab -->
+
+                <!-- @COMPONENT: AIConfigTab [AI model upload and configuration] -->
+                <div id="ai-config-tab" class="p-6 space-y-6 hidden">
+                    <!-- Progress Indicator -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">AI 모델 설정</h3>
+                            <span class="text-sm text-gray-500">4/5 단계</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-cp-blue h-2 rounded-full" style="width: 80%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Model Upload -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">AI 모델 업로드</h3>
+                                <p class="text-sm text-gray-600">학습된 모델 파일을 업로드하세요</p>
+                            </div>
+                            <div class="p-6 space-y-6">
+                                <!-- File Upload Zone -->
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-cp-blue hover:bg-cp-blue-light transition-colors cursor-pointer" data-implementation="Use ObjectUploader component here">
+                                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                    <h4 class="text-lg font-medium text-gray-900 mb-2">모델 파일 업로드</h4>
+                                    <p class="text-sm text-gray-600 mb-4">드래그 앤 드롭하거나 클릭하여 파일을 선택하세요</p>
+                                    <p class="text-xs text-gray-500">지원 형식: .pkl, .h5, .onnx, .pt (최대 500MB)</p>
+                                </div>
+
+                                <!-- Model Information -->
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">모델 이름</label>
+                                        <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue" placeholder="예: 고객 분류 모델 v1.0" data-mock="true">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">모델 타입</label>
+                                        <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue" data-mock="true">
+                                            <option>분류 (Classification)</option>
+                                            <option>회귀 (Regression)</option>
+                                            <option>클러스터링 (Clustering)</option>
+                                            <option>자연어 처리 (NLP)</option>
+                                            <option>컴퓨터 비전 (Computer Vision)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">설명</label>
+                                        <textarea class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cp-blue" rows="3" placeholder="모델의 목적과 사용 방법을 설명하세요" data-mock="true"></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- Upload Progress -->
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <div class="flex items-center space-x-2 mb-2">
+                                        <i class="fas fa-check-circle text-green-600"></i>
+                                        <span class="text-sm font-medium text-green-800">customer_classifier_v1.pkl</span>
+                                    </div>
+                                    <div class="w-full bg-green-200 rounded-full h-2">
+                                        <div class="bg-green-600 h-2 rounded-full" style="width: 100%"></div>
+                                    </div>
+                                    <p class="text-xs text-green-700 mt-1">업로드 완료 (2.3 MB)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Model Configuration -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">모델 설정</h3>
+                                <p class="text-sm text-gray-600">입력/출력 스키마를 정의하세요</p>
+                            </div>
+                            <div class="p-6 space-y-6">
+                                <!-- Input Schema -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">입력 스키마</h4>
+                                    <div class="space-y-3">
+                                        <div class="border border-gray-200 rounded-lg p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">company_revenue</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">회사 연매출 (단위: 원)</p>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">industry_type</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">문자열</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">산업 분류 코드</p>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">employee_count</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">직원 수</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Output Schema -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">출력 스키마</h4>
+                                    <div class="space-y-3">
+                                        <div class="border border-gray-200 rounded-lg p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">customer_segment</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">문자열</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">고객 세그먼트: Premium, Standard, Basic</p>
+                                        </div>
+                                        <div class="border border-gray-200 rounded-lg p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">confidence_score</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">숫자</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">예측 신뢰도 (0-1)</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Model Performance -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">모델 성능 지표</h4>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="bg-gray-50 rounded p-3 text-center">
+                                            <div class="text-lg font-semibold text-gray-900">94.2%</div>
+                                            <div class="text-xs text-gray-600">정확도</div>
+                                        </div>
+                                        <div class="bg-gray-50 rounded p-3 text-center">
+                                            <div class="text-lg font-semibold text-gray-900">91.8%</div>
+                                            <div class="text-xs text-gray-600">F1 Score</div>
+                                        </div>
+                                        <div class="bg-gray-50 rounded p-3 text-center">
+                                            <div class="text-lg font-semibold text-gray-900">0.045</div>
+                                            <div class="text-xs text-gray-600">Log Loss</div>
+                                        </div>
+                                        <div class="bg-gray-50 rounded p-3 text-center">
+                                            <div class="text-lg font-semibold text-gray-900">2.3ms</div>
+                                            <div class="text-xs text-gray-600">추론 시간</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Model Testing -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">모델 테스트</h3>
+                            <p class="text-sm text-gray-600">샘플 데이터로 모델을 테스트해보세요</p>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Input Data -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">테스트 입력</h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">company_revenue</label>
+                                            <input type="number" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="50000000000" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">industry_type</label>
+                                            <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Technology" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">employee_count</label>
+                                            <input type="number" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="1500" data-mock="true">
+                                        </div>
+                                    </div>
+                                    <button class="w-full mt-4 px-4 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:testModel">모델 실행</button>
+                                </div>
+
+                                <!-- Output Result -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">예측 결과</h4>
+                                    <div class="bg-gray-50 rounded-lg p-4">
+                                        <div class="space-y-3">
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-sm text-gray-600">customer_segment</span>
+                                                <span class="text-sm font-medium text-cp-blue">Premium</span>
+                                            </div>
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-sm text-gray-600">confidence_score</span>
+                                                <span class="text-sm font-medium text-green-600">0.92</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+                                        <div class="flex items-center space-x-2">
+                                            <i class="fas fa-check-circle text-green-600"></i>
+                                            <span class="text-sm font-medium text-green-800">테스트 성공</span>
+                                        </div>
+                                        <p class="text-sm text-green-700 mt-1">모델이 정상적으로 작동합니다.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between">
+                        <button class="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">이전</button>
+                        <button class="px-6 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:proceedToBOI">BOI 설정으로 계속</button>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: AIConfigTab -->
+
+                <!-- @COMPONENT: BOISettingsTab [Business Object Intelligence configuration] -->
+                <div id="boi-settings-tab" class="p-6 space-y-6 hidden">
+                    <!-- Progress Indicator -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">BOI (Business Object Intelligence) 설정</h3>
+                            <span class="text-sm text-gray-500">5/5 단계</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-cp-blue h-2 rounded-full" style="width: 100%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Data Source Mapping -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">데이터 소스</h3>
+                                <p class="text-sm text-gray-600">가져온 데이터 필드</p>
+                            </div>
+                            <div class="p-6 space-y-3 max-h-96 overflow-y-auto">
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">company_name</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">문자열 | 삼성전자, LG화학...</p>
+                                </div>
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">industry_type</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">문자열 | Technology, Chemical...</p>
+                                </div>
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">annual_revenue</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">숫자 | 200000000000, 50000000000...</p>
+                                </div>
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">employee_count</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">숫자 | 1500, 800...</p>
+                                </div>
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">contact_email</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">이메일 | contact@company.com...</p>
+                                </div>
+                                <div class="border border-gray-200 rounded p-3 cursor-pointer hover:bg-gray-50 drag-zone" draggable="true">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium">last_activity_date</span>
+                                        <i class="fas fa-grip-vertical text-gray-400"></i>
+                                    </div>
+                                    <p class="text-xs text-gray-500">날짜 | 2024-01-15, 2024-01-10...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Model Input Mapping -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">AI 모델 입력 매핑</h3>
+                                <p class="text-sm text-gray-600">고객 분류 모델 v1.0</p>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <!-- Model Input Fields -->
+                                <div class="space-y-3">
+                                    <div class="border-2 border-dashed border-cp-blue bg-cp-blue-light rounded-lg p-4 min-h-16 drag-zone">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <span class="text-sm font-medium text-cp-blue">company_revenue</span>
+                                                <p class="text-xs text-gray-600">← annual_revenue</p>
+                                            </div>
+                                            <button class="text-gray-400 hover:text-red-500">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="border-2 border-dashed border-cp-blue bg-cp-blue-light rounded-lg p-4 min-h-16 drag-zone">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <span class="text-sm font-medium text-cp-blue">industry_type</span>
+                                                <p class="text-xs text-gray-600">← industry_type</p>
+                                            </div>
+                                            <button class="text-gray-400 hover:text-red-500">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="border-2 border-dashed border-cp-blue bg-cp-blue-light rounded-lg p-4 min-h-16 drag-zone">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <span class="text-sm font-medium text-cp-blue">employee_count</span>
+                                                <p class="text-xs text-gray-600">← employee_count</p>
+                                            </div>
+                                            <button class="text-gray-400 hover:text-red-500">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Data Transformation Rules -->
+                                <div class="mt-6">
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">데이터 변환 규칙</h4>
+                                    <div class="space-y-3">
+                                        <div class="border border-gray-200 rounded p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">annual_revenue</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">변환</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">원 → 숫자형 (문자열 제거, 자릿수 정규화)</p>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">industry_type</span>
+                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">인코딩</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">문자열 → 원핫 인코딩</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Output Configuration -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">출력 설정</h3>
+                                <p class="text-sm text-gray-600">AI 예측 결과 처리</p>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <!-- Output Fields -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">출력 필드</h4>
+                                    <div class="space-y-3">
+                                        <div class="bg-gray-50 border border-gray-200 rounded p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">customer_segment</span>
+                                                <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">출력</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">Premium, Standard, Basic</p>
+                                        </div>
+                                        <div class="bg-gray-50 border border-gray-200 rounded p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-sm font-medium">confidence_score</span>
+                                                <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">출력</span>
+                                            </div>
+                                            <p class="text-xs text-gray-600">0.0 - 1.0</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Post-processing Rules -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">후처리 규칙</h4>
+                                    <div class="space-y-3">
+                                        <div class="border border-gray-200 rounded p-3">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-cp-blue focus:ring-cp-blue" checked data-mock="true">
+                                                <span class="ml-2 text-sm">원본 데이터와 결합</span>
+                                            </label>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-cp-blue focus:ring-cp-blue" checked data-mock="true">
+                                                <span class="ml-2 text-sm">데이터베이스에 저장</span>
+                                            </label>
+                                        </div>
+                                        <div class="border border-gray-200 rounded p-3">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-cp-blue focus:ring-cp-blue" data-mock="true">
+                                                <span class="ml-2 text-sm">실시간 알림 발송</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Batch Processing -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">배치 처리 설정</h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">배치 크기</label>
+                                            <input type="number" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="100" data-mock="true">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-600 mb-1">처리 간격</label>
+                                            <select class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-mock="true">
+                                                <option>실시간</option>
+                                                <option>5분마다</option>
+                                                <option>1시간마다</option>
+                                                <option>매일</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOI Test and Preview -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">BOI 테스트 및 미리보기</h3>
+                            <p class="text-sm text-gray-600">설정된 BOI 파이프라인을 테스트해보세요</p>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- Test Input -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">테스트 데이터</h4>
+                                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                            <span class="text-xs font-medium text-gray-700">입력 데이터 샘플</span>
+                                        </div>
+                                        <div class="p-4 max-h-48 overflow-y-auto">
+                                            <pre class="text-xs text-gray-600" data-mock="true">{
+  "company_name": "삼성전자",
+  "industry_type": "Technology",
+  "annual_revenue": "200000000000",
+  "employee_count": 1500,
+  "contact_email": "contact@samsung.com",
+  "last_activity_date": "2024-01-15"
+}</pre>
+                                        </div>
+                                    </div>
+                                    <button class="w-full mt-3 px-4 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:runBOITest">BOI 파이프라인 실행</button>
+                                </div>
+
+                                <!-- Test Output -->
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 mb-3">예측 결과</h4>
+                                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                            <span class="text-xs font-medium text-gray-700">BOI 출력</span>
+                                        </div>
+                                        <div class="p-4 max-h-48 overflow-y-auto">
+                                            <pre class="text-xs text-gray-600" data-mock="true">{
+  "company_name": "삼성전자",
+  "industry_type": "Technology",
+  "annual_revenue": 200000000000,
+  "employee_count": 1500,
+  "contact_email": "contact@samsung.com",
+  "last_activity_date": "2024-01-15",
+  "customer_segment": "Premium",
+  "confidence_score": 0.94,
+  "prediction_timestamp": "2024-01-16T10:30:00Z"
+}</pre>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+                                        <div class="flex items-center space-x-2">
+                                            <i class="fas fa-check-circle text-green-600"></i>
+                                            <span class="text-sm font-medium text-green-800">BOI 파이프라인 테스트 성공</span>
+                                        </div>
+                                        <p class="text-sm text-green-700 mt-1">데이터 변환 및 AI 예측이 정상적으로 완료되었습니다.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Actions -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">설정 완료</h3>
+                                    <p class="text-sm text-gray-600">모든 설정이 완료되었습니다. BOI 파이프라인을 활성화하세요.</p>
+                                </div>
+                                <div class="flex space-x-3">
+                                    <button class="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">저장하기</button>
+                                    <button class="px-6 py-2 bg-cp-blue text-white rounded hover:bg-cp-blue-dark transition-colors" data-event="click:activateBOI">BOI 활성화</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: BOISettingsTab -->
+            </div>
+        </main>
+    </div>
+
+    <!-- @COMPONENT: LoadingModal [for processing states] -->
+    <div id="loading-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cp-blue mx-auto mb-4"></div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">처리 중...</h3>
+                    <p class="text-sm text-gray-600">데이터를 처리하고 있습니다. 잠시만 기다려주세요.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: LoadingModal -->
+
+    <script>
+        (function() {
+            // Tab switching functionality
+            const tabs = document.querySelectorAll('[data-tab]');
+            const tabContents = document.querySelectorAll('[id$="-tab"]');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    // Remove active class from all tabs
+                    tabs.forEach(t => t.classList.remove('tab-active'));
+                    // Add active class to clicked tab
+                    this.classList.add('tab-active');
+                    
+                    // Hide all tab contents
+                    tabContents.forEach(content => content.classList.add('hidden'));
+                    // Show target tab content
+                    const targetContent = document.getElementById(targetTab + '-tab');
+                    if (targetContent) {
+                        targetContent.classList.remove('hidden');
+                    }
+                });
+            });
+
+            // TODO: Implement drag and drop functionality for data mapping
+            // TODO: Implement API connection testing
+            // TODO: Implement file upload with progress tracking
+            // TODO: Implement workflow builder drag and drop
+            // TODO: Implement model testing and validation
+            // TODO: Implement BOI pipeline execution and monitoring
+            
+            // Simulated loading states for user interactions
+            function showLoading() {
+                document.getElementById('loading-modal').classList.remove('hidden');
+            }
+
+            function hideLoading() {
+                document.getElementById('loading-modal').classList.add('hidden');
+            }
+
+            // Mock event handlers for demonstration
+            document.addEventListener('click', function(e) {
+                if (e.target.hasAttribute('data-event')) {
+                    const action = e.target.getAttribute('data-event').split(':')[1];
+                    
+                    switch(action) {
+                        case 'testConnection':
+                        case 'testModel':
+                        case 'runBOITest':
+                            showLoading();
+                            setTimeout(hideLoading, 2000);
+                            break;
+                        case 'proceedToAutomation':
+                        case 'proceedToAI':
+                        case 'proceedToBOI':
+                            // Switch to next tab automatically
+                            const nextTabMap = {
+                                'proceedToAutomation': 'automation',
+                                'proceedToAI': 'ai-config',
+                                'proceedToBOI': 'boi-settings'
+                            };
+                            const nextTab = document.querySelector(`[data-tab="${nextTabMap[action]}"]`);
+                            if (nextTab) nextTab.click();
+                            break;
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

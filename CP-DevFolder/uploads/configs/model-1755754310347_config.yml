@@ -1,0 +1,60 @@
+model:
+  name: testmodel
+  framework: pytorch
+  artifact_uri: file:///home/runner/workspace/uploads/2e6aa613-13ab-4f1d-b786-8a3ca4820a27_best_model.pth
+  runtime: python:3.11-cuda12.1
+  entrypoint: app:predict
+  resources:
+    gpu: 1
+    cpu: '2'
+    mem: 6Gi
+signature:
+  inputs:
+    - name: KPI_X
+      dtype: float32
+      shape:
+        - null
+      required: true
+    - name: KPI_Y
+      dtype: float32
+      shape:
+        - null
+      required: true
+    - name: KPI_Z
+      dtype: float32
+      shape:
+        - null
+      required: true
+  outputs:
+    - name: Temperature_A
+      dtype: float32
+      shape:
+        - null
+    - name: Pressure_A
+      dtype: float32
+      shape:
+        - null
+    - name: GasFlow_A
+      dtype: float32
+      shape:
+        - null
+    - name: Temperature_B
+      dtype: float32
+      shape:
+        - null
+    - name: Pressure_B
+      dtype: float32
+      shape:
+        - null
+    - name: GasFlow_B
+      dtype: float32
+      shape:
+        - null
+    - name: Temperature_C
+      dtype: float32
+      shape:
+        - null
+    - name: Pressure_C
+      dtype: float32
+      shape:
+        - null

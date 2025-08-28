@@ -1,0 +1,201 @@
+
+CP
+Collaboration Portal
+
+Hello Admin
+
+Settings
+
+Data Integration
+Data Integration
+View Setting
+Automation
+
+AI Fac
+
+BOI
+Management
+
+Member
+
+APIs
+Main Menu
+
+
+Main Menu
+All Views
+KOO
+testTTT
+TEST2
+KOO (Copy)
+TEST2
+TEST
+Data Integration
+Manage your data source connections and integrations
+
+Connected Data Sources
+Available Data Sources
+Available Data Sources
+Search data sources...
+
+All Categories
+Salesforce CRM
+Customer Relationship
+REST API
+Customer relationship management platform
+
+Features:
+
+Real-time sync
+OAuth 2.0
++2
+Connect
+
+SAP ERP
+Enterprise Resource Planning
+SOAP/REST
+Enterprise resource planning system
+
+Features:
+
+RFC connector
+IDoc support
++2
+Connect
+
+Oracle Database
+Enterprise Resource Planning
+Database
+Relational database management system
+
+Features:
+
+JDBC connector
+Stored procedures
++2
+Connect
+
+MySQL Database
+Enterprise Resource Planning
+Database
+Open-source relational database
+
+Features:
+
+JDBC connector
+Replication
++2
+Connect
+
+Manufacturing Execution System
+Manufacturing Execution
+REST API
+Production floor management system
+
+Features:
+
+Real-time production data
+Quality tracking
++1
+Connect
+
+Product Lifecycle Management
+Product Lifecycle
+REST API
+Product development and lifecycle management
+
+Features:
+
+Design data
+BOM management
++2
+Connect
+
+Quality Management System
+Quality Management
+REST API
+Quality control and compliance management
+
+Features:
+
+Audit trails
+Compliance reporting
++2
+Connect
+
+Supply Chain Management
+Supply Chain
+REST API
+Supply chain planning and execution
+
+Features:
+
+Demand planning
+Inventory optimization
++2
+Connect
+
+AVEVA PI System
+Manufacturing Execution
+PI Web API
+Industrial data historian for real-time process monitoring and asset performance tracking
+
+Features:
+
+Real-time data streaming
+Time-series database
++3
+Connect
+
+Microsoft Excel
+File Systems
+OAuth 2.0
+OneDrive and SharePoint Excel files with real-time data access
+
+Features:
+
+OAuth 2.0 authentication
+OneDrive integration
++3
+Connect
+
+Google Sheets
+File Systems
+Google Sheets API
+Google Sheets cloud spreadsheet integration with real-time synchronization
+
+Features:
+
+OAuth 2.0 authentication
+Real-time sync
++1
+Connect
+
+Google Sheets 연결
+권동영
+
+dy.kwon@dxt.co.kr
+
+Connected
+Google Sheets 선택
+새로고침
+사용 가능한 Google Sheets가 없습니다.
+
+취소
+Google Sheets 연결 (0)
+Close
+[plugin:runtime-error-plugin] Failed to execute 'fetch' on 'Window': Request with GET/HEAD method cannot have body.
+/home/runner/workspace/client/src/lib/queryClient.ts:15:21
+13 |    data?: unknown | undefined,
+14 |  ): Promise<Response> {
+15 |    const res = await fetch(url, {
+   |                      ^
+16 |      method,
+17 |      headers: data ? { "Content-Type": "application/json" } : {},
+
+
+    at apiRequest /home/runner/workspace/client/src/lib/queryClient.ts:15:21
+    at loadGoogleSheets /home/runner/workspace/client/src/components/data-integration/google-sheets-dialog.tsx:146:30
+    at handleMessage /home/runner/workspace/client/src/components/data-integration/google-sheets-dialog.tsx:86:19
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.js.

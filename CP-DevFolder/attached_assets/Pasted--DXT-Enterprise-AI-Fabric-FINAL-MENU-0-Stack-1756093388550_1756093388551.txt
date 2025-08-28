@@ -1,0 +1,306 @@
+# 📑 DXT Enterprise AI Fabric — 기능별 상세 사양서 (개발 전달용, FINAL MENU 기준)
+
+## 0. 공통 규격 (전 모듈 공통)
+- Stack: React+TypeScript(Vite) / Express(Node18+) / PostgreSQL+Drizzle / BullMQ+Redis / SSE
+- Security: SSO(OIDC/SAML), RBAC+ABAC, RLS/CLS, KMS 기반 secrets, TLS, **모든 읽기/쓰기 감사로그**
+- Data-Minimal: 컬럼/행/기간 제한, 미리보기 100행 cap, 스냅샷/캐시 TTL 필수
+- API: JSON `/api` 버저닝, Zod 검증, `Idempotency-Key` 허더 지원, 오류 `{code,message,details?}`
+- ID/Time: `uuid v7`·ULID, ISO-8601 UTC
+- Observability: OpenTelemetry traceId, 도메인 이벤트(`*.created|updated|deleted|run.started|run.finished|violation`)
+- Feature Flags: 모듈별 `FF_*` 로드; DOD 전 비활성
+- 성능 SLO: read p95 < 300ms, write p95 < 1s, stream 별도
+- 권한 롤: `Owner/Admin/DataSteward/Analyst/Operator/Viewer` (+ABAC: 부서/라인/프로젝트)
+- 감사: `audit_logs(id, actorId, route, method, status, traceId, resource, before, after, ts)`
+
+---
+
+## 1. CORE — DATA PIPELINE
+**목적**: JSON-DAG 기반 파이프라인 정의·실행·스케줄·로그. (에디터 UX 유지)
+
+### 1.1 사용자 스토리
+- P1: Editor는 노드 팔레트/캔버스/속성패널로 파이프라인을 생성/수정한다.
+- P2: Operator는 수동 실행 및 스케줄(CRON) 등록을 한다.
+- P3: Viewer는 실행 이력과 실시간 로그(SSE)를 확인한다.
+
+### 1.2 API
+- `POST /pipelines` (생성) / `PATCH /pipelines/:id` (버전++) / `GET /pipelines[?projectId]` / `GET /pipelines/:id`
+- `POST /pipelines/:id/run` (수동 실행)
+- `GET /pipeline-runs/:runId` (상태/통계)
+- `GET /pipeline-runs/:runId/logs/stream` (SSE)
+- `POST /pipeline-schedules` (cron, enable/disable)
+
+### 1.3 DB
+- `pipelines(id, projectId, name, version, graph_json, createdBy, createdAt, updatedAt, archived)`
+- `pipeline_runs(id, pipelineId, status, stats_json, error, startedAt, finishedAt, createdBy)`
+- `pipeline_logs(id, runId, ts, level, nodeId, message, sample_json)`
+- `pipeline_schedules(id, pipelineId, cron, enabled, lastRunId, createdBy)`
+
+### 1.4 노드 타입(MVP)
+- `source.fileDrop{ path, hasHeader, delimiter }`
+- `transform.select{ columns[] }`
+- `transform.filter{ expr }`(화이트리스트식)
+- `validate.null{ columns[] }`
+- `sink.featureCache{ name, ttlHours }`
+
+### 1.5 비즈니스 규칙
+- DAG 검증 통과 없이는 저장/실행 불가(사이클 금지, 입/출력 유효성).
+- 10만 행 CSV 스트리밍 처리(메모리 OOM 방지, 청크 기반).
+- 스케줄은 타임존 명시, 중복 실행 보호(락).
+
+### 1.6 수용 기준(AC) & 테스트
+- 생성→실행→SSE 로그→완료 통계(rows/time) 노출.
+- 실패 시 `pipeline_runs.error` 저장, `pipeline_logs.sample` 5행 포함.
+- Viewer 권한으로는 생성/수정 403.
+
+---
+
+## 1-A. SUBTAB — DATA SOURCES
+**목적**: 커넥터 연결/테스트/미리보기/동기화.
+
+### 사용자 스토리
+- DS1: DataSteward는 연결을 생성하고 비밀을 저장(암호화)한다.
+- DS2: Analyst는 데이터셋(컬럼/필터)을 정의하고 100행 미리보기를 본다.
+- DS3: Operator는 on-demand sync를 실행한다.
+
+### API
+- `POST/GET/DELETE /connections` / `POST /connections/:id/test`
+- `POST/GET /datasets`
+- `GET /datasets/:id/preview?limit=100`
+- `POST /datasets/:id/sync`
+
+### DB
+- `connections(id, tenantId, projectId, name, type['gsheets'|'excel'|'rest'|'s3'], config_json, createdBy, createdAt, archived)`
+- `credentials(id, connectionId, encrypted, createdAt)`  // KMS 암호문
+- `datasets(id, connectionId, name, sourcePath, columns_json, rowFilter, profile_json, createdAt)`
+- `sync_runs(id, datasetId, status, rowsIn, rowsOut, error, startedAt, finishedAt)`
+
+### 커넥터(초기)
+- Google Sheets(OAuth), Excel/CSV Upload, Generic REST(templated URL), S3/MinIO(prefix)
+
+### 규칙/AC/테스트
+- 비밀은 `credentials.encrypted`에만 저장, 평문 금지.
+- preview 100 cap, RowFilter 적용 검증, sync 성공/실패 기록/재시도.
+
+---
+
+## 2. CORE — DATA QUALITY & SECURITY
+**목적**: 프로파일/규칙/PII 마스킹/정책 위반 알림 + RLS/CLS 연계.
+
+### 사용자 스토리
+- QS1: DataSteward는 PII 자동 태깅 결과를 검토하고 컬럼 정책(show|mask|deny)을 설정한다.
+- QS2: Quality Eng는 규칙(NULL/RANGE/REF)을 정의하고 위반 시 알림을 받는다.
+
+### API
+- `GET/POST /datasets/:id/profile`
+- `GET/POST /datasets/:id/policies`
+- `GET/POST /quality/rules` / `POST /quality/runs`
+
+### DB
+- `data_policies(id, datasetId, column, policy, roles_json, maskType['hash'|'partial'|'zero'])`
+- `quality_rules(id, datasetId, type['null'|'range'|'ref'], config_json, severity)`
+- `quality_runs(id, ruleId, status, stats_json, error, startedAt, finishedAt)`
+- `quality_violations(id, runId, sample_json, count)`
+
+### 규칙/AC/테스트
+- 정책 미적용 데이터는 preview/view API 403 + reason.
+- 위반 발생 시 `quality.violation` 이벤트, 샘플 데이터 첨부.
+
+---
+
+## 3. CORE — REAL-TIME MONITORING
+**목적**: 커넥터/파이프라인/품질/자동화 런의 헬스/지연/오류 모니터링.
+
+### API
+- `GET /monitor/overview` / `GET /monitor/connectors` / `GET /monitor/pipelines`
+- `POST /monitor/webhooks/slack`
+
+### DB
+- `connectors_health(connectionId, status, latencyMs, lastCheckedAt, error)`
+- `ops_events(id, type, refId, payload_json, level, ts)`
+
+### AC/테스트
+- 커넥터 offline 알림 발송, p95 latency/err rate 차트 노출.
+
+---
+
+## 4. CORE — VIEW & DASHBOARD
+Subtabs: **Dashboard Builder / Team Workspaces / Performance Analytics** (뷰 에디터 UX 유지)
+
+### 사용자 스토리
+- V1: Editor는 위젯(Grid DnD)으로 대시보드를 구성하고 데이터 바인딩한다.
+- V2: Reviewer 승인을 거쳐 Org 공개로 배포한다.
+- V3: Owner는 사용량/성능 메트릭을 본다.
+
+### API
+- `POST/GET/PATCH/DELETE /views`
+- `POST /views/:id/publish`(review/approval)
+- `GET /views/:id/data?params=…`(서버측 RLS/CLS/정책 적용)
+- `POST/GET /workspaces`
+- `GET /views/:id/metrics`(usage/perf)
+
+### DB
+- `views(id, projectId, name, layout_json, bindings_json, visibility['private'|'shared'|'org'], version, createdBy, createdAt)`
+- `view_reviews(id, viewId, status['proposed'|'approved'|'rejected'], reviewers_json, notes, createdAt)`
+- `workspaces(id, projectId, name, members_json, defaultViewId)`
+- `view_usage(viewId, userId, ts)` / `view_perf(viewId, date, loads, avgLatencyMs)`
+
+### AC/테스트
+- Reviewer 승인 없이 org 공개 금지.
+- 역할/부서에 따른 RLS/CLS 차등 노출 확인.
+- 사용량/성능 수집.
+
+---
+
+## 5. CORE — AUTOMATION ENGINE
+Subtabs: **Workflow Designer / Process Automation / Trigger Management**
+
+### 사용자 스토리
+- A1: Editor는 트리거(스케줄/데이터 조건/수동)·액션(알림/웹훅/티켓/시트쓰기/모델실행)을 정의한다.
+- A2: 고위험 액션은 승인자 지정, 승인 없이 실행 불가.
+- A3: Operator는 실행 상태를 실시간 스트림으로 본다.
+
+### API
+- `POST/GET/PATCH /automations`
+- `POST /automations/:id/run`
+- `POST /automations/:id/approve`
+- `GET /automations/:id/stream`(SSE)
+
+### DB
+- `automations(id, projectId, name, trigger_json, conditions_json, actions_json, approvers_json, status)`
+- `automation_runs(id, automationId, status, inputSnapshot_json, outputSnapshot_json, error, startedAt, finishedAt, approvedBy)`
+- `approvals(id, automationId, runId, approverId, status, reason, ts)`
+
+### AC/테스트
+- 승인 필요한 액션은 승인 토큰 없으면 403.
+- 모든 실행 스냅샷/감사 보존, 실패 재시도/백오프.
+
+---
+
+## 6. CORE — AI LABORATORY
+Subtabs: **Model Development / Model Upload / Model Configuration / Testing & Validation**  
+(모델 에디터/구성 UX는 유지)
+
+### 6.1 Model Development (Study Studio)
+- **API**: `POST/GET /study/datasets`(마스킹/TTL 스냅샷) · `POST /study/runs` · `GET /study/runs/:id/metrics`
+- **DB**: `datasets(id, projectId, templateId, masking_json, ttl, schema_json, lineage_json, createdBy, createdAt)` · `ml_experiments(id, projectId, name, task['cls'|'reg'|'ts'], createdAt)` · `ml_runs(id, experimentId, datasetId, params_json, metrics_json, artifacts, cost, startedAt, endedAt, status)`
+- **AC**: TTL 필수, lineage 캡처, 슬라이스 메트릭.
+
+### 6.2 Model Upload (Registry)
+- **API**: `POST /ai-models/upload` · `POST /ai-models/:id/introspect`(IO 시그니처) · `POST /ai-models/:id/deploy`
+- **DB**: `ai_models(id, projectId, name, framework, version, schemaIn_json, schemaOut_json, securityReport_json, limits_json, deployedAt)` · `ai_model_files(id, modelId, path, sha256, size)`
+- **AC**: 보안 스캔 통과 + 리소스 한도 필수, 샌드박스 추론 OK.
+
+### 6.3 Model Configuration (AI Graph Builder)
+- **API**: `POST/GET/PATCH /ai-graphs` · `POST /ai-graphs/:id/simulate` · `POST /ai-graphs/:id/deploy` · `POST /ai-graphs/:id/run`
+- **Contract**(필수 필드): inputs/steps/outputs + `slo{p95_ms}` + `guardrails{allowed_actions[], approval_thresholds{…}}`
+- **DB**: `ai_graphs(id, projectId, name, contract_json, version, publishedAt, createdBy)` · `ai_runs(id, graphId, inputsRef, outputs_json, metrics_json, cost, traceId, startedAt, endedAt, status)`
+- **AC**: SLO/가드레일 누락 시 실행 거절; simulate→approve→deploy 플로우.
+
+### 6.4 Testing & Validation
+- **API**: `POST/GET /ai-tests` · `POST /ai-tests/:id/run`
+- **DB**: `ai_tests(id, scope['model'|'graph'], datasets_json, metrics_json, thresholds_json, owner)` · `ai_test_runs(id, testId, runId, results_json, pass, startedAt, endedAt)`
+- **AC**: 회귀 테스트 통과 전 배포 차단.
+
+---
+
+## 7. CORE — INTELLIGENCE HUB
+Subtabs: **AI Results Analysis / Performance Insights / Prediction Analytics**
+
+### API
+- `GET /intel/results?model=…&graph=…&from=…&to=…`
+- `GET /intel/drift`
+- `GET /intel/kpis`
+- `GET /intel/predictions?template=…`
+
+### DB
+- `ai_drifts(id, runId|modelId, kind['data'|'perf'], stats_json, threshold, alertedAt)`
+- `ai_kpis_daily(modelId|graphId, date, latencyP95, cost, accuracy, alerts)`
+- `prediction_templates(id, name, spec_json, defaultParams_json)`
+
+### AC/테스트
+- “verified” 결과만 뷰/자동화 바인딩(FF).
+- 드리프트 경보 동작.
+
+---
+
+## 8. CORE — BUSINESS INTELLIGENCE
+Subtabs: **Strategic Overview / Organization Analytics / AI Recommendations**
+
+### API
+- `GET/POST /bi/kpis` · `GET/POST /bi/snapshots`
+- `GET /bi/overview`
+- `POST /bi/recommendations?period=weekly`
+
+### DB
+- `bi_kpis(id, scope['org'|'project'|'dept'], name, formula, target, owner)`
+- `bi_snapshots(id, kpiId, date, value, sourceRef)`
+- `bi_recommendations(id, period, title, rationale, links_json, impactScore, effortScore)`
+
+### AC/테스트
+- 모든 지표에 출처 링크(provenance), 변경 이력/감사 보존.
+
+---
+
+## 9. CORE — ASSISTANT
+Subtabs: **AI Chat Interface / Knowledge Base / Task Automation**
+
+### 사용자 스토리
+- AS1: Admin은 LLM 툴(보안 래핑 API)을 레지스트리에 등록하고 권한 스코프를 지정한다.
+- AS2: User는 질문 시 KB 검색+툴플랜을 통해 데이터 조회/모델 실행/자동화를 트리거한다.
+- AS3: 고위험 툴은 승인 프롬프트 후 실행된다.
+
+### API
+- `POST /kb/docs`(업로드/등록) · `GET /kb/search?q=…`
+- `POST /llm/tools/register`(method,path,inputSchema,outputSchema,scope)
+- `POST /assistant/ask` → `{answer, toolPlan[], approvalsRequired?}`
+- `POST /assistant/approve`
+
+### DB
+- `kb_docs(id, projectId, kind, path_or_url, vectorRef, meta_json)`
+- `llm_tools(id, projectId, name, spec_json, scope, createdBy)`
+- `llm_sessions(id, userId, title, createdAt)` · `llm_messages(id, sessionId, role, content, toolPlan_json, ts)`
+- `assistant_tasks(id, sessionId, tool, params_json, status, result_json, approvedBy)`
+
+### AC/테스트
+- Viewer는 변이 툴 실행 불가, high-risk 승인 없으면 403, traceId 전파·감사 로그 기록.
+
+---
+
+## 10. 오류 코드 규격(예시)
+- `APP_400_INVALID_INPUT` / `APP_401_UNAUTHORIZED` / `APP_403_POLICY_VIOLATION`(사유 포함)
+- `APP_404_NOT_FOUND` / `APP_409_CONFLICT`(동시수정/중복 실행) / `APP_422_DAG_INVALID`
+- `APP_429_RATE_LIMITED` / `APP_500_INTERNAL`
+
+---
+
+## 11. 수동 스모크 테스트 매트릭스
+- Pipeline: create→run→SSE→schedule; 실패시 샘플 포함.
+- Sources: connect(GSheets/Excel/REST/S3)→preview100→sync.
+- DQ/Sec: PII 정책→viewer masked; rule run→violation event.
+- Monitoring: connector offline→alert.
+- Views: build→publish(review)→org visible; RLS 행수 차이.
+- Automation: high-risk action 승인 필요; retry/backoff.
+- AI Lab: dataset TTL enforced→train run; upload→introspect→deploy; graph simulate→deploy.
+- Intelligence: drift alert; KPI 추세.
+- BI: overview 지표에 출처 링크.
+- Assistant: ask→toolPlan 범위 내; high-risk 승인 흐름.
+
+---
+
+## 12. 샘플 데이터(/samples)
+- `sales_q3.csv`  
+  `date,sku,qty,price,region`  
+  `2025-07-01,A100,3,12.5,KR`  
+  `2025-07-01,A200,0,9.9,KR`  
+  `2025-07-02,A100,5,12.5,US`  
+  `2025-07-02,A300,2,7.0,JP`
+- `sensor_small.csv`  
+  `ts,asset,temp,pressure,status`  
+  `2025-07-01T00:00:00Z,PUMP_01,62.1,3.1,OK`  
+  `2025-07-01T00:01:00Z,PUMP_01,NaN,3.2,OK`  
+  `2025-07-01T00:02:00Z,PUMP_01,65.4,3.4,OK`
+
+---
+
+## 13. 롤아웃 플래그
+1) `FF_PIPELINE` + `FF_SOURCES` → 2) `FF_DQSEC` + `FF_MONITOR` → 3) `FF_VIEWS` + `FF_AUTOMATION` → 4) `FF_AI_LAB` → 5) `FF_INTEL_HUB` + `FF_BI` + `FF_ASSISTANT`
