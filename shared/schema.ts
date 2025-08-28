@@ -74,6 +74,84 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const insertViewSchema = createInsertSchema(views);
 
+// 설비 유지보수 데이터 테이블
+export const equipmentMaintenance = pgTable("equipment_maintenance", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  equipmentType: text("equipment_type").notNull(),
+  faultDescription: text("fault_description").notNull(),
+  solution: text("solution").notNull(),
+  keywords: json("keywords").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// 챗봇 대화 기록 테이블
+export const chatConversations = pgTable("chat_conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  sessionId: text("session_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// 챗봇 메시지 테이블
+export const chatMessages = pgTable("chat_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull(),
+  role: text("role").notNull(), // 'user' | 'assistant' | 'system'
+  content: text("content").notNull(),
+  metadata: json("metadata").$type<{
+    equipmentType?: string;
+    faultType?: string;
+    searchResults?: any[];
+    confidence?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Flowise API 설정 테이블
+export const flowiseConfig = pgTable("flowise_config", {
+  id: text("id").primaryKey(),
+  apiUrl: text("api_url").notNull(),
+  vectorStoreId: text("vector_store_id").notNull(),
+  isActive: integer("is_active").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Insert schemas
+export const insertEquipmentMaintenanceSchema = createInsertSchema(equipmentMaintenance).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertChatConversationSchema = createInsertSchema(chatConversations).omit({
+  createdAt: true
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  createdAt: true
+});
+
+export const insertFlowiseConfigSchema = createInsertSchema(flowiseConfig).omit({
+  createdAt: true,
+  updatedAt: true
+});
+
+// Type definitions
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type View = typeof views.$inferSelect;
+export type InsertView = z.infer<typeof insertViewSchema>;
+export type EquipmentMaintenance = typeof equipmentMaintenance.$inferSelect;
+export type InsertEquipmentMaintenance = z.infer<typeof insertEquipmentMaintenanceSchema>;
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type InsertChatConversation = z.infer<typeof insertChatConversationSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type FlowiseConfig = typeof flowiseConfig.$inferSelect;
+export type InsertFlowiseConfig = z.infer<typeof insertFlowiseConfigSchema>;
+
 // Types
 // Data Sources table for integration
 export const dataSources = pgTable('data_sources', {

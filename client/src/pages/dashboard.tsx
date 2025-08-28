@@ -242,6 +242,10 @@ export default function Dashboard() {
       // Assistant (LLM 도구 레지스트리)
       case "ai-chat":
         return <PlaceholderModule title="AI Chat Interface" description="LLM chat with tool registry and approval workflows for high-risk actions" />;
+      case "equipment-chatbot":
+        // 설비 챗봇 페이지로 직접 이동
+        window.location.href = '/chatbot';
+        return null;
       case "knowledge-base":
         return <PlaceholderModule title="Knowledge Base" description="Vector search knowledge base with document indexing" />;
       case "task-automation":
