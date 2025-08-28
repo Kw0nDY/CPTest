@@ -215,7 +215,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                       <div className="flex items-start gap-2">
                         <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <div className="text-sm">
-                          안녕하세요! 설비 유지보수 어시스턴트입니다. CSV 파일을 업로드하거나 설비 관련 질문을 해주세요.
+                          안녕하세요! AI Assistant입니다. CSV 파일을 업로드하거나 데이터 관련 질문을 해주세요.
                         </div>
                       </div>
                     </div>
@@ -281,7 +281,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="설비 유지보수 관련 질문을 입력하세요..."
+                  placeholder="질문을 입력하세요..."
                   className="flex-1 text-sm"
                   disabled={isLoading || !sessionId}
                 />
