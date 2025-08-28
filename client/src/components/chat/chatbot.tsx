@@ -34,7 +34,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
   // Create chat session on component mount
   useEffect(() => {
-    if (isOpen && !sessionId) {
+    if (isOpen && !sessionId && !createSessionMutation.isPending) {
       createSession();
     }
   }, [isOpen]);
@@ -102,23 +102,27 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
     
-    // Create session if it doesn't exist
-    if (!sessionId) {
-      createSession();
-      // Wait a bit for session creation and then send message
-      setTimeout(() => {
-        if (sessionId) {
-          setInputMessage('');
-          setIsLoading(true);
-          sendMessageMutation.mutate(inputMessage.trim());
-        }
-      }, 1000);
-      return;
-    }
-
+    const messageToSend = inputMessage.trim();
     setInputMessage('');
     setIsLoading(true);
-    sendMessageMutation.mutate(inputMessage.trim());
+
+    // Create session if it doesn't exist, then send message
+    if (!sessionId) {
+      try {
+        const sessionData = await apiRequest('POST', '/api/chat/session');
+        setSessionId(sessionData.sessionId);
+        // Send message with new session
+        await apiRequest('POST', `/api/chat/${sessionData.sessionId}/message`, { message: messageToSend });
+        queryClient.invalidateQueries({ queryKey: ['/api/chat', sessionData.sessionId, 'messages'] });
+      } catch (error) {
+        console.error('Failed to create session or send message:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Send message with existing session
+      sendMessageMutation.mutate(messageToSend);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
