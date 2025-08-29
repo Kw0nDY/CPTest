@@ -2,11 +2,14 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
+  chatSessions, chatMessages, uploadedData,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
-  type ModelConfigurationFolder, type InsertModelConfigurationFolder
+  type ModelConfigurationFolder, type InsertModelConfigurationFolder,
+  type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage,
+  type UploadedData, type InsertUploadedData
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -89,6 +92,13 @@ export interface IStorage {
   createModelConfigurationFolder(folder: InsertModelConfigurationFolder): Promise<ModelConfigurationFolder>;
   updateModelConfigurationFolder(id: string, updates: Partial<ModelConfigurationFolder>): Promise<ModelConfigurationFolder>;
   deleteModelConfigurationFolder(id: string): Promise<void>;
+
+  // Chat methods for AI chatbot
+  createChatSession(session: InsertChatSession): Promise<ChatSession>;
+  getChatMessages(sessionId: string): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  updateChatSessionActivity(sessionId: string, lastActivity: string): Promise<void>;
+  searchUploadedData(query: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -806,6 +816,74 @@ export class DatabaseStorage implements IStorage {
 
   async deleteModelConfigurationFolder(id: string): Promise<void> {
     await db.delete(modelConfigurationFolders).where(eq(modelConfigurationFolders.id, id));
+  }
+
+  // Chat methods for AI chatbot
+  async createChatSession(session: InsertChatSession): Promise<ChatSession> {
+    const newId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const [created] = await db
+      .insert(chatSessions)
+      .values({
+        id: newId,
+        ...session
+      })
+      .returning();
+    return created;
+  }
+
+  async getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+    return await db.select().from(chatMessages).where(eq(chatMessages.sessionId, sessionId));
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    const newId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const [created] = await db
+      .insert(chatMessages)
+      .values({
+        id: newId,
+        ...message
+      })
+      .returning();
+    return created;
+  }
+
+  async updateChatSessionActivity(sessionId: string, lastActivity?: string): Promise<void> {
+    await db
+      .update(chatSessions)
+      .set({ 
+        lastActivity: lastActivity || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      .where(eq(chatSessions.sessionId, sessionId));
+  }
+
+  async searchUploadedData(query: string): Promise<any[]> {
+    // Search through all data sources and sample data for relevant information
+    const dataSources = await this.getDataSources();
+    const results: any[] = [];
+    
+    for (const dataSource of dataSources) {
+      if (dataSource.config?.sampleData) {
+        for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
+          if (Array.isArray(tableData)) {
+            const filteredRows = tableData.filter((row: any) => {
+              const rowText = Object.values(row).join(' ').toLowerCase();
+              return rowText.includes(query.toLowerCase());
+            });
+            
+            if (filteredRows.length > 0) {
+              results.push({
+                source: dataSource.name,
+                table: tableName,
+                data: filteredRows
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    return results;
   }
 
   // AI Model File methods

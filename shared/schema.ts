@@ -526,6 +526,37 @@ export const aiModelResults = pgTable('ai_model_results', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// Chat Sessions and Messages for AI chatbot
+export const chatSessions = pgTable('chat_sessions', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().unique(),
+  title: text('title').notNull().default('새 채팅'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  lastActivity: text('last_activity')
+});
+
+export const chatMessages = pgTable('chat_messages', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  type: text('type').notNull(), // 'user' | 'bot'
+  message: text('message').notNull(),
+  metadata: json('metadata').$type<{
+    confidence?: number;
+    searchQuery?: string;
+    foundMatches?: number;
+    timestamp?: string;
+  }>(),
+  createdAt: text('created_at').notNull()
+});
+
+export const uploadedData = pgTable('uploaded_data', {
+  id: text('id').primaryKey(),
+  fileName: text('file_name').notNull(),
+  data: json('data').$type<Record<string, any>>().notNull(),
+  createdAt: text('created_at').notNull()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -571,6 +602,15 @@ export const insertModelConfigurationFolderSchema = createInsertSchema(modelConf
   createdAt: true,
   updatedAt: true
 });
+export const insertChatSessionSchema = createInsertSchema(chatSessions).omit({
+  id: true
+});
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true
+});
+export const insertUploadedDataSchema = createInsertSchema(uploadedData).omit({
+  id: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -597,3 +637,9 @@ export type AiModelFolder = typeof aiModelFolders.$inferSelect;
 export type InsertAiModelFolder = z.infer<typeof insertAiModelFolderSchema>;
 export type ModelConfigurationFolder = typeof modelConfigurationFolders.$inferSelect;
 export type InsertModelConfigurationFolder = z.infer<typeof insertModelConfigurationFolderSchema>;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type UploadedData = typeof uploadedData.$inferSelect;
+export type InsertUploadedData = z.infer<typeof insertUploadedDataSchema>;

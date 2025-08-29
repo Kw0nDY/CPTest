@@ -1738,57 +1738,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const createdDataSource = await storage.createDataSource(dataSource);
         
-        // Upload Google Sheets data to Flowise vector database for AI chat
+        // Upload Google Sheets data to Flowise vector database using form data (file upload method)
+        let flowiseUploadMessage = '';
         try {
-          console.log('Uploading Google Sheets data to Flowise vector database...');
+          console.log('Uploading Google Sheets data to Flowise vector database using form data method...');
           
-          // Convert all worksheet data to Flowise format
-          const flowiseDocuments = [];
-          
+          // Create CSV content from processed data
+          let csvContent = '';
           for (const [sheetName, data] of Object.entries(sampleData)) {
             if (Array.isArray(data) && data.length > 0) {
-              data.forEach((row, index) => {
-                const textContent = Object.entries(row)
-                  .filter(([key, value]) => value !== null && value !== undefined && value !== '')
-                  .map(([key, value]) => `${key}: ${value}`)
-                  .join('; ');
-                
-                if (textContent.length > 0) {
-                  flowiseDocuments.push({
-                    pageContent: textContent,
-                    metadata: {
-                      fileName: dataSource.name,
-                      sheetName: sheetName,
-                      rowIndex: index,
-                      source: 'google_sheets',
-                      uploadedAt: new Date().toISOString()
-                    }
-                  });
-                }
+              // Add sheet header
+              csvContent += `# Sheet: ${sheetName}\n`;
+              
+              // Get headers from first row
+              const headers = Object.keys(data[0]);
+              csvContent += headers.join(',') + '\n';
+              
+              // Add data rows
+              data.forEach(row => {
+                const values = headers.map(header => {
+                  const value = row[header];
+                  // Escape commas and quotes in CSV
+                  if (value && value.toString().includes(',')) {
+                    return `"${value.toString().replace(/"/g, '""')}"`;
+                  }
+                  return value || '';
+                });
+                csvContent += values.join(',') + '\n';
               });
+              csvContent += '\n';
             }
           }
 
-          if (flowiseDocuments.length > 0) {
+          if (csvContent) {
+            // Use Node.js FormData for file upload
+            const FormData = await import('form-data');
+            const formData = new FormData.default();
+            
+            // Create buffer from CSV content
+            const csvBuffer = Buffer.from(csvContent, 'utf-8');
+            
+            // Add file to form data
+            formData.append('files', csvBuffer, {
+              filename: `${dataSource.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`,
+              contentType: 'text/csv'
+            });
+            
+            // Add body data parameters
+            formData.append('columnName', 'content');
+            formData.append('metadata', JSON.stringify({ 
+              source: 'google_sheets',
+              fileName: dataSource.name,
+              uploadedAt: new Date().toISOString()
+            }));
+
             const flowiseUploadResponse = await fetch("http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                document: flowiseDocuments
-              })
+              body: formData as any,
+              headers: formData.getHeaders()
             });
 
             if (flowiseUploadResponse.ok) {
               const flowiseResult = await flowiseUploadResponse.json();
-              console.log(`Successfully uploaded ${flowiseDocuments.length} Google Sheets documents to Flowise vector database`);
+              console.log(`Successfully uploaded Google Sheets file to Flowise vector database using form data`);
+              flowiseUploadMessage = 'Google Sheets data uploaded to AI database successfully';
             } else {
-              console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText}`);
+              const errorText = await flowiseUploadResponse.text();
+              console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText} - ${errorText}`);
+              flowiseUploadMessage = 'Failed to upload to AI database';
             }
           }
         } catch (flowiseError) {
           console.error('Error uploading Google Sheets to Flowise vector database:', flowiseError);
+          flowiseUploadMessage = 'Error uploading to AI database';
         }
         
         return res.json({
@@ -1797,9 +1819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Google Sheets 연결이 완료되었습니다",
           connectionType: 'oauth',
           tablesFound: dataSchema.length,
-          flowiseUpload: flowiseDocuments?.length > 0 ? 
-            `${flowiseDocuments.length} documents uploaded to AI database` : 
-            'No data uploaded to AI database'
+          flowiseUpload: flowiseUploadMessage
         });
       }
       
@@ -2418,53 +2438,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      // Upload processed data to Flowise vector database for AI chat
+      // Upload processed data to Flowise vector database using form data (file upload method)
       try {
-        console.log('Uploading Excel data to Flowise vector database...');
+        console.log('Uploading Excel data to Flowise vector database using form data method...');
         
-        // Convert all worksheet data to Flowise format
-        const flowiseDocuments = [];
-        
+        // Create CSV content from processed data
+        let csvContent = '';
         for (const [sheetName, data] of Object.entries(sampleData)) {
           if (Array.isArray(data) && data.length > 0) {
-            data.forEach((row, index) => {
-              const textContent = Object.entries(row)
-                .filter(([key, value]) => value !== null && value !== undefined && value !== '')
-                .map(([key, value]) => `${key}: ${value}`)
-                .join('; ');
-              
-              if (textContent.length > 0) {
-                flowiseDocuments.push({
-                  pageContent: textContent,
-                  metadata: {
-                    fileName: fileName,
-                    sheetName: sheetName,
-                    rowIndex: index,
-                    source: 'excel_upload',
-                    uploadedAt: new Date().toISOString()
-                  }
-                });
-              }
+            // Add sheet header
+            csvContent += `# Sheet: ${sheetName}\n`;
+            
+            // Get headers from first row
+            const headers = Object.keys(data[0]);
+            csvContent += headers.join(',') + '\n';
+            
+            // Add data rows
+            data.forEach(row => {
+              const values = headers.map(header => {
+                const value = row[header];
+                // Escape commas and quotes in CSV
+                if (value && value.toString().includes(',')) {
+                  return `"${value.toString().replace(/"/g, '""')}"`;
+                }
+                return value || '';
+              });
+              csvContent += values.join(',') + '\n';
             });
+            csvContent += '\n';
           }
         }
 
-        if (flowiseDocuments.length > 0) {
+        if (csvContent) {
+          // Use Node.js FormData for file upload
+          const FormData = await import('form-data');
+          const formData = new FormData.default();
+          
+          // Create buffer from CSV content
+          const csvBuffer = Buffer.from(csvContent, 'utf-8');
+          
+          // Add file to form data
+          formData.append('files', csvBuffer, {
+            filename: `${fileName.replace(/\.[^.]+$/, '')}.csv`,
+            contentType: 'text/csv'
+          });
+          
+          // Add body data parameters
+          formData.append('columnName', 'content');
+          formData.append('metadata', JSON.stringify({ 
+            source: 'excel_upload',
+            fileName: fileName,
+            uploadedAt: new Date().toISOString()
+          }));
+
           const flowiseUploadResponse = await fetch("http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              document: flowiseDocuments
-            })
+            body: formData as any,
+            headers: formData.getHeaders()
           });
 
           if (flowiseUploadResponse.ok) {
             const flowiseResult = await flowiseUploadResponse.json();
-            console.log(`Successfully uploaded ${flowiseDocuments.length} documents to Flowise vector database`);
+            console.log(`Successfully uploaded Excel file to Flowise vector database using form data`);
           } else {
-            console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText}`);
+            const errorText = await flowiseUploadResponse.text();
+            console.error(`Flowise upload failed: ${flowiseUploadResponse.status} ${flowiseUploadResponse.statusText} - ${errorText}`);
           }
         }
       } catch (flowiseError) {
@@ -2480,9 +2518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recordCounts,
           dataSchema
         },
-        flowiseUpload: flowiseDocuments?.length > 0 ? 
-          `${flowiseDocuments.length} documents uploaded to AI database` : 
-          'No data uploaded to AI database'
+        flowiseUpload: 'Excel data uploaded to AI database using form data method'
       });
       
     } catch (error) {
@@ -5214,11 +5250,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat/session", async (req, res) => {
     try {
       const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
       
       const session = await storage.createChatSession({
         sessionId,
         title: "새 채팅",
-        createdAt: new Date().toISOString()
+        createdAt: now,
+        updatedAt: now
       });
 
       res.json({ sessionId: session.sessionId });
@@ -5261,7 +5299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userMessage = await storage.createChatMessage({
         sessionId,
         type: 'user',
-        message: message.trim()
+        message: message.trim(),
+        createdAt: new Date().toISOString()
       });
 
       // Update session activity
@@ -5342,7 +5381,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           confidence,
           searchQuery,
           foundMatches
-        }
+        },
+        createdAt: new Date().toISOString()
       });
 
       res.json({
