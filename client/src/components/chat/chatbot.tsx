@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, X, Bot, User, Minimize2, Maximize2 } from 'lucide-react';
+import { Send, X, Bot, User, Minimize2, Maximize2, Upload, FileSpreadsheet } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -30,7 +30,9 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -97,6 +99,78 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check if file is CSV or Excel
+    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.csv')) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'bot',
+        message: '죄송합니다. CSV 또는 Excel 파일만 업로드 가능합니다.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Add upload notification message
+      const uploadMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'bot',
+        message: `📁 "${file.name}" 파일을 업로드하고 AI 데이터베이스에 연동 중입니다...`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, uploadMessage]);
+
+      // Upload file to Flowise
+      const formData = new FormData();
+      formData.append('files', file);
+
+      const response = await fetch('http://220.118.23.185:3000/api/v1/vector/upsert/0bb5e53e-e5bc-4770-b0f3-9a31a4419897', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Flowise API 업로드 실패');
+      }
+
+      const result = await response.json();
+      console.log('Flowise 업로드 결과:', result);
+
+      // Add success message
+      const successMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'bot',
+        message: `✅ "${file.name}" 파일이 성공적으로 업로드되었습니다!\n\n이제 이 파일의 내용에 대해 질문해 주세요. 예:\n• "업로드한 파일에서 특정 정보를 찾아줘"\n• "데이터 분석 결과를 알려줘"`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, successMessage]);
+
+    } catch (error) {
+      console.error('파일 업로드 오류:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'bot',
+        message: '파일 업로드에 실패했습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsUploading(false);
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -223,6 +297,39 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
             {/* Input */}
             <div className="p-4 border-t border-gray-200">
+              {/* File Upload Section */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  data-testid="file-input"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || isLoading}
+                  className="flex items-center gap-2"
+                  data-testid="file-upload-button"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      <span>업로드 중...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="h-4 w-4" />
+                      <span>CSV/Excel 업로드</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {/* Message Input */}
               <div className="flex gap-2">
                 <Input
                   value={inputMessage}
@@ -230,15 +337,21 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                   onKeyPress={handleKeyPress}
                   placeholder="메시지를 입력하세요..."
                   className="flex-1 text-sm"
-                  disabled={isLoading}
+                  disabled={isLoading || isUploading}
+                  data-testid="chat-input"
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || isLoading}
+                  disabled={!inputMessage.trim() || isLoading || isUploading}
                   size="sm"
                   className="px-3"
+                  data-testid="chat-send-button"
                 >
-                  <Send className="w-4 h-4" />
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
             </div>
