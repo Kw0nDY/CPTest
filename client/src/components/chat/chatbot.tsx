@@ -23,7 +23,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     {
       id: '1',
       type: 'bot',
-      message: '안녕하세요! AI 어시스턴트입니다. 데이터 통합, AI 모델 구성, 또는 뷰 설정에 대해 도움을 드릴 수 있습니다. 무엇을 도와드릴까요?',
+      message: '안녕하세요! DXT Enterprise AI Fabric 어시스턴트입니다. 업로드된 데이터를 기반으로 질문에 답변해 드립니다.\n\n예시:\n• "maintenance 데이터에서 진공시스템 관련 문제점을 알려줘"\n• "업로드된 Excel 파일 내용을 검색해줘"\n\n무엇을 도와드릴까요?',
       timestamp: new Date()
     }
   ]);
@@ -51,20 +51,53 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentMessage = inputMessage.trim();
     setInputMessage('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Create or get chat session
+      const sessionResponse = await fetch('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      if (!sessionResponse.ok) throw new Error('Failed to create chat session');
+      
+      const { sessionId } = await sessionResponse.json();
+
+      // Send message to AI
+      const response = await fetch(`/api/chat/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: currentMessage })
+      });
+
+      if (!response.ok) throw new Error('Failed to send message');
+
+      const data = await response.json();
+      
       const botMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: data.botMessage.id,
         type: 'bot',
-        message: generateBotResponse(userMessage.message),
+        message: data.botMessage.message,
+        timestamp: new Date(data.botMessage.createdAt)
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'bot',
+        message: '죄송합니다. 메시지 전송에 실패했습니다. 다시 시도해 주세요.',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, botMessage]);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000 + Math.random() * 2000);
+    }
   };
 
   const generateBotResponse = (userInput: string): string => {
