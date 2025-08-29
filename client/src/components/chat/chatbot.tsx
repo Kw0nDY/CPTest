@@ -212,7 +212,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-96'} transition-all duration-300`}>
+      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[500px]'} transition-all duration-300`}>
         {/* Header */}
         <CardHeader className="pb-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -245,7 +245,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="p-0 flex flex-col h-80">
+          <CardContent className="p-0 flex flex-col h-96">
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
