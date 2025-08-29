@@ -5264,7 +5264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error creating chat session:', error);
       res.status(500).json({ 
         error: "채팅 세션 생성에 실패했습니다",
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -5278,7 +5278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error getting chat messages:', error);
       res.status(500).json({ 
         error: "채팅 메시지 조회에 실패했습니다",
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -5400,7 +5400,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error handling chat message:', error);
       res.status(500).json({ 
         error: "메시지 처리에 실패했습니다",
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // File upload to Flowise API endpoint
+  app.post("/api/upload-to-flowise", upload.array('files'), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "파일이 없습니다" });
+      }
+
+      const file = files[0];
+      console.log(`Flowise 업로드 요청: ${file.originalname} (${file.size} bytes)`);
+
+      // Create form data for Flowise API using built-in FormData
+      const formData = new FormData();
+      const blob = new Blob([file.buffer], { type: file.mimetype });
+      formData.append('files', blob, file.originalname);
+
+      // Upload to Flowise API
+      const flowiseResponse = await fetch('http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!flowiseResponse.ok) {
+        const errorText = await flowiseResponse.text();
+        console.error('Flowise API 오류:', errorText);
+        return res.status(500).json({ 
+          error: "Flowise API 업로드 실패",
+          details: errorText
+        });
+      }
+
+      const result = await flowiseResponse.json();
+      console.log('Flowise 업로드 성공:', result);
+
+      res.json({
+        success: true,
+        filename: file.originalname,
+        result: result
+      });
+
+    } catch (error) {
+      console.error('파일 업로드 처리 오류:', error);
+      res.status(500).json({ 
+        error: "파일 업로드 처리에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

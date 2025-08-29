@@ -131,17 +131,18 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       };
       setMessages(prev => [...prev, uploadMessage]);
 
-      // Upload file to Flowise
+      // Upload file to Flowise via backend proxy
       const formData = new FormData();
       formData.append('files', file);
 
-      const response = await fetch('http://220.118.23.185:3000/api/v1/vector/upsert/0bb5e53e-e5bc-4770-b0f3-9a31a4419897', {
+      const response = await fetch('/api/upload-to-flowise', {
         method: 'POST',
         body: formData
       });
 
       if (!response.ok) {
-        throw new Error('Flowise API 업로드 실패');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'API 업로드 실패');
       }
 
       const result = await response.json();
