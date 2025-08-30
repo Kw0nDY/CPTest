@@ -2,13 +2,14 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema } from "@shared/schema";
+import { insertViewSchema, insertAiModelSchema, insertModelConfigurationSchema, insertAiModelResultSchema, insertAiModelFolderSchema, insertModelConfigurationFolderSchema, insertChatConfigurationSchema } from "@shared/schema";
 import * as XLSX from 'xlsx';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as yaml from 'js-yaml';
 import { modelAnalysisService } from './modelAnalysisService';
 import { modelConfigService } from './modelConfigService';
 
@@ -102,6 +103,85 @@ function processConnectedDataForModel(model: any, connectedData: any, connection
   
   console.log('Processed data structure:', Object.keys(processedData));
   return processedData;
+}
+
+// Extract chatbot configuration from Flowise API config file
+function extractChatbotConfig(configData: any, originalFileName: string): any {
+  // Default configuration
+  const defaultConfig = {
+    name: `API 구성 - ${originalFileName.replace(/\.[^/.]+$/, "")}`,
+    chatflowId: '',
+    apiEndpoint: 'http://220.118.23.185:3000/api/v1/prediction',
+    systemPrompt: '',
+    maxTokens: 2000,
+    temperature: 70, // Store as integer (70 = 0.7)
+    isActive: 0,
+    uploadedFiles: []
+  };
+
+  try {
+    // Try to extract common configuration patterns
+    if (configData.chatflowId || configData.chatflow_id) {
+      defaultConfig.chatflowId = configData.chatflowId || configData.chatflow_id;
+    }
+
+    if (configData.flowId || configData.flow_id) {
+      defaultConfig.chatflowId = configData.flowId || configData.flow_id;
+    }
+
+    if (configData.endpoint || configData.apiEndpoint || configData.api_endpoint) {
+      defaultConfig.apiEndpoint = configData.endpoint || configData.apiEndpoint || configData.api_endpoint;
+    }
+
+    if (configData.name || configData.title) {
+      defaultConfig.name = configData.name || configData.title;
+    }
+
+    if (configData.systemPrompt || configData.system_prompt || configData.prompt) {
+      defaultConfig.systemPrompt = configData.systemPrompt || configData.system_prompt || configData.prompt;
+    }
+
+    if (configData.maxTokens || configData.max_tokens) {
+      defaultConfig.maxTokens = parseInt(configData.maxTokens || configData.max_tokens) || 2000;
+    }
+
+    if (configData.temperature !== undefined) {
+      // Convert to integer for storage (0.7 becomes 70)
+      defaultConfig.temperature = Math.round(parseFloat(configData.temperature) * 100);
+    }
+
+    // Try to extract chatflow ID from nested objects
+    if (configData.config && configData.config.chatflowId) {
+      defaultConfig.chatflowId = configData.config.chatflowId;
+    }
+
+    if (configData.flowise && configData.flowise.chatflowId) {
+      defaultConfig.chatflowId = configData.flowise.chatflowId;
+    }
+
+    // Extract from Flowise specific structure
+    if (configData.nodes && Array.isArray(configData.nodes)) {
+      // Look for chatflow or flow configuration in nodes
+      for (const node of configData.nodes) {
+        if (node.data && node.data.chatflowId) {
+          defaultConfig.chatflowId = node.data.chatflowId;
+          break;
+        }
+      }
+    }
+
+    // If still no chatflowId found, try to extract from common ID fields
+    if (!defaultConfig.chatflowId && (configData.id || configData._id)) {
+      defaultConfig.chatflowId = configData.id || configData._id;
+    }
+
+    console.log('Extracted chatbot config:', defaultConfig);
+    return defaultConfig;
+
+  } catch (error) {
+    console.error('Error extracting chatbot config:', error);
+    return defaultConfig;
+  }
 }
 
 // Generic AI Model Execution Function
@@ -5449,6 +5529,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('파일 업로드 처리 오류:', error);
       res.status(500).json({ 
         error: "파일 업로드 처리에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Chat Configuration CRUD endpoints
+  app.get("/api/chat-configurations", async (req, res) => {
+    try {
+      const configurations = await storage.getChatConfigurations();
+      res.json(configurations);
+    } catch (error) {
+      console.error('Error fetching chat configurations:', error);
+      res.status(500).json({ 
+        error: "챗봇 구성 조회에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const configuration = await storage.getChatConfiguration(id);
+      if (!configuration) {
+        return res.status(404).json({ error: "챗봇 구성을 찾을 수 없습니다" });
+      }
+      res.json(configuration);
+    } catch (error) {
+      console.error('Error fetching chat configuration:', error);
+      res.status(500).json({ 
+        error: "챗봇 구성 조회에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post("/api/chat-configurations", async (req, res) => {
+    try {
+      const configData = insertChatConfigurationSchema.parse(req.body);
+      const configuration = await storage.createChatConfiguration(configData);
+      res.status(201).json(configuration);
+    } catch (error) {
+      console.error('Error creating chat configuration:', error);
+      res.status(500).json({ 
+        error: "챗봇 구성 생성에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.put("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const configuration = await storage.updateChatConfiguration(id, updates);
+      res.json(configuration);
+    } catch (error) {
+      console.error('Error updating chat configuration:', error);
+      res.status(500).json({ 
+        error: "챗봇 구성 수정에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.delete("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteChatConfiguration(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting chat configuration:', error);
+      res.status(500).json({ 
+        error: "챗봇 구성 삭제에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Upload and parse Flowise API configuration file
+  app.post("/api/upload-chatbot-config", upload.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "파일이 없습니다" });
+      }
+
+      console.log(`Flowise API 설정 파일 업로드: ${file.originalname} (${file.size} bytes)`);
+
+      // Parse file content based on extension
+      let configData: any;
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      const fileContent = file.buffer.toString('utf8');
+
+      try {
+        if (fileExtension === '.json') {
+          configData = JSON.parse(fileContent);
+        } else if (fileExtension === '.yaml' || fileExtension === '.yml') {
+          configData = yaml.load(fileContent) as any;
+        } else {
+          return res.status(400).json({ 
+            error: "지원되지 않는 파일 형식입니다. JSON 또는 YAML 파일만 지원됩니다." 
+          });
+        }
+      } catch (parseError) {
+        return res.status(400).json({ 
+          error: "파일 파싱에 실패했습니다. 올바른 JSON 또는 YAML 형식인지 확인해주세요.",
+          details: parseError instanceof Error ? parseError.message : 'Parse error'
+        });
+      }
+
+      // Extract chatbot configuration from parsed data
+      const chatbotConfig = extractChatbotConfig(configData, file.originalname);
+      
+      // Create new chat configuration
+      const newConfiguration = await storage.createChatConfiguration(chatbotConfig);
+
+      res.json({
+        success: true,
+        message: "Flowise API 설정 파일이 성공적으로 업로드되고 챗봇 구성이 생성되었습니다.",
+        configuration: newConfiguration,
+        originalFileName: file.originalname
+      });
+
+    } catch (error) {
+      console.error('Flowise API 설정 파일 처리 오류:', error);
+      res.status(500).json({ 
+        error: "API 설정 파일 처리에 실패했습니다",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
     }

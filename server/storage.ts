@@ -2,14 +2,14 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
-  chatSessions, chatMessages, uploadedData,
+  chatSessions, chatMessages, uploadedData, chatConfigurations,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
   type ModelConfigurationFolder, type InsertModelConfigurationFolder,
   type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage,
-  type UploadedData, type InsertUploadedData
+  type UploadedData, type InsertUploadedData, type ChatConfiguration, type InsertChatConfiguration
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -99,6 +99,13 @@ export interface IStorage {
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   updateChatSessionActivity(sessionId: string, lastActivity: string): Promise<void>;
   searchUploadedData(query: string): Promise<any[]>;
+  
+  // Chat Configuration methods
+  getChatConfigurations(): Promise<ChatConfiguration[]>;
+  getChatConfiguration(id: string): Promise<ChatConfiguration | undefined>;
+  createChatConfiguration(config: InsertChatConfiguration): Promise<ChatConfiguration>;
+  updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration>;
+  deleteChatConfiguration(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -884,6 +891,71 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  // Chat Configuration methods
+  async getChatConfigurations(): Promise<ChatConfiguration[]> {
+    try {
+      return await db.select().from(chatConfigurations);
+    } catch (error) {
+      console.warn('ChatConfigurations table not ready, returning empty array');
+      return [];
+    }
+  }
+
+  async getChatConfiguration(id: string): Promise<ChatConfiguration | undefined> {
+    try {
+      const [config] = await db.select().from(chatConfigurations).where(eq(chatConfigurations.id, id));
+      return config || undefined;
+    } catch (error) {
+      console.warn('ChatConfigurations table not ready');
+      return undefined;
+    }
+  }
+
+  async createChatConfiguration(config: InsertChatConfiguration): Promise<ChatConfiguration> {
+    try {
+      const newId = `config-${Date.now()}`;
+      const [created] = await db
+        .insert(chatConfigurations)
+        .values({
+          ...config,
+          id: newId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating chat configuration:', error);
+      throw error;
+    }
+  }
+
+  async updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration> {
+    try {
+      const [updated] = await db
+        .update(chatConfigurations)
+        .set({
+          ...updates,
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(chatConfigurations.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating chat configuration:', error);
+      throw error;
+    }
+  }
+
+  async deleteChatConfiguration(id: string): Promise<void> {
+    try {
+      await db.delete(chatConfigurations).where(eq(chatConfigurations.id, id));
+    } catch (error) {
+      console.error('Error deleting chat configuration:', error);
+      throw error;
+    }
   }
 
   // AI Model File methods

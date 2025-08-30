@@ -557,6 +557,26 @@ export const uploadedData = pgTable('uploaded_data', {
   createdAt: text('created_at').notNull()
 });
 
+export const chatConfigurations = pgTable('chat_configurations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  chatflowId: text('chatflow_id').notNull(),
+  apiEndpoint: text('api_endpoint').notNull(),
+  systemPrompt: text('system_prompt'),
+  maxTokens: integer('max_tokens').default(2000),
+  temperature: integer('temperature').default(70), // Store as integer (70 = 0.7)
+  isActive: integer('is_active').default(0), // 0 = false, 1 = true
+  uploadedFiles: json('uploaded_files').$type<Array<{
+    id: string;
+    name: string;
+    size: string;
+    uploadedAt: string;
+    status: 'processing' | 'completed' | 'error';
+  }>>().default([]),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -611,6 +631,9 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
 export const insertUploadedDataSchema = createInsertSchema(uploadedData).omit({
   id: true
 });
+export const insertChatConfigurationSchema = createInsertSchema(chatConfigurations).omit({
+  id: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -643,3 +666,5 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type UploadedData = typeof uploadedData.$inferSelect;
 export type InsertUploadedData = z.infer<typeof insertUploadedDataSchema>;
+export type ChatConfiguration = typeof chatConfigurations.$inferSelect;
+export type InsertChatConfiguration = z.infer<typeof insertChatConfigurationSchema>;

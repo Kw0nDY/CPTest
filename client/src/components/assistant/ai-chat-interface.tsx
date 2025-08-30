@@ -75,7 +75,6 @@ export function AiChatInterface() {
   const [isTesting, setIsTesting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const modalFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleCreateNew = () => {
@@ -176,49 +175,56 @@ export function AiChatInterface() {
     setIsTesting(false);
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleApiConfigUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Check if file is CSV or Excel
-        const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-        if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.csv')) {
-          toast({
-            title: '파일 형식 오류',
-            description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. CSV 또는 Excel 파일만 업로드 가능합니다.`,
-            variant: 'destructive',
-          });
-          continue;
-        }
-
-        const formData = new FormData();
-        formData.append('files', file);
-
-        const response = await fetch('/api/upload-to-flowise', {
-          method: 'POST',
-          body: formData,
+      const file = files[0]; // Only handle one file at a time for API config
+      
+      // Check if file is JSON or YAML
+      const validExtensions = ['.json', '.yaml', '.yml'];
+      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      
+      if (!validExtensions.includes(fileExtension)) {
+        toast({
+          title: '파일 형식 오류',
+          description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. JSON 또는 YAML 파일만 업로드 가능합니다.`,
+          variant: 'destructive',
         });
+        setIsUploading(false);
+        return;
+      }
 
-        if (response.ok) {
-          const result = await response.json();
-          toast({
-            title: '업로드 성공',
-            description: `${file.name}이 Flowise 벡터 데이터베이스에 성공적으로 업로드되었습니다.`,
-          });
-        } else {
-          throw new Error('Upload failed');
-        }
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload-chatbot-config', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Add the new configuration to the list
+        setConfigurations(prev => [...prev, result.configuration]);
+        setSelectedConfig(result.configuration);
+        
+        toast({
+          title: '업로드 성공',
+          description: `${file.name}에서 챗봇 구성이 성공적으로 생성되었습니다.`,
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
       }
     } catch (error) {
       toast({
         title: '업로드 실패',
-        description: '파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.',
+        description: error instanceof Error ? error.message : '파일 업로드 중 오류가 발생했습니다.',
         variant: 'destructive',
       });
     }
@@ -237,83 +243,6 @@ export function AiChatInterface() {
         isActive: config.id === configId ? !config.isActive : false
       }))
     );
-  };
-
-  const handleModalFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!editingConfig) return;
-
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-
-    const newUploadedFiles: UploadedFile[] = [];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Check if file is CSV or Excel
-        const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-        if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.csv')) {
-          toast({
-            title: '파일 형식 오류',
-            description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. CSV 또는 Excel 파일만 업로드 가능합니다.`,
-            variant: 'destructive',
-          });
-          continue;
-        }
-
-        // Add file to editing config with processing status
-        const uploadedFile: UploadedFile = {
-          id: `file-${Date.now()}-${i}`,
-          name: file.name,
-          size: `${(file.size / 1024).toFixed(1)}KB`,
-          uploadedAt: new Date(),
-          status: 'processing'
-        };
-        
-        newUploadedFiles.push(uploadedFile);
-
-        // Upload to Flowise API
-        const formData = new FormData();
-        formData.append('files', file);
-
-        const response = await fetch('/api/upload-to-flowise', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (response.ok) {
-          // Update file status to completed
-          uploadedFile.status = 'completed';
-          toast({
-            title: '업로드 성공',
-            description: `${file.name}이 성공적으로 업로드되었습니다.`,
-          });
-        } else {
-          uploadedFile.status = 'error';
-          throw new Error('Upload failed');
-        }
-      }
-    } catch (error) {
-      toast({
-        title: '업로드 실패',
-        description: '일부 파일 업로드 중 오류가 발생했습니다.',
-        variant: 'destructive',
-      });
-    }
-
-    // Update editing config with uploaded files
-    setEditingConfig(prev => prev ? {
-      ...prev,
-      uploadedFiles: [...prev.uploadedFiles, ...newUploadedFiles]
-    } : null);
-
-    setIsUploading(false);
-    if (modalFileInputRef.current) {
-      modalFileInputRef.current.value = '';
-    }
   };
 
   const removeFileFromConfig = (fileId: string) => {
@@ -378,18 +307,17 @@ export function AiChatInterface() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,.xlsx,.xls"
-            multiple
-            onChange={handleFileUpload}
+            accept=".json,.yaml,.yml"
+            onChange={handleApiConfigUpload}
             className="hidden"
-            data-testid="input-file-upload"
+            data-testid="input-api-config-upload"
           />
           <Button 
             variant="outline"
             onClick={() => fileInputRef.current?.click()} 
             disabled={isUploading}
             className="flex items-center gap-2"
-            data-testid="button-upload-data"
+            data-testid="button-upload-api-config"
           >
             {isUploading ? (
               <>
@@ -398,8 +326,8 @@ export function AiChatInterface() {
               </>
             ) : (
               <>
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>데이터 업로드</span>
+                <FileText className="w-4 h-4" />
+                <span>API 설정 업로드</span>
               </>
             )}
           </Button>
@@ -801,94 +729,6 @@ export function AiChatInterface() {
                 </div>
               </div>
 
-              <Separator />
-
-              {/* File Upload Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">데이터 파일 관리</h3>
-                  <Button
-                    variant="outline"
-                    onClick={() => modalFileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="flex items-center gap-2"
-                  >
-                    {isUploading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        업로드 중...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        파일 업로드
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                <input
-                  ref={modalFileInputRef}
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  multiple
-                  onChange={handleModalFileUpload}
-                  className="hidden"
-                />
-
-                <div className="border rounded-lg p-4 min-h-[200px]">
-                  {editingConfig.uploadedFiles.length === 0 ? (
-                    <div className="text-center py-8">
-                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 dark:text-gray-400">업로드된 파일이 없습니다</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-                        CSV 또는 Excel 파일을 업로드하여 챗봇 데이터를 구성하세요
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {editingConfig.uploadedFiles.map((file) => (
-                        <div
-                          key={file.id}
-                          className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-800"
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-sm truncate">{file.name}</p>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>{file.size}</span>
-                                <span>•</span>
-                                <span>{file.uploadedAt.toLocaleString()}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <Badge
-                              variant={
-                                file.status === 'completed' ? 'default' :
-                                file.status === 'processing' ? 'secondary' : 'destructive'
-                              }
-                            >
-                              {file.status === 'completed' ? '완료' :
-                               file.status === 'processing' ? '처리중' : '오류'}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFileFromConfig(file.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Separator />
 
               {/* Actions */}
               <div className="flex justify-end gap-2">
