@@ -97,29 +97,6 @@ export function AiChatInterface() {
     setShowCreateModal(true);
   };
 
-  const handleSave = () => {
-    if (!editingConfig) return;
-
-    setConfigurations(prev => 
-      prev.map(config => 
-        config.id === editingConfig.id 
-          ? { ...editingConfig, lastModified: new Date().toISOString() }
-          : config
-      )
-    );
-
-    setSelectedConfig(editingConfig);
-    setEditingConfig(null);
-    
-    toast({
-      title: '저장 완료',
-      description: '챗봇 구성이 성공적으로 저장되었습니다.',
-    });
-  };
-
-  const handleCancel = () => {
-    setEditingConfig(null);
-  };
 
   const handleDelete = (configId: string) => {
     setConfigurations(prev => prev.filter(config => config.id !== configId));
