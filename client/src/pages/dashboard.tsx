@@ -76,6 +76,8 @@ import ViewComponentRenderer from "@/components/view/view-component-renderer";
 import AIResultsAnalysis from "@/components/intelligence/ai-results-analysis";
 import DataQualitySecurity from "@/components/data-pipeline/data-quality-security";
 import { PipelineBuilder } from "@/components/data-pipeline/pipeline-builder";
+import { KnowledgeBase } from "@/components/assistant/knowledge-base";
+import { AiChatInterface } from "@/components/assistant/ai-chat-interface";
 import { useQuery } from "@tanstack/react-query";
 import type { View } from "@shared/schema";
 
@@ -241,9 +243,9 @@ export default function Dashboard() {
       
       // Assistant (LLM 도구 레지스트리)
       case "ai-chat":
-        return <PlaceholderModule title="AI Chat Interface" description="LLM chat with tool registry and approval workflows for high-risk actions" />;
+        return <AiChatInterface />;
       case "knowledge-base":
-        return <PlaceholderModule title="Knowledge Base" description="Vector search knowledge base with document indexing" />;
+        return <KnowledgeBase />;
       case "task-automation":
         return <PlaceholderModule title="Task Automation" description="Natural language task automation with scoped tool execution" />;
       
