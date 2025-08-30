@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet, X, Trash2, FileText, Edit3, Eye } from 'lucide-react';
+import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet, X, Trash2, FileText, Edit3, Eye, Download, Database, TestTube2, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 
 interface UploadedFile {
@@ -42,16 +43,56 @@ interface ChatTest {
   status: 'success' | 'error';
 }
 
+interface ApiConfigFile {
+  name: string;
+  chatflowId: string;
+  apiEndpoint: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  temperature?: number;
+  uploadedAt: string;
+  status: 'active' | 'inactive';
+}
+
+interface KnowledgeBaseItem {
+  id: string;
+  name: string;
+  uploadedAt: string;
+  status: 'ready' | 'processing' | 'error';
+  configId: string;
+}
+
 export function AiChatInterface() {
+  // Main states
   const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
+  
+  // Tab management
+  const [activeTab, setActiveTab] = useState('configurations');
+  
+  // Configuration selection for different tabs
+  const [selectedConfigForKnowledge, setSelectedConfigForKnowledge] = useState<ChatConfiguration | null>(null);
+  const [selectedConfigForTest, setSelectedConfigForTest] = useState<ChatConfiguration | null>(null);
+  
+  // Knowledge Base management
+  const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<KnowledgeBaseItem[]>([]);
+  const knowledgeBaseInputRef = useRef<HTMLInputElement>(null);
+  
+  // Existing states
   const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
   const [editingConfig, setEditingConfig] = useState<ChatConfiguration | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // Test tab states  
   const [testMessage, setTestMessage] = useState('');
   const [testResults, setTestResults] = useState<ChatTest[]>([]);
   const [isTesting, setIsTesting] = useState(false);
+  
+  // API Config states
+  const [apiConfigFile, setApiConfigFile] = useState<ApiConfigFile | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const apiConfigInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Load configurations from API
@@ -63,12 +104,11 @@ export function AiChatInterface() {
           const configs = await response.json();
           setConfigurations(configs);
           
-          // Find and set the active configuration
-          const activeConfig = configs.find((config: ChatConfiguration) => config.isActive);
-          if (activeConfig) {
-            setSelectedConfig(activeConfig);
-          } else if (configs.length > 0) {
+          // Set first configuration as selected for editing
+          if (configs.length > 0) {
             setSelectedConfig(configs[0]);
+            setSelectedConfigForTest(configs[0]);
+            setSelectedConfigForKnowledge(configs[0]);
           }
         }
       } catch (error) {
@@ -133,71 +173,6 @@ export function AiChatInterface() {
     }
   };
 
-  const handleTest = async () => {
-    if (!selectedConfig || !testMessage.trim()) return;
-
-    setIsTesting(true);
-    const startTime = Date.now();
-
-    try {
-      const response = await fetch('/api/chat/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
-
-      const { sessionId } = await response.json();
-
-      const chatResponse = await fetch(`/api/chat/${sessionId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: testMessage,
-          chatflowId: selectedConfig.chatflowId 
-        })
-      });
-
-      const result = await chatResponse.json();
-      const responseTime = Date.now() - startTime;
-
-      const newTest: ChatTest = {
-        id: `test-${Date.now()}`,
-        message: testMessage,
-        response: result.botMessage?.message || '응답 없음',
-        responseTime,
-        timestamp: new Date().toISOString(),
-        status: chatResponse.ok ? 'success' : 'error'
-      };
-
-      setTestResults(prev => [newTest, ...prev]);
-      setTestMessage('');
-
-      toast({
-        title: '테스트 완료',
-        description: `응답 시간: ${responseTime}ms`,
-      });
-
-    } catch (error) {
-      const newTest: ChatTest = {
-        id: `test-${Date.now()}`,
-        message: testMessage,
-        response: '오류: 테스트 실패',
-        responseTime: Date.now() - startTime,
-        timestamp: new Date().toISOString(),
-        status: 'error'
-      };
-
-      setTestResults(prev => [newTest, ...prev]);
-
-      toast({
-        title: '테스트 실패',
-        description: '챗봇 테스트 중 오류가 발생했습니다.',
-        variant: 'destructive',
-      });
-    }
-
-    setIsTesting(false);
-  };
 
   const handleApiConfigUploadForConfig = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -315,10 +290,15 @@ export function AiChatInterface() {
         setConfigurations(prev =>
           prev.map(config => ({
             ...config,
-            // Only one config can be active at a time
-            isActive: config.id === configId ? updatedConfig.isActive : false
+            // Multiple configs can be active at the same time
+            isActive: config.id === configId ? updatedConfig.isActive : config.isActive
           }))
         );
+        
+        toast({
+          title: '상태 변경 완료',
+          description: `${updatedConfig.name}이(가) ${updatedConfig.isActive ? '활성화' : '비활성화'}되었습니다.`,
+        });
       } else {
         throw new Error('Failed to toggle active status');
       }
@@ -421,14 +401,178 @@ export function AiChatInterface() {
     setShowCreateModal(false);
   };
 
+  // API Config Functions
+  const handleApiConfigDownload = () => {
+    if (!selectedConfig) return;
+    
+    const configData = {
+      name: selectedConfig.name,
+      chatflowId: selectedConfig.chatflowId,
+      apiEndpoint: selectedConfig.apiEndpoint,
+      systemPrompt: selectedConfig.systemPrompt,
+      maxTokens: selectedConfig.maxTokens,
+      temperature: selectedConfig.temperature,
+    };
+    
+    const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedConfig.name.replace(/\s+/g, '_')}_config.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: '다운로드 완료',
+      description: 'API 설정 파일이 다운로드되었습니다.',
+    });
+  };
+
+
+  // Test Functions
+  const handleTest = async () => {
+    if (!selectedConfigForTest || !testMessage.trim()) return;
+
+    setIsTesting(true);
+    const startTime = Date.now();
+
+    try {
+      const response = await fetch('/api/chat/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      const { sessionId } = await response.json();
+
+      const chatResponse = await fetch(`/api/chat/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: testMessage,
+          chatflowId: selectedConfigForTest.chatflowId 
+        })
+      });
+
+      const result = await chatResponse.json();
+      const responseTime = Date.now() - startTime;
+
+      const newTest: ChatTest = {
+        id: `test-${Date.now()}`,
+        message: testMessage,
+        response: result.botMessage?.message || '응답 없음',
+        responseTime,
+        timestamp: new Date().toISOString(),
+        status: chatResponse.ok ? 'success' : 'error'
+      };
+
+      setTestResults(prev => [newTest, ...prev]);
+      setTestMessage('');
+
+      toast({
+        title: '테스트 완료',
+        description: `응답 시간: ${responseTime}ms`,
+      });
+
+    } catch (error) {
+      const newTest: ChatTest = {
+        id: `test-${Date.now()}`,
+        message: testMessage,
+        response: '오류: 테스트 실패',
+        responseTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      };
+
+      setTestResults(prev => [newTest, ...prev]);
+
+      toast({
+        title: '테스트 실패',
+        description: '챗봇 테스트 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+
+    setIsTesting(false);
+  };
+
+  // Knowledge Base Functions
+  const handleKnowledgeBaseUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !selectedConfigForKnowledge) return;
+
+    setIsUploading(true);
+
+    try {
+      for (const file of files) {
+        const newItem: KnowledgeBaseItem = {
+          id: `kb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          uploadedAt: new Date().toISOString(),
+          status: 'processing',
+          configId: selectedConfigForKnowledge.id
+        };
+
+        setKnowledgeBaseItems(prev => [newItem, ...prev]);
+
+        // Simulate processing (replace with actual upload/processing logic)
+        setTimeout(() => {
+          setKnowledgeBaseItems(prev => 
+            prev.map(item => 
+              item.id === newItem.id 
+                ? { ...item, status: 'ready' as const }
+                : item
+            )
+          );
+        }, 2000);
+      }
+
+      toast({
+        title: '파일 업로드 시작',
+        description: `${files.length}개 파일이 Knowledge Base에 추가되고 있습니다.`,
+      });
+
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: 'Knowledge Base 파일 업로드 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const removeKnowledgeBaseItem = async (itemId: string) => {
+    try {
+      setKnowledgeBaseItems(prev => prev.filter(item => item.id !== itemId));
+      
+      toast({
+        title: '파일 삭제',
+        description: 'Knowledge Base에서 파일이 제거되었습니다.',
+      });
+    } catch (error) {
+      toast({
+        title: '삭제 실패',
+        description: 'Knowledge Base 파일 삭제 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="ai-chat-interface-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI Chat Interface</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI Assistant</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Flowise API 기반 챗봇 구성 및 관리
+            Flowise API 기반 통합 챗봇 관리 시스템
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -437,13 +581,32 @@ export function AiChatInterface() {
             className="flex items-center gap-2"
             data-testid="button-create-config"
           >
-            <Settings className="w-4 h-4" />
+            <Bot className="w-4 h-4" />
             새 구성 생성
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Tab-based Interface */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="configurations" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            구성 관리
+          </TabsTrigger>
+          <TabsTrigger value="knowledge" className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Knowledge Base
+          </TabsTrigger>
+          <TabsTrigger value="test" className="flex items-center gap-2">
+            <TestTube2 className="w-4 h-4" />
+            테스트
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Configuration Management Tab */}
+        <TabsContent value="configurations" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Configuration List */}
         <Card className="lg:col-span-1" data-testid="card-configurations">
           <CardHeader>
@@ -784,6 +947,259 @@ export function AiChatInterface() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        {/* Knowledge Base Tab */}
+        <TabsContent value="knowledge" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Configuration Selector for Knowledge Base */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  챗봇 선택
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {configurations.map((config) => (
+                    <div 
+                      key={config.id}
+                      className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        selectedConfigForKnowledge?.id === config.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                      }`}
+                      onClick={() => setSelectedConfigForKnowledge(config)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{config.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{config.chatflowId}</p>
+                        </div>
+                        {config.isActive && (
+                          <Badge variant="default" className="text-xs">활성</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Knowledge Base Management */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Knowledge Base</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={knowledgeBaseInputRef}
+                      type="file"
+                      accept=".txt,.pdf,.docx,.csv,.xlsx"
+                      onChange={handleKnowledgeBaseUpload}
+                      className="hidden"
+                      multiple
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => knowledgeBaseInputRef.current?.click()}
+                      disabled={!selectedConfigForKnowledge || isUploading}
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      파일 업로드
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedConfigForKnowledge ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>{selectedConfigForKnowledge.name}</strong>의 Knowledge Base를 관리합니다.
+                      </p>
+                    </div>
+
+                    {/* Knowledge Base Items */}
+                    <div className="space-y-3">
+                      {knowledgeBaseItems.length > 0 ? (
+                        knowledgeBaseItems.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <FileText className="w-5 h-5 text-gray-400" />
+                              <div>
+                                <p className="font-medium text-sm">{item.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(item.uploadedAt).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={
+                                item.status === 'ready' ? 'default' : 
+                                item.status === 'processing' ? 'secondary' : 'destructive'
+                              }>
+                                {item.status === 'ready' ? '준비됨' : 
+                                 item.status === 'processing' ? '처리중' : '오류'}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeKnowledgeBaseItem(item.id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-500">등록된 Knowledge Base 파일이 없습니다.</p>
+                          <p className="text-sm text-gray-400 mt-1">
+                            파일을 업로드하여 챗봇의 지식을 확장하세요.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">챗봇을 선택하세요</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Test Tab */}
+        <TabsContent value="test" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Configuration Selector for Test */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  테스트할 챗봇 선택
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {configurations.map((config) => (
+                    <div 
+                      key={config.id}
+                      className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        selectedConfigForTest?.id === config.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                      }`}
+                      onClick={() => setSelectedConfigForTest(config)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{config.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{config.chatflowId}</p>
+                        </div>
+                        {config.isActive && (
+                          <Badge variant="default" className="text-xs">활성</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Test Interface */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TestTube2 className="w-5 h-5" />
+                  챗봇 테스트
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedConfigForTest ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-800">
+                        <strong>{selectedConfigForTest.name}</strong>을(를) 테스트합니다.
+                      </p>
+                      <p className="text-xs text-green-600 mt-1">
+                        Chatflow ID: {selectedConfigForTest.chatflowId}
+                      </p>
+                    </div>
+
+                    {/* Test Input */}
+                    <div className="space-y-3">
+                      <Label>테스트 메시지</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="테스트 메시지를 입력하세요... (예: 업로드한 데이터에서 PVD 시스템 정보를 찾아줘)"
+                          value={testMessage}
+                          onChange={(e) => setTestMessage(e.target.value)}
+                          className="flex-1"
+                          onKeyDown={(e) => e.key === 'Enter' && handleTest()}
+                        />
+                        <Button 
+                          onClick={handleTest}
+                          disabled={isTesting || !testMessage.trim()}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          {isTesting ? '테스트 중...' : '테스트'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Test Results */}
+                    {testResults.length > 0 && (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        <Label>테스트 결과</Label>
+                        {testResults.map((test) => (
+                          <div key={test.id} className="border rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                {test.status === 'success' ? (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-red-600" />
+                                )}
+                                <Badge variant={test.status === 'success' ? 'default' : 'destructive'}>
+                                  {test.responseTime}ms
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-gray-500">
+                                {new Date(test.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">질문:</p>
+                                <p className="text-sm">{test.message}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">응답:</p>
+                                <p className="text-sm">{test.response}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <TestTube2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">테스트할 챗봇을 선택하세요</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Create Configuration Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
@@ -800,8 +1216,8 @@ export function AiChatInterface() {
                   <Label htmlFor="config-name">구성 이름 *</Label>
                   <Input
                     id="config-name"
-                    value={editingConfig.name}
-                    onChange={(e) => setEditingConfig({...editingConfig, name: e.target.value})}
+                    value={editingConfig?.name || ''}
+                    onChange={(e) => editingConfig && setEditingConfig({...editingConfig, name: e.target.value})}
                     placeholder="예: 유지보수 전문 챗봇"
                     data-testid="modal-input-config-name"
                   />
@@ -811,8 +1227,8 @@ export function AiChatInterface() {
                   <Label htmlFor="chatflow-id">Chatflow ID *</Label>
                   <Input
                     id="chatflow-id"
-                    value={editingConfig.chatflowId}
-                    onChange={(e) => setEditingConfig({...editingConfig, chatflowId: e.target.value})}
+                    value={editingConfig?.chatflowId || ''}
+                    onChange={(e) => editingConfig && setEditingConfig({...editingConfig, chatflowId: e.target.value})}
                     placeholder="9e85772e-dc56-4b4d-bb00-e18aeb80a484"
                     data-testid="modal-input-chatflow-id"
                   />
@@ -822,8 +1238,8 @@ export function AiChatInterface() {
                   <Label htmlFor="api-endpoint">API 엔드포인트</Label>
                   <Input
                     id="api-endpoint"
-                    value={editingConfig.apiEndpoint}
-                    onChange={(e) => setEditingConfig({...editingConfig, apiEndpoint: e.target.value})}
+                    value={editingConfig?.apiEndpoint || ''}
+                    onChange={(e) => editingConfig && setEditingConfig({...editingConfig, apiEndpoint: e.target.value})}
                     data-testid="modal-input-api-endpoint"
                   />
                 </div>
@@ -832,8 +1248,8 @@ export function AiChatInterface() {
                   <Label htmlFor="system-prompt">시스템 프롬프트</Label>
                   <Textarea
                     id="system-prompt"
-                    value={editingConfig.systemPrompt}
-                    onChange={(e) => setEditingConfig({...editingConfig, systemPrompt: e.target.value})}
+                    value={editingConfig?.systemPrompt || ''}
+                    onChange={(e) => editingConfig && setEditingConfig({...editingConfig, systemPrompt: e.target.value})}
                     rows={4}
                     placeholder="당신은 도움이 되는 AI 어시스턴트입니다..."
                     data-testid="modal-textarea-system-prompt"
@@ -846,8 +1262,8 @@ export function AiChatInterface() {
                     <Input
                       id="max-tokens"
                       type="number"
-                      value={editingConfig.maxTokens}
-                      onChange={(e) => setEditingConfig({...editingConfig, maxTokens: parseInt(e.target.value)})}
+                      value={editingConfig?.maxTokens || 0}
+                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, maxTokens: parseInt(e.target.value)})}
                       data-testid="modal-input-max-tokens"
                     />
                   </div>
@@ -860,14 +1276,60 @@ export function AiChatInterface() {
                       step="0.1"
                       min="0"
                       max="2"
-                      value={editingConfig.temperature}
-                      onChange={(e) => setEditingConfig({...editingConfig, temperature: parseFloat(e.target.value)})}
+                      value={editingConfig?.temperature || 0}
+                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, temperature: parseFloat(e.target.value)})}
                       data-testid="modal-input-temperature"
                     />
                   </div>
                 </div>
-              </div>
 
+                {/* API Config File Section */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-4">
+                    <Label>API 설정 파일</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json,.yaml,.yml"
+                        onChange={handleApiConfigUploadForConfig}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="flex items-center gap-2"
+                      >
+                        {isUploading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <span>업로드 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4" />
+                            <span>파일에서 설정 불러오기</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleApiConfigDownload}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>설정 다운로드</span>
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    JSON 또는 YAML 형식의 Flowise API 설정 파일을 업로드하여 구성을 자동으로 설정할 수 있습니다.
+                  </p>
+                </div>
+              </div>
 
               {/* Actions */}
               <div className="flex justify-end gap-2">
