@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet } from 'lucide-react';
+import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet, X, Trash2, FileText, Edit3, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: string;
+  uploadedAt: Date;
+  status: 'processing' | 'completed' | 'error';
+}
 
 interface ChatConfiguration {
   id: string;
@@ -20,6 +30,7 @@ interface ChatConfiguration {
   isActive: boolean;
   createdAt: string;
   lastModified: string;
+  uploadedFiles: UploadedFile[];
 }
 
 interface ChatTest {
@@ -43,17 +54,28 @@ export function AiChatInterface() {
       temperature: 0.7,
       isActive: true,
       createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString()
+      lastModified: new Date().toISOString(),
+      uploadedFiles: [
+        {
+          id: 'file-1',
+          name: 'maintenance.csv',
+          size: '45KB',
+          uploadedAt: new Date(),
+          status: 'completed'
+        }
+      ]
     }
   ]);
 
   const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(configurations[0]);
   const [editingConfig, setEditingConfig] = useState<ChatConfiguration | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [testMessage, setTestMessage] = useState('');
   const [testResults, setTestResults] = useState<ChatTest[]>([]);
   const [isTesting, setIsTesting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modalFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleCreateNew = () => {
@@ -67,11 +89,12 @@ export function AiChatInterface() {
       temperature: 0.7,
       isActive: false,
       createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString()
+      lastModified: new Date().toISOString(),
+      uploadedFiles: []
     };
     
-    setConfigurations(prev => [...prev, newConfig]);
     setEditingConfig(newConfig);
+    setShowCreateModal(true);
   };
 
   const handleSave = () => {
@@ -233,9 +256,135 @@ export function AiChatInterface() {
     setConfigurations(prev =>
       prev.map(config => ({
         ...config,
-        isActive: config.id === configId ? !config.isActive : config.isActive
+        // Only one config can be active at a time
+        isActive: config.id === configId ? !config.isActive : false
       }))
     );
+  };
+
+  const handleModalFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingConfig) return;
+
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+
+    const newUploadedFiles: UploadedFile[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Check if file is CSV or Excel
+        const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.csv')) {
+          toast({
+            title: '파일 형식 오류',
+            description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. CSV 또는 Excel 파일만 업로드 가능합니다.`,
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        // Add file to editing config with processing status
+        const uploadedFile: UploadedFile = {
+          id: `file-${Date.now()}-${i}`,
+          name: file.name,
+          size: `${(file.size / 1024).toFixed(1)}KB`,
+          uploadedAt: new Date(),
+          status: 'processing'
+        };
+        
+        newUploadedFiles.push(uploadedFile);
+
+        // Upload to Flowise API
+        const formData = new FormData();
+        formData.append('files', file);
+
+        const response = await fetch('/api/upload-to-flowise', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          // Update file status to completed
+          uploadedFile.status = 'completed';
+          toast({
+            title: '업로드 성공',
+            description: `${file.name}이 성공적으로 업로드되었습니다.`,
+          });
+        } else {
+          uploadedFile.status = 'error';
+          throw new Error('Upload failed');
+        }
+      }
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: '일부 파일 업로드 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+
+    // Update editing config with uploaded files
+    setEditingConfig(prev => prev ? {
+      ...prev,
+      uploadedFiles: [...prev.uploadedFiles, ...newUploadedFiles]
+    } : null);
+
+    setIsUploading(false);
+    if (modalFileInputRef.current) {
+      modalFileInputRef.current.value = '';
+    }
+  };
+
+  const removeFileFromConfig = (fileId: string) => {
+    if (!editingConfig) return;
+    
+    setEditingConfig(prev => prev ? {
+      ...prev,
+      uploadedFiles: prev.uploadedFiles.filter(file => file.id !== fileId)
+    } : null);
+  };
+
+  const handleSave = () => {
+    if (!editingConfig) return;
+
+    if (editingConfig.name.trim() === '' || editingConfig.chatflowId.trim() === '') {
+      toast({
+        title: '필수 정보 누락',
+        description: '구성 이름과 Chatflow ID는 필수 입력 사항입니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const existingIndex = configurations.findIndex(c => c.id === editingConfig.id);
+    
+    if (existingIndex >= 0) {
+      // Update existing
+      setConfigurations(prev => prev.map(config => 
+        config.id === editingConfig.id ? editingConfig : config
+      ));
+    } else {
+      // Add new
+      setConfigurations(prev => [...prev, editingConfig]);
+    }
+
+    setSelectedConfig(editingConfig);
+    setEditingConfig(null);
+    setShowCreateModal(false);
+
+    toast({
+      title: '구성 저장 완료',
+      description: '챗봇 구성이 성공적으로 저장되었습니다.',
+    });
+  };
+
+  const handleCancel = () => {
+    setEditingConfig(null);
+    setShowCreateModal(false);
   };
 
   return (
@@ -591,6 +740,193 @@ export function AiChatInterface() {
           </CardContent>
         </Card>
       )}
+
+      {/* Create Configuration Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>새 챗봇 구성 생성</DialogTitle>
+          </DialogHeader>
+
+          {editingConfig && (
+            <div className="space-y-6">
+              {/* Basic Configuration */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="config-name">구성 이름 *</Label>
+                  <Input
+                    id="config-name"
+                    value={editingConfig.name}
+                    onChange={(e) => setEditingConfig({...editingConfig, name: e.target.value})}
+                    placeholder="예: 유지보수 전문 챗봇"
+                    data-testid="modal-input-config-name"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="chatflow-id">Chatflow ID *</Label>
+                  <Input
+                    id="chatflow-id"
+                    value={editingConfig.chatflowId}
+                    onChange={(e) => setEditingConfig({...editingConfig, chatflowId: e.target.value})}
+                    placeholder="9e85772e-dc56-4b4d-bb00-e18aeb80a484"
+                    data-testid="modal-input-chatflow-id"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="api-endpoint">API 엔드포인트</Label>
+                  <Input
+                    id="api-endpoint"
+                    value={editingConfig.apiEndpoint}
+                    onChange={(e) => setEditingConfig({...editingConfig, apiEndpoint: e.target.value})}
+                    data-testid="modal-input-api-endpoint"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="system-prompt">시스템 프롬프트</Label>
+                  <Textarea
+                    id="system-prompt"
+                    value={editingConfig.systemPrompt}
+                    onChange={(e) => setEditingConfig({...editingConfig, systemPrompt: e.target.value})}
+                    rows={4}
+                    placeholder="당신은 도움이 되는 AI 어시스턴트입니다..."
+                    data-testid="modal-textarea-system-prompt"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="max-tokens">최대 토큰</Label>
+                    <Input
+                      id="max-tokens"
+                      type="number"
+                      value={editingConfig.maxTokens}
+                      onChange={(e) => setEditingConfig({...editingConfig, maxTokens: parseInt(e.target.value)})}
+                      data-testid="modal-input-max-tokens"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="temperature">Temperature</Label>
+                    <Input
+                      id="temperature"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="2"
+                      value={editingConfig.temperature}
+                      onChange={(e) => setEditingConfig({...editingConfig, temperature: parseFloat(e.target.value)})}
+                      data-testid="modal-input-temperature"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* File Upload Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">데이터 파일 관리</h3>
+                  <Button
+                    variant="outline"
+                    onClick={() => modalFileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="flex items-center gap-2"
+                  >
+                    {isUploading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        업로드 중...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        파일 업로드
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <input
+                  ref={modalFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  multiple
+                  onChange={handleModalFileUpload}
+                  className="hidden"
+                />
+
+                <div className="border rounded-lg p-4 min-h-[200px]">
+                  {editingConfig.uploadedFiles.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 dark:text-gray-400">업로드된 파일이 없습니다</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                        CSV 또는 Excel 파일을 업로드하여 챗봇 데이터를 구성하세요
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {editingConfig.uploadedFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-800"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-sm truncate">{file.name}</p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>{file.size}</span>
+                                <span>•</span>
+                                <span>{file.uploadedAt.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Badge
+                              variant={
+                                file.status === 'completed' ? 'default' :
+                                file.status === 'processing' ? 'secondary' : 'destructive'
+                              }
+                            >
+                              {file.status === 'completed' ? '완료' :
+                               file.status === 'processing' ? '처리중' : '오류'}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFileFromConfig(file.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleCancel}>
+                  취소
+                </Button>
+                <Button onClick={handleSave}>
+                  <Save className="w-4 h-4 mr-2" />
+                  저장
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
