@@ -4,13 +4,29 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, X, Bot, User, Minimize2, Maximize2, Upload } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Send, X, Bot, User, Minimize2, Maximize2, Settings } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
   type: 'user' | 'bot';
   message: string;
   timestamp: Date;
+}
+
+interface ChatConfiguration {
+  id: string;
+  name: string;
+  chatflowId: string;
+  apiEndpoint: string;
+  systemPrompt: string;
+  maxTokens: number;
+  temperature: number;
+  isActive: boolean;
+  createdAt: string;
+  lastModified: string;
+  uploadedFiles: any[];
 }
 
 interface ChatBotProps {
@@ -30,6 +46,9 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
+  const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -39,6 +58,33 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Load configurations on mount
+  useEffect(() => {
+    const loadConfigurations = async () => {
+      try {
+        const response = await fetch('/api/chat-configurations');
+        if (response.ok) {
+          const configs = await response.json();
+          setConfigurations(configs);
+          
+          // Find and set the active configuration
+          const activeConfig = configs.find((config: ChatConfiguration) => config.isActive);
+          if (activeConfig) {
+            setSelectedConfig(activeConfig);
+          } else if (configs.length > 0) {
+            setSelectedConfig(configs[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load configurations:', error);
+      }
+    };
+
+    if (isOpen) {
+      loadConfigurations();
+    }
+  }, [isOpen]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -121,12 +167,95 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
-              <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
+              <div className="flex flex-col">
+                <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
+                {selectedConfig && (
+                  <p className="text-xs text-blue-100 truncate max-w-32">
+                    {selectedConfig.name}
+                  </p>
+                )}
+              </div>
               <Badge variant="secondary" className="text-xs bg-blue-500 text-white border-blue-400">
-                Online
+                {selectedConfig ? 'Ready' : 'No Config'}
               </Badge>
             </div>
             <div className="flex items-center gap-1">
+              <Dialog open={showSettings} onOpenChange={setShowSettings}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-white hover:bg-blue-500"
+                    title="설정"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>챗봇 설정</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">사용할 구성 선택</label>
+                      <Select
+                        value={selectedConfig?.id || ''}
+                        onValueChange={(value) => {
+                          const config = configurations.find(c => c.id === value);
+                          setSelectedConfig(config || null);
+                        }}
+                      >
+                        <SelectTrigger className="w-full mt-2">
+                          <SelectValue placeholder="구성을 선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {configurations.map((config) => (
+                            <SelectItem key={config.id} value={config.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{config.name}</span>
+                                {config.isActive && (
+                                  <Badge variant="default" className="ml-2 text-xs">활성</Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {selectedConfig && (
+                      <div className="space-y-3 pt-2 border-t">
+                        <div>
+                          <label className="text-xs text-gray-500">Chatflow ID</label>
+                          <p className="text-sm font-mono truncate">{selectedConfig.chatflowId}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">API 엔드포인트</label>
+                          <p className="text-sm font-mono truncate">{selectedConfig.apiEndpoint}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">최대 토큰</label>
+                          <p className="text-sm">{selectedConfig.maxTokens}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Temperature</label>
+                          <p className="text-sm">{selectedConfig.temperature}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {configurations.length === 0 && (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-gray-500">
+                          구성된 챗봇이 없습니다.<br />
+                          Assistant 모듈에서 챗봇 구성을 먼저 생성해주세요.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
               <Button
                 variant="ghost"
                 size="sm"

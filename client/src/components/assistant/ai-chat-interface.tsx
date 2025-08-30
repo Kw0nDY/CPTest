@@ -175,14 +175,14 @@ export function AiChatInterface() {
     setIsTesting(false);
   };
 
-  const handleApiConfigUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleApiConfigUploadForConfig = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || !editingConfig) return;
 
     setIsUploading(true);
 
     try {
-      const file = files[0]; // Only handle one file at a time for API config
+      const file = files[0];
       
       // Check if file is JSON or YAML
       const validExtensions = ['.json', '.yaml', '.yml'];
@@ -198,29 +198,74 @@ export function AiChatInterface() {
         return;
       }
 
-      const formData = new FormData();
-      formData.append('file', file);
+      // Parse file content directly
+      const fileContent = await file.text();
+      let configData: any;
 
-      const response = await fetch('/api/upload-chatbot-config', {
-        method: 'POST',
-        body: formData,
+      try {
+        if (fileExtension === '.json') {
+          configData = JSON.parse(fileContent);
+        } else {
+          // For YAML files, we'll need to send to server for parsing
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/parse-config', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            configData = result.configData;
+          } else {
+            throw new Error('Failed to parse YAML file');
+          }
+        }
+      } catch (parseError) {
+        toast({
+          title: '파일 파싱 오류',
+          description: '파일 형식이 올바르지 않습니다.',
+          variant: 'destructive',
+        });
+        setIsUploading(false);
+        return;
+      }
+
+      // Update editing config with parsed data
+      const updatedConfig = { ...editingConfig };
+
+      if (configData.chatflowId || configData.chatflow_id || configData.flowId || configData.flow_id) {
+        updatedConfig.chatflowId = configData.chatflowId || configData.chatflow_id || configData.flowId || configData.flow_id;
+      }
+
+      if (configData.endpoint || configData.apiEndpoint || configData.api_endpoint) {
+        updatedConfig.apiEndpoint = configData.endpoint || configData.apiEndpoint || configData.api_endpoint;
+      }
+
+      if (configData.name || configData.title) {
+        updatedConfig.name = configData.name || configData.title || updatedConfig.name;
+      }
+
+      if (configData.systemPrompt || configData.system_prompt || configData.prompt) {
+        updatedConfig.systemPrompt = configData.systemPrompt || configData.system_prompt || configData.prompt;
+      }
+
+      if (configData.maxTokens || configData.max_tokens) {
+        updatedConfig.maxTokens = parseInt(configData.maxTokens || configData.max_tokens) || updatedConfig.maxTokens;
+      }
+
+      if (configData.temperature !== undefined) {
+        updatedConfig.temperature = parseFloat(configData.temperature) || updatedConfig.temperature;
+      }
+
+      setEditingConfig(updatedConfig);
+
+      toast({
+        title: '설정 불러오기 성공',
+        description: `${file.name}에서 설정을 성공적으로 불러왔습니다.`,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Add the new configuration to the list
-        setConfigurations(prev => [...prev, result.configuration]);
-        setSelectedConfig(result.configuration);
-        
-        toast({
-          title: '업로드 성공',
-          description: `${file.name}에서 챗봇 구성이 성공적으로 생성되었습니다.`,
-        });
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
-      }
     } catch (error) {
       toast({
         title: '업로드 실패',
@@ -304,33 +349,6 @@ export function AiChatInterface() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,.yaml,.yml"
-            onChange={handleApiConfigUpload}
-            className="hidden"
-            data-testid="input-api-config-upload"
-          />
-          <Button 
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()} 
-            disabled={isUploading}
-            className="flex items-center gap-2"
-            data-testid="button-upload-api-config"
-          >
-            {isUploading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span>업로드 중...</span>
-              </>
-            ) : (
-              <>
-                <FileText className="w-4 h-4" />
-                <span>API 설정 업로드</span>
-              </>
-            )}
-          </Button>
           <Button 
             onClick={handleCreateNew} 
             className="flex items-center gap-2"
@@ -481,6 +499,44 @@ export function AiChatInterface() {
                       data-testid="input-temperature"
                     />
                   </div>
+                </div>
+
+                {/* API Configuration Upload */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-4">
+                    <Label>API 설정 파일 업로드</Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json,.yaml,.yml"
+                      onChange={handleApiConfigUploadForConfig}
+                      className="hidden"
+                      data-testid="input-api-config-upload"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="flex items-center gap-2"
+                      data-testid="button-upload-api-config"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span>업로드 중...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4" />
+                          <span>파일에서 설정 불러오기</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    JSON 또는 YAML 형식의 Flowise API 설정 파일을 업로드하여 구성을 자동으로 설정할 수 있습니다.
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-2">
