@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,8 @@ export function AiChatInterface() {
   const [testMessage, setTestMessage] = useState('');
   const [testResults, setTestResults] = useState<ChatTest[]>([]);
   const [isTesting, setIsTesting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleCreateNew = () => {
@@ -174,6 +176,59 @@ export function AiChatInterface() {
     setIsTesting(false);
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Check if file is CSV or Excel
+        const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.csv')) {
+          toast({
+            title: '파일 형식 오류',
+            description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. CSV 또는 Excel 파일만 업로드 가능합니다.`,
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append('files', file);
+
+        const response = await fetch('/api/upload-to-flowise', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          toast({
+            title: '업로드 성공',
+            description: `${file.name}이 Flowise 벡터 데이터베이스에 성공적으로 업로드되었습니다.`,
+          });
+        } else {
+          throw new Error('Upload failed');
+        }
+      }
+    } catch (error) {
+      toast({
+        title: '업로드 실패',
+        description: '파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.',
+        variant: 'destructive',
+      });
+    }
+
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const toggleActive = (configId: string) => {
     setConfigurations(prev =>
       prev.map(config => ({
@@ -193,14 +248,44 @@ export function AiChatInterface() {
             Flowise API 기반 챗봇 구성 및 관리
           </p>
         </div>
-        <Button 
-          onClick={handleCreateNew} 
-          className="flex items-center gap-2"
-          data-testid="button-create-config"
-        >
-          <Settings className="w-4 h-4" />
-          새 구성 생성
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            multiple
+            onChange={handleFileUpload}
+            className="hidden"
+            data-testid="input-file-upload"
+          />
+          <Button 
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isUploading}
+            className="flex items-center gap-2"
+            data-testid="button-upload-data"
+          >
+            {isUploading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>업로드 중...</span>
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>데이터 업로드</span>
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={handleCreateNew} 
+            className="flex items-center gap-2"
+            data-testid="button-create-config"
+          >
+            <Settings className="w-4 h-4" />
+            새 구성 생성
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -412,20 +497,47 @@ export function AiChatInterface() {
         </Card>
       </div>
 
+      {/* Upload Status */}
+      {isUploading && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              <div>
+                <p className="font-medium">파일을 Flowise API에 업로드 중입니다...</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  업로드 완료 후 챗봇에서 해당 데이터를 사용할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Test Interface */}
       {selectedConfig && (
         <Card data-testid="card-test-interface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageCircle className="w-5 h-5" />
-              챗봇 테스트
+              챗봇 테스트 & 데이터 업로드
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">데이터 업로드 및 테스트</h4>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                  1. 상단의 "데이터 업로드" 버튼으로 CSV/Excel 파일을 Flowise API에 업로드하세요.
+                </p>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                  2. 업로드 완료 후 아래에서 챗봇을 테스트해보세요.
+                </p>
+              </div>
+
               <div className="flex gap-2">
                 <Input
-                  placeholder="테스트 메시지를 입력하세요..."
+                  placeholder="테스트 메시지를 입력하세요... (예: 업로드한 데이터에서 PVD 시스템 정보를 찾아줘)"
                   value={testMessage}
                   onChange={(e) => setTestMessage(e.target.value)}
                   className="flex-1"
