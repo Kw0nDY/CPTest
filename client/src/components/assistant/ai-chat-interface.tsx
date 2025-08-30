@@ -224,8 +224,8 @@ export function AiChatInterface() {
                   data-testid={`config-item-${config.id}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{config.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{config.name}</p>
                       <p className="text-xs text-gray-500 truncate">{config.chatflowId}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -369,21 +369,21 @@ export function AiChatInterface() {
                       </Badge>
                     </div>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label>Chatflow ID</Label>
-                    <p className="text-sm font-mono mt-1">{selectedConfig.chatflowId}</p>
+                    <p className="text-sm font-mono mt-1 truncate">{selectedConfig.chatflowId}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label>API 엔드포인트</Label>
-                    <p className="text-sm font-mono mt-1">{selectedConfig.apiEndpoint}</p>
+                    <p className="text-sm font-mono mt-1 truncate">{selectedConfig.apiEndpoint}</p>
                   </div>
                 </div>
 
                 <div>
                   <Label>시스템 프롬프트</Label>
-                  <p className="text-sm mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded border">
+                  <div className="text-sm mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded border max-h-32 overflow-y-auto">
                     {selectedConfig.systemPrompt || '설정된 시스템 프롬프트가 없습니다.'}
-                  </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

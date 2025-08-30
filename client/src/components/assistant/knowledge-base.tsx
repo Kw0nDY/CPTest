@@ -190,14 +190,14 @@ export function KnowledgeBase() {
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
                     data-testid={`file-item-${file.id}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-blue-600" />
-                      <div>
-                        <p className="font-medium text-sm">{file.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{file.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
                           <span>{file.size}</span>
                           <span>•</span>
-                          <span>{new Date(file.uploadedAt).toLocaleString()}</span>
+                          <span className="truncate">{new Date(file.uploadedAt).toLocaleString()}</span>
                           {file.recordCount && (
                             <>
                               <span>•</span>
@@ -207,7 +207,7 @@ export function KnowledgeBase() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <Badge 
                         variant={
                           file.status === 'processed' ? 'default' :
@@ -263,12 +263,12 @@ export function KnowledgeBase() {
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
                     data-testid={`data-source-item-${source.id}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Database className="w-5 h-5 text-green-600" />
-                      <div>
-                        <p className="font-medium text-sm">{source.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>{source.type}</span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Database className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{source.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                          <span className="truncate">{source.type}</span>
                           {source.recordCount && (
                             <>
                               <span>•</span>

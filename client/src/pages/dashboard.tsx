@@ -219,7 +219,7 @@ export default function Dashboard() {
       case "model-development":
         return <PlaceholderModule title="Model Development" description="Study Studio with TTL datasets, lineage tracking, and ML experiments" />;
       case "model-upload":
-        return <AIModelManagementTab activeTab={activeView} />;
+        return <AIModelManagementTab />;
       case "model-configuration":
         return <ModelConfigurationTab />;
       case "model-testing":
