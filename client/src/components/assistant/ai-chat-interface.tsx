@@ -43,31 +43,8 @@ interface ChatTest {
 }
 
 export function AiChatInterface() {
-  const [configurations, setConfigurations] = useState<ChatConfiguration[]>([
-    {
-      id: 'config-1',
-      name: '기본 유지보수 챗봇',
-      chatflowId: '9e85772e-dc56-4b4d-bb00-e18aeb80a484',
-      apiEndpoint: 'http://220.118.23.185:3000/api/v1/prediction',
-      systemPrompt: '당신은 산업 장비 유지보수 전문가입니다. 업로드된 데이터를 기반으로 정확하고 유용한 답변을 제공하세요.',
-      maxTokens: 2000,
-      temperature: 0.7,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString(),
-      uploadedFiles: [
-        {
-          id: 'file-1',
-          name: 'maintenance.csv',
-          size: '45KB',
-          uploadedAt: new Date(),
-          status: 'completed'
-        }
-      ]
-    }
-  ]);
-
-  const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(configurations[0]);
+  const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
+  const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
   const [editingConfig, setEditingConfig] = useState<ChatConfiguration | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [testMessage, setTestMessage] = useState('');
@@ -76,6 +53,36 @@ export function AiChatInterface() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Load configurations from API
+  useEffect(() => {
+    const loadConfigurations = async () => {
+      try {
+        const response = await fetch('/api/chat-configurations');
+        if (response.ok) {
+          const configs = await response.json();
+          setConfigurations(configs);
+          
+          // Find and set the active configuration
+          const activeConfig = configs.find((config: ChatConfiguration) => config.isActive);
+          if (activeConfig) {
+            setSelectedConfig(activeConfig);
+          } else if (configs.length > 0) {
+            setSelectedConfig(configs[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load configurations:', error);
+        toast({
+          title: '구성 로드 실패',
+          description: '챗봇 구성을 불러오는데 실패했습니다.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    loadConfigurations();
+  }, [toast]);
 
   const handleCreateNew = () => {
     const newConfig: ChatConfiguration = {
@@ -97,16 +104,33 @@ export function AiChatInterface() {
   };
 
 
-  const handleDelete = (configId: string) => {
-    setConfigurations(prev => prev.filter(config => config.id !== configId));
-    if (selectedConfig?.id === configId) {
-      setSelectedConfig(configurations.find(c => c.id !== configId) || null);
+  const handleDelete = async (configId: string) => {
+    try {
+      const response = await fetch(`/api/chat-configurations/${configId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setConfigurations(prev => prev.filter(config => config.id !== configId));
+        if (selectedConfig?.id === configId) {
+          const remainingConfigs = configurations.filter(c => c.id !== configId);
+          setSelectedConfig(remainingConfigs[0] || null);
+        }
+        
+        toast({
+          title: '삭제 완료',
+          description: '챗봇 구성이 삭제되었습니다.',
+        });
+      } else {
+        throw new Error('Failed to delete configuration');
+      }
+    } catch (error) {
+      toast({
+        title: '삭제 실패',
+        description: '챗봇 구성 삭제 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
     }
-    
-    toast({
-      title: '삭제 완료',
-      description: '챗봇 구성이 삭제되었습니다.',
-    });
   };
 
   const handleTest = async () => {
@@ -280,14 +304,31 @@ export function AiChatInterface() {
     }
   };
 
-  const toggleActive = (configId: string) => {
-    setConfigurations(prev =>
-      prev.map(config => ({
-        ...config,
-        // Only one config can be active at a time
-        isActive: config.id === configId ? !config.isActive : false
-      }))
-    );
+  const toggleActive = async (configId: string) => {
+    try {
+      const response = await fetch(`/api/chat-configurations/${configId}/toggle-active`, {
+        method: 'PUT',
+      });
+
+      if (response.ok) {
+        const updatedConfig = await response.json();
+        setConfigurations(prev =>
+          prev.map(config => ({
+            ...config,
+            // Only one config can be active at a time
+            isActive: config.id === configId ? updatedConfig.isActive : false
+          }))
+        );
+      } else {
+        throw new Error('Failed to toggle active status');
+      }
+    } catch (error) {
+      toast({
+        title: '상태 변경 실패',
+        description: '활성화 상태 변경 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const removeFileFromConfig = (fileId: string) => {
@@ -299,7 +340,7 @@ export function AiChatInterface() {
     } : null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingConfig) return;
 
     if (editingConfig.name.trim() === '' || editingConfig.chatflowId.trim() === '') {
@@ -311,26 +352,68 @@ export function AiChatInterface() {
       return;
     }
 
-    const existingIndex = configurations.findIndex(c => c.id === editingConfig.id);
-    
-    if (existingIndex >= 0) {
-      // Update existing
-      setConfigurations(prev => prev.map(config => 
-        config.id === editingConfig.id ? editingConfig : config
-      ));
-    } else {
-      // Add new
-      setConfigurations(prev => [...prev, editingConfig]);
+    try {
+      const existingIndex = configurations.findIndex(c => c.id === editingConfig.id);
+      
+      const apiData = {
+        name: editingConfig.name,
+        chatflow_id: editingConfig.chatflowId,
+        api_endpoint: editingConfig.apiEndpoint,
+        system_prompt: editingConfig.systemPrompt,
+        max_tokens: editingConfig.maxTokens,
+        temperature: editingConfig.temperature,
+        is_active: editingConfig.isActive
+      };
+
+      let response;
+      
+      if (existingIndex >= 0) {
+        // Update existing
+        response = await fetch(`/api/chat-configurations/${editingConfig.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apiData)
+        });
+      } else {
+        // Add new
+        response = await fetch('/api/chat-configurations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apiData)
+        });
+      }
+
+      if (response.ok) {
+        const savedConfig = await response.json();
+        
+        if (existingIndex >= 0) {
+          // Update existing in state
+          setConfigurations(prev => prev.map(config => 
+            config.id === editingConfig.id ? savedConfig : config
+          ));
+        } else {
+          // Add new to state
+          setConfigurations(prev => [...prev, savedConfig]);
+        }
+
+        setSelectedConfig(savedConfig);
+        setEditingConfig(null);
+        setShowCreateModal(false);
+
+        toast({
+          title: '구성 저장 완료',
+          description: '챗봇 구성이 성공적으로 저장되었습니다.',
+        });
+      } else {
+        throw new Error('Failed to save configuration');
+      }
+    } catch (error) {
+      toast({
+        title: '저장 실패',
+        description: '챗봇 구성 저장 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
     }
-
-    setSelectedConfig(editingConfig);
-    setEditingConfig(null);
-    setShowCreateModal(false);
-
-    toast({
-      title: '구성 저장 완료',
-      description: '챗봇 구성이 성공적으로 저장되었습니다.',
-    });
   };
 
   const handleCancel = () => {

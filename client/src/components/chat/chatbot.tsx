@@ -226,6 +226,10 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                     {selectedConfig && (
                       <div className="space-y-3 pt-2 border-t">
                         <div>
+                          <label className="text-xs text-gray-500">구성 이름</label>
+                          <p className="text-sm font-medium">{selectedConfig.name}</p>
+                        </div>
+                        <div>
                           <label className="text-xs text-gray-500">Chatflow ID</label>
                           <p className="text-sm font-mono truncate">{selectedConfig.chatflowId}</p>
                         </div>
@@ -234,12 +238,20 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                           <p className="text-sm font-mono truncate">{selectedConfig.apiEndpoint}</p>
                         </div>
                         <div>
-                          <label className="text-xs text-gray-500">최대 토큰</label>
-                          <p className="text-sm">{selectedConfig.maxTokens}</p>
+                          <label className="text-xs text-gray-500">시스템 프롬프트</label>
+                          <div className="text-sm bg-gray-50 p-2 rounded border max-h-20 overflow-y-auto">
+                            {selectedConfig.systemPrompt || '설정된 시스템 프롬프트가 없습니다.'}
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Temperature</label>
-                          <p className="text-sm">{selectedConfig.temperature}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-gray-500">최대 토큰</label>
+                            <p className="text-sm">{selectedConfig.maxTokens}</p>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">Temperature</label>
+                            <p className="text-sm">{selectedConfig.temperature}</p>
+                          </div>
                         </div>
                       </div>
                     )}
