@@ -77,6 +77,11 @@ export function AiChatInterface() {
   const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<KnowledgeBaseItem[]>([]);
   const knowledgeBaseInputRef = useRef<HTMLInputElement>(null);
   
+  // Data Integration management
+  const [dataIntegrations, setDataIntegrations] = useState<any[]>([]);
+  const [connectedDataIntegrations, setConnectedDataIntegrations] = useState<any[]>([]);
+  const [showDataIntegrationModal, setShowDataIntegrationModal] = useState(false);
+  
   // Existing states
   const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
   const [editingConfig, setEditingConfig] = useState<ChatConfiguration | null>(null);
@@ -123,6 +128,45 @@ export function AiChatInterface() {
 
     loadConfigurations();
   }, [toast]);
+
+  // Load Data Integration list
+  useEffect(() => {
+    const loadDataIntegrations = async () => {
+      try {
+        const response = await fetch('/api/data-sources');
+        if (response.ok) {
+          const dataSources = await response.json();
+          setDataIntegrations(dataSources);
+        }
+      } catch (error) {
+        console.error('Failed to load data integrations:', error);
+      }
+    };
+
+    loadDataIntegrations();
+  }, []);
+
+  // Load connected data integrations for selected chatbot
+  useEffect(() => {
+    const loadConnectedDataIntegrations = async () => {
+      if (!selectedConfigForKnowledge) {
+        setConnectedDataIntegrations([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}`);
+        if (response.ok) {
+          const connected = await response.json();
+          setConnectedDataIntegrations(connected);
+        }
+      } catch (error) {
+        console.error('Failed to load connected data integrations:', error);
+      }
+    };
+
+    loadConnectedDataIntegrations();
+  }, [selectedConfigForKnowledge]);
 
   const handleCreateNew = () => {
     const newConfig: ChatConfiguration = {
@@ -560,6 +604,80 @@ export function AiChatInterface() {
       toast({
         title: '삭제 실패',
         description: 'Knowledge Base 파일 삭제 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Data Integration Functions
+  const connectDataIntegration = async (dataSourceId: string) => {
+    if (!selectedConfigForKnowledge) return;
+
+    try {
+      const response = await fetch('/api/chatbot-data-integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          configId: selectedConfigForKnowledge.id,
+          dataSourceId
+        })
+      });
+
+      if (response.ok) {
+        const newIntegration = await response.json();
+        
+        // Find the data source to get its details
+        const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
+        
+        // Add to local state with data source details
+        const integrationWithDetails = {
+          ...newIntegration,
+          name: dataSource?.name || 'Unknown',
+          sourceType: dataSource?.sourceType || 'Unknown'
+        };
+        
+        setConnectedDataIntegrations(prev => [...prev, integrationWithDetails]);
+
+        toast({
+          title: 'Data Integration 연동 완료',
+          description: `${dataSource?.name}이(가) 성공적으로 연동되었습니다.`,
+        });
+      } else {
+        throw new Error('Failed to connect data integration');
+      }
+    } catch (error) {
+      toast({
+        title: '연동 실패',
+        description: 'Data Integration 연동 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const disconnectDataIntegration = async (dataSourceId: string) => {
+    if (!selectedConfigForKnowledge) return;
+
+    try {
+      const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}/${dataSourceId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Update local state - filter by dataSourceId field
+        setConnectedDataIntegrations(prev => prev.filter(integration => integration.dataSourceId !== dataSourceId));
+
+        const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
+        toast({
+          title: 'Data Integration 연동 해제',
+          description: `${dataSource?.name}의 연동이 해제되었습니다.`,
+        });
+      } else {
+        throw new Error('Failed to disconnect data integration');
+      }
+    } catch (error) {
+      toast({
+        title: '연동 해제 실패',
+        description: 'Data Integration 연동 해제 중 오류가 발생했습니다.',
         variant: 'destructive',
       });
     }
@@ -1021,46 +1139,114 @@ export function AiChatInterface() {
                       </p>
                     </div>
 
-                    {/* Knowledge Base Items */}
+                    {/* Uploaded Files Section */}
                     <div className="space-y-3">
+                      <h3 className="font-medium text-lg flex items-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        업로드된 파일 ({knowledgeBaseItems.length})
+                      </h3>
+                      
                       {knowledgeBaseItems.length > 0 ? (
-                        knowledgeBaseItems.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <p className="font-medium text-sm">{item.name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {new Date(item.uploadedAt).toLocaleString()}
-                                </p>
+                        <div className="space-y-2">
+                          {knowledgeBaseItems.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <p className="font-medium text-sm">{item.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {new Date(item.uploadedAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={
+                                  item.status === 'ready' ? 'default' : 
+                                  item.status === 'processing' ? 'secondary' : 'destructive'
+                                }>
+                                  {item.status === 'ready' ? '준비됨' : 
+                                   item.status === 'processing' ? '처리중' : '오류'}
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeKnowledgeBaseItem(item.id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={
-                                item.status === 'ready' ? 'default' : 
-                                item.status === 'processing' ? 'secondary' : 'destructive'
-                              }>
-                                {item.status === 'ready' ? '준비됨' : 
-                                 item.status === 'processing' ? '처리중' : '오류'}
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeKnowledgeBaseItem(item.id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       ) : (
-                        <div className="text-center py-8">
-                          <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500">등록된 Knowledge Base 파일이 없습니다.</p>
-                          <p className="text-sm text-gray-400 mt-1">
-                            파일을 업로드하여 챗봇의 지식을 확장하세요.
-                          </p>
+                        <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                          <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">업로드된 파일이 없습니다</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Data Integration Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-lg flex items-center gap-2">
+                          <Database className="w-5 h-5" />
+                          Data Integration 연동 ({connectedDataIntegrations.length})
+                        </h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowDataIntegrationModal(true)}
+                          className="flex items-center gap-2"
+                        >
+                          <Database className="w-4 h-4" />
+                          추가 연동
+                        </Button>
+                      </div>
+                      
+                      {connectedDataIntegrations.length > 0 ? (
+                        <div className="space-y-2">
+                          {connectedDataIntegrations.map((integration) => (
+                            <div key={integration.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <Database className="w-5 h-5 text-green-500" />
+                                <div>
+                                  <p className="font-medium text-sm">{integration.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    연동됨 • {new Date(integration.connectedAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-green-100 text-green-800">
+                                  연결됨
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => disconnectDataIntegration(integration.id)}
+                                  className="h-8 w-8 p-0"
+                                  title="연동 해제"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                          <Database className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">연동된 Data Integration이 없습니다</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => setShowDataIntegrationModal(true)}
+                          >
+                            Data Integration 연동
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -1200,6 +1386,73 @@ export function AiChatInterface() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Data Integration Connection Modal */}
+      <Dialog open={showDataIntegrationModal} onOpenChange={setShowDataIntegrationModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Data Integration 연동</DialogTitle>
+            <p className="text-sm text-gray-600">
+              {selectedConfigForKnowledge?.name}에 연동할 Data Integration을 선택하세요
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {(() => {
+              const connectedIds = connectedDataIntegrations.map(di => di.id);
+              const availableIntegrations = dataIntegrations.filter(di => !connectedIds.includes(di.id));
+              
+              if (availableIntegrations.length === 0) {
+                return (
+                  <div className="text-center py-8">
+                    <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">연동 가능한 Data Integration이 없습니다.</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      모든 Data Integration이 이미 연동되어 있습니다.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {availableIntegrations.map((integration) => (
+                    <div key={integration.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Database className="w-5 h-5 text-blue-500" />
+                        <div>
+                          <p className="font-medium text-sm">{integration.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {integration.sourceType} • {integration.connectionString ? '연결됨' : '연결 필요'}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          connectDataIntegration(integration.id);
+                          setShowDataIntegrationModal(false);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Database className="w-4 h-4" />
+                        연동
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowDataIntegrationModal(false)}>
+              취소
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Configuration Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>

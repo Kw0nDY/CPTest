@@ -2,17 +2,18 @@ import {
   users, views, dataSources, dataTables, excelFiles, sapCustomers, sapOrders, 
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
-  chatSessions, chatMessages, uploadedData, chatConfigurations,
+  chatSessions, chatMessages, uploadedData, chatConfigurations, chatbotDataIntegrations,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
   type AiModelResult, type InsertAiModelResult, type AiModelFolder, type InsertAiModelFolder,
   type ModelConfigurationFolder, type InsertModelConfigurationFolder,
   type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage,
-  type UploadedData, type InsertUploadedData, type ChatConfiguration, type InsertChatConfiguration
+  type UploadedData, type InsertUploadedData, type ChatConfiguration, type InsertChatConfiguration,
+  type ChatbotDataIntegration, type InsertChatbotDataIntegration
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -106,6 +107,12 @@ export interface IStorage {
   createChatConfiguration(config: InsertChatConfiguration): Promise<ChatConfiguration>;
   updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration>;
   deleteChatConfiguration(id: string): Promise<void>;
+  
+  // Chatbot Data Integration methods
+  getChatbotDataIntegrations(configId: string): Promise<ChatbotDataIntegration[]>;
+  createChatbotDataIntegration(integration: InsertChatbotDataIntegration): Promise<ChatbotDataIntegration>;
+  deleteChatbotDataIntegration(configId: string, dataSourceId: string): Promise<void>;
+  getChatbotDataIntegrationsByDataSource(dataSourceId: string): Promise<ChatbotDataIntegration[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -982,6 +989,58 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiModelFile(id: string): Promise<void> {
     await db.delete(aiModelFiles).where(eq(aiModelFiles.id, id));
+  }
+
+  // Chatbot Data Integration methods
+  async getChatbotDataIntegrations(configId: string): Promise<ChatbotDataIntegration[]> {
+    try {
+      return await db.select().from(chatbotDataIntegrations).where(eq(chatbotDataIntegrations.configId, configId));
+    } catch (error) {
+      console.error('Error getting chatbot data integrations:', error);
+      throw error;
+    }
+  }
+
+  async createChatbotDataIntegration(integration: InsertChatbotDataIntegration): Promise<ChatbotDataIntegration> {
+    try {
+      const newId = `cdi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const [created] = await db
+        .insert(chatbotDataIntegrations)
+        .values({
+          id: newId,
+          ...integration,
+          connectedAt: new Date().toISOString()
+        })
+        .returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating chatbot data integration:', error);
+      throw error;
+    }
+  }
+
+  async deleteChatbotDataIntegration(configId: string, dataSourceId: string): Promise<void> {
+    try {
+      await db.delete(chatbotDataIntegrations)
+        .where(
+          and(
+            eq(chatbotDataIntegrations.configId, configId),
+            eq(chatbotDataIntegrations.dataSourceId, dataSourceId)
+          )
+        );
+    } catch (error) {
+      console.error('Error deleting chatbot data integration:', error);
+      throw error;
+    }
+  }
+
+  async getChatbotDataIntegrationsByDataSource(dataSourceId: string): Promise<ChatbotDataIntegration[]> {
+    try {
+      return await db.select().from(chatbotDataIntegrations).where(eq(chatbotDataIntegrations.dataSourceId, dataSourceId));
+    } catch (error) {
+      console.error('Error getting chatbot data integrations by data source:', error);
+      throw error;
+    }
   }
 }
 

@@ -5662,6 +5662,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chatbot Data Integration endpoints
+  app.get("/api/chatbot-data-integrations/:configId", async (req, res) => {
+    try {
+      const { configId } = req.params;
+      const integrations = await storage.getChatbotDataIntegrations(configId);
+      
+      // Get data source details for each integration
+      const integrationsWithDetails = await Promise.all(
+        integrations.map(async (integration) => {
+          const dataSource = await storage.getDataSource(integration.dataSourceId);
+          return {
+            ...integration,
+            dataSourceName: dataSource?.name || 'Unknown',
+            dataSourceType: dataSource?.sourceType || 'Unknown'
+          };
+        })
+      );
+      
+      res.json(integrationsWithDetails);
+    } catch (error) {
+      console.error('Error getting chatbot data integrations:', error);
+      res.status(500).json({ 
+        error: "챗봇 Data Integration 목록을 가져오는데 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post("/api/chatbot-data-integrations", async (req, res) => {
+    try {
+      const { configId, dataSourceId } = req.body;
+      
+      if (!configId || !dataSourceId) {
+        return res.status(400).json({ 
+          error: "configId와 dataSourceId가 필요합니다" 
+        });
+      }
+
+      const integration = await storage.createChatbotDataIntegration({
+        configId,
+        dataSourceId,
+        isConnected: true
+      });
+      
+      res.json(integration);
+    } catch (error) {
+      console.error('Error creating chatbot data integration:', error);
+      res.status(500).json({ 
+        error: "Data Integration 연동에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.delete("/api/chatbot-data-integrations/:configId/:dataSourceId", async (req, res) => {
+    try {
+      const { configId, dataSourceId } = req.params;
+      await storage.deleteChatbotDataIntegration(configId, dataSourceId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting chatbot data integration:', error);
+      res.status(500).json({ 
+        error: "Data Integration 연동 해제에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // File download endpoint for source code
   app.get("/download/source-code", (req, res) => {
     const filePath = path.join(process.cwd(), 'collaboration-portal-source.tar.gz');

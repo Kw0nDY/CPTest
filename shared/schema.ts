@@ -577,6 +577,17 @@ export const chatConfigurations = pgTable('chat_configurations', {
   updatedAt: text('updated_at').notNull()
 });
 
+// Chatbot Data Integration connections (many-to-many relationship)
+export const chatbotDataIntegrations = pgTable('chatbot_data_integrations', {
+  id: text('id').primaryKey(),
+  configId: text('config_id').references(() => chatConfigurations.id).notNull(),
+  dataSourceId: text('data_source_id').references(() => dataSources.id).notNull(),
+  isConnected: integer('is_connected').default(1), // 1 = true, 0 = false
+  connectedAt: text('connected_at').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -634,6 +645,9 @@ export const insertUploadedDataSchema = createInsertSchema(uploadedData).omit({
 export const insertChatConfigurationSchema = createInsertSchema(chatConfigurations).omit({
   id: true
 });
+export const insertChatbotDataIntegrationSchema = createInsertSchema(chatbotDataIntegrations).omit({
+  id: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -668,3 +682,5 @@ export type UploadedData = typeof uploadedData.$inferSelect;
 export type InsertUploadedData = z.infer<typeof insertUploadedDataSchema>;
 export type ChatConfiguration = typeof chatConfigurations.$inferSelect;
 export type InsertChatConfiguration = z.infer<typeof insertChatConfigurationSchema>;
+export type ChatbotDataIntegration = typeof chatbotDataIntegrations.$inferSelect;
+export type InsertChatbotDataIntegration = z.infer<typeof insertChatbotDataIntegrationSchema>;
