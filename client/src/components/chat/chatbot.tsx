@@ -179,22 +179,22 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[800px]'} transition-all duration-300`}>
         {/* Header */}
         <CardHeader className="pb-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
-              <div className="flex flex-col">
-                <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Bot className="w-5 h-5 flex-shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <CardTitle className="text-sm font-medium truncate">AI Assistant</CardTitle>
                 {selectedConfig && (
-                  <p className="text-xs text-blue-100 truncate max-w-32">
+                  <p className="text-xs text-blue-100 truncate">
                     {selectedConfig.name}
                   </p>
                 )}
               </div>
-              <Badge variant="secondary" className="text-xs bg-blue-500 text-white border-blue-400">
+              <Badge variant="secondary" className="text-xs bg-blue-500 text-white border-blue-400 flex-shrink-0">
                 {selectedConfig ? 'Ready' : 'No Config'}
               </Badge>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Dialog open={showSettings} onOpenChange={setShowSettings}>
                 <DialogTrigger asChild>
                   <Button

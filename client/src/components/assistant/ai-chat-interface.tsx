@@ -377,7 +377,7 @@ export function AiChatInterface() {
         );
         
         // Determine the new status message based on the updated value
-        const isNowActive = updatedConfig.isActive === 1 || updatedConfig.isActive === true;
+        const isNowActive = Boolean(updatedConfig.isActive);
         toast({
           title: '상태 변경 완료',
           description: `${updatedConfig.name}이(가) ${isNowActive ? '활성화' : '비활성화'}되었습니다.`,

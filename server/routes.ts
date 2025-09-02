@@ -5666,9 +5666,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "챗봇 구성을 찾을 수 없습니다" });
       }
       
-      // Toggle the isActive status (handle both integer and boolean values)
-      const currentActive = currentConfig.isActive === 1 || currentConfig.isActive === true;
-      const newIsActive = currentActive ? 0 : 1;
+      // Toggle the isActive status (convert boolean to boolean directly)
+      const currentActive = Boolean(currentConfig.isActive);
+      const newIsActive = !currentActive;
       
       // Update the configuration
       const updatedConfig = await storage.updateChatConfiguration(id, {
