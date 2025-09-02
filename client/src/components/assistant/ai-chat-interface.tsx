@@ -368,6 +368,11 @@ export function AiChatInterface() {
 
       if (response.ok) {
         const updatedConfig = await response.json();
+        
+        // Log the actual response to debug
+        console.log('Toggle response:', updatedConfig);
+        console.log('isActive value:', updatedConfig.isActive, 'type:', typeof updatedConfig.isActive);
+        
         setConfigurations(prev =>
           prev.map(config => ({
             ...config,
@@ -378,6 +383,8 @@ export function AiChatInterface() {
         
         // Determine the new status message based on the updated value
         const isNowActive = Boolean(updatedConfig.isActive);
+        console.log('Message decision - isNowActive:', isNowActive);
+        
         toast({
           title: '상태 변경 완료',
           description: `${updatedConfig.name}이(가) ${isNowActive ? '활성화' : '비활성화'}되었습니다.`,
