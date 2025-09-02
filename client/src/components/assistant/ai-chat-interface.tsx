@@ -74,7 +74,8 @@ export function AiChatInterface() {
   const [selectedConfigForTest, setSelectedConfigForTest] = useState<ChatConfiguration | null>(null);
   
   // Knowledge Base management
-  const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<KnowledgeBaseItem[]>([]);
+  // Knowledge Base items per chatbot configuration (separated by configId)
+  const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<Record<string, KnowledgeBaseItem[]>>({});
   const knowledgeBaseInputRef = useRef<HTMLInputElement>(null);
   
   // Data Integration management
@@ -377,7 +378,7 @@ export function AiChatInterface() {
         
         toast({
           title: '상태 변경 완료',
-          description: `${updatedConfig.name}이(가) ${updatedConfig.isActive ? '활성화' : '비활성화'}되었습니다.`,
+          description: `${updatedConfig.name}이(가) ${updatedConfig.isActive === 1 || updatedConfig.isActive === true ? '활성화' : '비활성화'}되었습니다.`,
         });
       } else {
         throw new Error('Failed to toggle active status');
@@ -596,17 +597,22 @@ export function AiChatInterface() {
           configId: selectedConfigForKnowledge.id
         };
 
-        setKnowledgeBaseItems(prev => [newItem, ...prev]);
+        // Add file to the specific chatbot's knowledge base
+        setKnowledgeBaseItems(prev => ({
+          ...prev,
+          [selectedConfigForKnowledge.id]: [newItem, ...(prev[selectedConfigForKnowledge.id] || [])]
+        }));
 
         // Simulate processing (replace with actual upload/processing logic)
         setTimeout(() => {
-          setKnowledgeBaseItems(prev => 
-            prev.map(item => 
+          setKnowledgeBaseItems(prev => ({
+            ...prev,
+            [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).map(item => 
               item.id === newItem.id 
                 ? { ...item, status: 'ready' as const }
                 : item
             )
-          );
+          }));
         }, 2000);
       }
 
@@ -630,8 +636,13 @@ export function AiChatInterface() {
   };
 
   const removeKnowledgeBaseItem = async (itemId: string) => {
+    if (!selectedConfigForKnowledge) return;
+    
     try {
-      setKnowledgeBaseItems(prev => prev.filter(item => item.id !== itemId));
+      setKnowledgeBaseItems(prev => ({
+        ...prev,
+        [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).filter(item => item.id !== itemId)
+      }));
       
       toast({
         title: '파일 삭제',
@@ -1180,12 +1191,12 @@ export function AiChatInterface() {
                     <div className="space-y-3">
                       <h3 className="font-medium text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5" />
-                        업로드된 파일 ({knowledgeBaseItems.length})
+                        업로드된 파일 ({selectedConfigForKnowledge ? (knowledgeBaseItems[selectedConfigForKnowledge.id] || []).length : 0})
                       </h3>
                       
-                      {knowledgeBaseItems.length > 0 ? (
+                      {selectedConfigForKnowledge && (knowledgeBaseItems[selectedConfigForKnowledge.id] || []).length > 0 ? (
                         <div className="space-y-2">
-                          {knowledgeBaseItems.map((item) => (
+                          {(knowledgeBaseItems[selectedConfigForKnowledge.id] || []).map((item) => (
                             <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex items-center gap-3">
                                 <FileText className="w-5 h-5 text-gray-400" />
@@ -1219,7 +1230,12 @@ export function AiChatInterface() {
                       ) : (
                         <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
                           <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-500">업로드된 파일이 없습니다</p>
+                          <p className="text-sm text-gray-500">
+                            {selectedConfigForKnowledge 
+                              ? `${selectedConfigForKnowledge.name}에 업로드된 파일이 없습니다`
+                              : '챗봇을 선택하면 업로드된 파일을 볼 수 있습니다'
+                            }
+                          </p>
                         </div>
                       )}
                     </div>
