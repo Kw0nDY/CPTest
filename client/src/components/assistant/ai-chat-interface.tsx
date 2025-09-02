@@ -78,6 +78,163 @@ export function AiChatInterface() {
   // Knowledge Base items per chatbot configuration (separated by configId)
   const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<Record<string, KnowledgeBaseItem[]>>({});
   const knowledgeBaseInputRef = useRef<HTMLInputElement>(null);
+
+  // File Analysis Functions
+  const analyzeSourceCode = (content: string, extension: string) => {
+    const language = extension.substring(1);
+    const lines = content.split('\n');
+    const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+    
+    let functions: string[] = [];
+    let classes: string[] = [];
+    let imports: string[] = [];
+    let hasExecutableCode = false;
+    
+    if (language === 'py') {
+      // Python analysis
+      functions = lines.filter(line => line.trim().startsWith('def ')).map(line => 
+        line.trim().match(/def\s+(\w+)/)?.[1] || ''
+      ).filter(f => f);
+      
+      classes = lines.filter(line => line.trim().startsWith('class ')).map(line => 
+        line.trim().match(/class\s+(\w+)/)?.[1] || ''
+      ).filter(c => c);
+      
+      imports = lines.filter(line => 
+        line.trim().startsWith('import ') || line.trim().startsWith('from ')
+      );
+      
+      hasExecutableCode = functions.includes('main') || functions.includes('process_message') || 
+                         content.includes('if __name__ == "__main__"');
+    } else if (language === 'js' || language === 'ts') {
+      // JavaScript/TypeScript analysis
+      functions = [
+        ...lines.filter(line => /function\s+\w+/.test(line.trim())).map(line => 
+          line.match(/function\s+(\w+)/)?.[1] || ''
+        ),
+        ...lines.filter(line => /const\s+\w+\s*=\s*\(/.test(line.trim())).map(line => 
+          line.match(/const\s+(\w+)/)?.[1] || ''
+        ),
+        ...lines.filter(line => /\w+\s*:\s*\(/.test(line.trim())).map(line => 
+          line.match(/(\w+)\s*:/)?.[1] || ''
+        )
+      ].filter(f => f);
+      
+      classes = lines.filter(line => line.trim().startsWith('class ')).map(line => 
+        line.trim().match(/class\s+(\w+)/)?.[1] || ''
+      ).filter(c => c);
+      
+      imports = lines.filter(line => 
+        line.trim().startsWith('import ') || line.trim().startsWith('const') && line.includes('require(')
+      );
+      
+      hasExecutableCode = functions.includes('main') || functions.includes('processMessage') ||
+                         content.includes('module.exports') || content.includes('export');
+    }
+    
+    return {
+      language,
+      lineCount: lines.length,
+      nonEmptyLineCount: nonEmptyLines.length,
+      functions,
+      classes,
+      imports: imports.slice(0, 10), // Limit imports shown
+      functionCount: functions.length,
+      classCount: classes.length,
+      importCount: imports.length,
+      hasExecutableCode,
+      isValid: content.trim().length > 0 && !content.includes('syntax error'),
+      complexity: functions.length + classes.length
+    };
+  };
+
+  const analyzeJupyterNotebook = (notebook: any) => {
+    const cells = notebook.cells || [];
+    const codeCells = cells.filter((cell: any) => cell.cell_type === 'code');
+    const markdownCells = cells.filter((cell: any) => cell.cell_type === 'markdown');
+    
+    let totalLines = 0;
+    let executableCells = 0;
+    
+    codeCells.forEach((cell: any) => {
+      if (cell.source && Array.isArray(cell.source)) {
+        totalLines += cell.source.length;
+        if (cell.source.some((line: string) => line.trim().length > 0)) {
+          executableCells++;
+        }
+      }
+    });
+    
+    return {
+      totalCells: cells.length,
+      codeCells: codeCells.length,
+      markdownCells: markdownCells.length,
+      totalLines,
+      executableCells,
+      hasCodeCells: codeCells.length > 0,
+      kernelspec: notebook.metadata?.kernelspec?.name || 'unknown',
+      language: notebook.metadata?.kernelspec?.language || 'python',
+      notebookVersion: notebook.nbformat || 'unknown',
+      isValid: cells.length > 0
+    };
+  };
+
+  const analyzeModelFile = (file: File, extension: string) => {
+    const format = extension.substring(1);
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    
+    let modelType = 'unknown';
+    let framework = 'unknown';
+    let isValid = true;
+    
+    switch (format) {
+      case 'pth':
+      case 'pt':
+        modelType = 'PyTorch Model';
+        framework = 'PyTorch';
+        break;
+      case 'pkl':
+      case 'pickle':
+        modelType = 'Pickle Model';
+        framework = 'Scikit-learn/General';
+        break;
+      case 'onnx':
+        modelType = 'ONNX Model';
+        framework = 'ONNX Runtime';
+        break;
+      case 'h5':
+        modelType = 'Keras/HDF5 Model';
+        framework = 'TensorFlow/Keras';
+        break;
+      case 'pb':
+        modelType = 'TensorFlow SavedModel';
+        framework = 'TensorFlow';
+        break;
+      case 'tflite':
+        modelType = 'TensorFlow Lite Model';
+        framework = 'TensorFlow Lite';
+        break;
+    }
+    
+    // Basic size validation
+    if (file.size < 1024) {
+      isValid = false; // Too small to be a real model
+    } else if (file.size > 500 * 1024 * 1024) {
+      isValid = false; // Too large (>500MB)
+    }
+    
+    return {
+      format,
+      modelType,
+      framework,
+      sizeInMB,
+      sizeBytes: file.size,
+      isValid,
+      canExecute: ['pth', 'pt', 'pkl', 'pickle', 'onnx'].includes(format),
+      estimatedComplexity: file.size > 50 * 1024 * 1024 ? 'high' : 
+                          file.size > 10 * 1024 * 1024 ? 'medium' : 'low'
+    };
+  };
   
   // Data Integration management
   const [dataIntegrations, setDataIntegrations] = useState<any[]>([]);
@@ -265,29 +422,36 @@ export function AiChatInterface() {
     try {
       const file = files[0];
       
-      // Check if file is JSON or YAML
-      const validExtensions = ['.json', '.yaml', '.yml'];
+      // Check if file is supported AI source file
+      const validExtensions = ['.json', '.yaml', '.yml', '.py', '.js', '.ts', '.ipynb', '.pth', '.pkl', '.pickle', '.onnx', '.h5', '.pb', '.tflite'];
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       
       if (!validExtensions.includes(fileExtension)) {
         toast({
           title: '파일 형식 오류',
-          description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. JSON 또는 YAML 파일만 업로드 가능합니다.`,
+          description: `${file.name}은(는) 지원되지 않는 파일 형식입니다. 지원 형식: ${validExtensions.join(', ')}`,
           variant: 'destructive',
         });
         setIsUploading(false);
         return;
       }
 
-      // Parse file content directly
-      const fileContent = await file.text();
+      // Parse file content based on file type
       let configData: any;
+      let fileMetadata = {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        extension: fileExtension,
+        uploadedAt: new Date().toISOString()
+      };
 
       try {
         if (fileExtension === '.json') {
+          const fileContent = await file.text();
           configData = JSON.parse(fileContent);
-        } else {
-          // For YAML files, we'll need to send to server for parsing
+        } else if (fileExtension === '.yaml' || fileExtension === '.yml') {
+          // For YAML files, send to server for parsing
           const formData = new FormData();
           formData.append('file', file);
 
@@ -302,6 +466,51 @@ export function AiChatInterface() {
           } else {
             throw new Error('Failed to parse YAML file');
           }
+        } else if (['.py', '.js', '.ts'].includes(fileExtension)) {
+          // For source code files with enhanced validation
+          const fileContent = await file.text();
+          const sourceAnalysis = analyzeSourceCode(fileContent, fileExtension);
+          configData = {
+            type: 'source_code',
+            language: fileExtension.substring(1),
+            content: fileContent,
+            metadata: {
+              ...fileMetadata,
+              ...sourceAnalysis
+            },
+            isExecutable: sourceAnalysis.isValid && sourceAnalysis.hasExecutableCode
+          };
+        } else if (fileExtension === '.ipynb') {
+          // For Jupyter notebooks with validation
+          const fileContent = await file.text();
+          const notebook = JSON.parse(fileContent);
+          const notebookAnalysis = analyzeJupyterNotebook(notebook);
+          configData = {
+            type: 'jupyter_notebook',
+            cells: notebook.cells?.length || 0,
+            kernelspec: notebook.metadata?.kernelspec,
+            metadata: {
+              ...fileMetadata,
+              ...notebookAnalysis
+            },
+            content: notebook,
+            isExecutable: notebookAnalysis.hasCodeCells
+          };
+        } else if (['.pth', '.pkl', '.pickle', '.onnx', '.h5', '.pb', '.tflite'].includes(fileExtension)) {
+          // For model files with enhanced metadata
+          const modelAnalysis = analyzeModelFile(file, fileExtension);
+          configData = {
+            type: 'model_file',
+            format: fileExtension.substring(1),
+            metadata: {
+              ...fileMetadata,
+              ...modelAnalysis
+            },
+            requiresSpecialHandling: true,
+            isLoadable: modelAnalysis.isValid
+          };
+        } else {
+          throw new Error('지원되지 않는 파일 형식입니다');
         }
       } catch (parseError) {
         toast({
@@ -956,7 +1165,7 @@ export function AiChatInterface() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".json,.yaml,.yml"
+                      accept=".json,.yaml,.yml,.py,.js,.ts,.ipynb,.pth,.pkl,.pickle,.onnx,.h5,.pb,.tflite"
                       onChange={handleApiConfigUploadForConfig}
                       className="hidden"
                       data-testid="input-api-config-upload"
@@ -983,7 +1192,7 @@ export function AiChatInterface() {
                     </Button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    JSON 또는 YAML 형식의 Flowise API 설정 파일을 업로드하여 구성을 자동으로 설정할 수 있습니다.
+                    다양한 AI 모델 파일을 업로드할 수 있습니다: 설정 파일 (JSON, YAML), 소스 코드 (.py, .js, .ts, .ipynb), 모델 파일 (.pth, .pkl, .onnx, .h5 등)
                   </p>
                 </div>
 
@@ -1645,7 +1854,7 @@ export function AiChatInterface() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".json,.yaml,.yml"
+                        accept=".json,.yaml,.yml,.py,.js,.ts,.ipynb,.pth,.pkl,.pickle,.onnx,.h5,.pb,.tflite"
                         onChange={handleApiConfigUploadForConfig}
                         className="hidden"
                       />
@@ -1680,7 +1889,7 @@ export function AiChatInterface() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    JSON 또는 YAML 형식의 Flowise API 설정 파일을 업로드하여 구성을 자동으로 설정할 수 있습니다.
+                    다양한 AI 모델 파일을 업로드할 수 있습니다: 설정 파일 (JSON, YAML), 소스 코드 (.py, .js, .ts, .ipynb), 모델 파일 (.pth, .pkl, .onnx, .h5 등)
                   </p>
                 </div>
               </div>

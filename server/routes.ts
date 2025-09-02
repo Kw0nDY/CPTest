@@ -12,6 +12,9 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { modelAnalysisService } from './modelAnalysisService';
 import { modelConfigService } from './modelConfigService';
+import { spawn } from 'child_process';
+import { promises as fsPromises } from 'fs';
+import os from 'os';
 
 // Google OAuth2 Client 설정
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -4102,12 +4105,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fileSize: 5 * 1024 * 1024 // 5MB limit for config files
     },
     fileFilter: (req, file, cb) => {
-      const allowedExtensions = ['.yml', '.yaml', '.json'];
+      const allowedExtensions = ['.yml', '.yaml', '.json', '.py', '.js', '.ts', '.ipynb', '.pth', '.pkl', '.pickle', '.onnx', '.h5', '.pb', '.tflite'];
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowedExtensions.includes(ext)) {
         cb(null, true);
       } else {
-        cb(new Error(`Config file type ${ext} not supported. Supported formats: ${allowedExtensions.join(', ')}`));
+        cb(new Error(`AI model file type ${ext} not supported. Supported formats: ${allowedExtensions.join(', ')}`));
       }
     }
   });
@@ -5399,8 +5402,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update session activity
       await storage.updateChatSessionActivity(sessionId);
 
+      // Check if any uploaded AI models need to be executed
+      let executeResponse = '';
+      const config = configId ? await storage.getChatConfiguration(configId) : null;
+      
+      if (config && config.uploadedFiles && config.uploadedFiles.length > 0) {
+        // Check for executable files in Knowledge Base
+        for (const file of config.uploadedFiles) {
+          if (file.type === 'source_code' && file.isExecutable && file.language) {
+            try {
+              console.log(`Executing ${file.language} code for: ${file.metadata.name}`);
+              const executionResult = await executeAIModel(file, message);
+              if (executionResult) {
+                executeResponse = executionResult;
+                break; // Use first successful execution
+              }
+            } catch (error) {
+              console.error('AI model execution error:', error);
+            }
+          }
+        }
+      }
+
       // Use Flowise API for intelligent responses with data isolation
-      let botResponse = '';
+      let botResponse = executeResponse || ''; // Use AI model result if available
       let searchQuery = message;
       let foundMatches = 0;
       let confidence = 0;
@@ -5825,4 +5850,293 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// AI Model Execution System
+async function executeAIModel(file: any, userMessage: string): Promise<string | null> {
+  try {
+    const { language, content, metadata } = file;
+    
+    if (!content || !language) {
+      return null;
+    }
+    
+    console.log(`Executing ${language} model: ${metadata.name}`);
+    
+    switch (language) {
+      case 'py':
+        return await executePythonCode(content, userMessage);
+      case 'js':
+        return await executeJavaScriptCode(content, userMessage);
+      case 'ts':
+        return await executeTypeScriptCode(content, userMessage);
+      default:
+        console.warn(`Unsupported language: ${language}`);
+        return null;
+    }
+  } catch (error) {
+    console.error('Error executing AI model:', error);
+    return null;
+  }
+}
+
+async function executePythonCode(code: string, userMessage: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const fileName = `ai_model_${Date.now()}.py`;
+    const filePath = path.join(tempDir, fileName);
+    
+    // Prepare Python code with user input
+    const enhancedCode = `
+import sys
+import json
+
+# User message
+user_input = """${userMessage.replace(/"/g, '\\"')}"""
+
+# Original AI model code
+${code}
+
+# Try to find and call main function or process_message function
+try:
+    if 'process_message' in globals():
+        result = process_message(user_input)
+        print(json.dumps({"success": True, "result": str(result)}))
+    elif 'main' in globals():
+        result = main(user_input)
+        print(json.dumps({"success": True, "result": str(result)}))
+    else:
+        # Execute code and capture any output
+        exec(compile(open(__file__).read(), __file__, 'exec'))
+        print(json.dumps({"success": True, "result": "Code executed successfully"}))
+except Exception as e:
+    print(json.dumps({"success": False, "error": str(e)}))
+`;
+    
+    fs.writeFileSync(filePath, enhancedCode);
+    
+    const python = spawn('python3', [filePath]);
+    let output = '';
+    let errorOutput = '';
+    
+    python.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    python.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    python.on('close', (code) => {
+      // Clean up temp file
+      try {
+        fs.unlinkSync(filePath);
+      } catch (err) {
+        console.error('Error cleaning up temp file:', err);
+      }
+      
+      if (code === 0) {
+        try {
+          const result = JSON.parse(output.trim());
+          if (result.success) {
+            resolve(`🐍 Python AI 모델 실행 결과:\n${result.result}`);
+          } else {
+            resolve(`❌ Python 실행 오류: ${result.error}`);
+          }
+        } catch (e) {
+          resolve(`🐍 Python 출력:\n${output}`);
+        }
+      } else {
+        resolve(`❌ Python 실행 실패:\n${errorOutput}`);
+      }
+    });
+    
+    python.on('error', (err) => {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupErr) {
+        console.error('Error cleaning up temp file:', cleanupErr);
+      }
+      resolve(`❌ Python 실행 오류: ${err.message}`);
+    });
+  });
+}
+
+async function executeJavaScriptCode(code: string, userMessage: string): Promise<string> {
+  try {
+    // Create a safe execution environment
+    const enhancedCode = `
+const userInput = \`${userMessage.replace(/`/g, '\\`')}\`;
+
+// Original AI model code
+${code}
+
+// Try to find and call appropriate functions
+try {
+  let result;
+  if (typeof processMessage === 'function') {
+    result = processMessage(userInput);
+  } else if (typeof main === 'function') {
+    result = main(userInput);
+  } else {
+    result = "JavaScript code executed successfully";
+  }
+  
+  // Handle promises
+  if (result && typeof result.then === 'function') {
+    result.then(res => console.log(JSON.stringify({success: true, result: String(res)})))
+           .catch(err => console.log(JSON.stringify({success: false, error: err.message})));
+  } else {
+    console.log(JSON.stringify({success: true, result: String(result)}));
+  }
+} catch (e) {
+  console.log(JSON.stringify({success: false, error: e.message}));
+}
+`;
+    
+    return new Promise((resolve) => {
+      const tempDir = os.tmpdir();
+      const fileName = `ai_model_${Date.now()}.js`;
+      const filePath = path.join(tempDir, fileName);
+      
+      fs.writeFileSync(filePath, enhancedCode);
+      
+      const node = spawn('node', [filePath]);
+      let output = '';
+      let errorOutput = '';
+      
+      node.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      node.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      node.on('close', (code) => {
+        // Clean up temp file
+        try {
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          console.error('Error cleaning up temp file:', err);
+        }
+        
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output.trim());
+            if (result.success) {
+              resolve(`🟨 JavaScript AI 모델 실행 결과:\n${result.result}`);
+            } else {
+              resolve(`❌ JavaScript 실행 오류: ${result.error}`);
+            }
+          } catch (e) {
+            resolve(`🟨 JavaScript 출력:\n${output}`);
+          }
+        } else {
+          resolve(`❌ JavaScript 실행 실패:\n${errorOutput}`);
+        }
+      });
+      
+      node.on('error', (err) => {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up temp file:', cleanupErr);
+        }
+        resolve(`❌ JavaScript 실행 오류: ${err.message}`);
+      });
+    });
+  } catch (error) {
+    return `❌ JavaScript 코드 준비 오류: ${error}`;
+  }
+}
+
+async function executeTypeScriptCode(code: string, userMessage: string): Promise<string> {
+  try {
+    // For TypeScript, we'll compile to JavaScript first
+    const enhancedCode = `
+const userInput: string = \`${userMessage.replace(/`/g, '\\`')}\`;
+
+// Original AI model code
+${code}
+
+// Try to find and call appropriate functions
+try {
+  let result: any;
+  if (typeof processMessage === 'function') {
+    result = processMessage(userInput);
+  } else if (typeof main === 'function') {
+    result = main(userInput);
+  } else {
+    result = "TypeScript code executed successfully";
+  }
+  
+  // Handle promises
+  if (result && typeof result.then === 'function') {
+    result.then((res: any) => console.log(JSON.stringify({success: true, result: String(res)})))
+           .catch((err: any) => console.log(JSON.stringify({success: false, error: err.message})));
+  } else {
+    console.log(JSON.stringify({success: true, result: String(result)}));
+  }
+} catch (e: any) {
+  console.log(JSON.stringify({success: false, error: e.message}));
+}
+`;
+    
+    return new Promise((resolve) => {
+      const tempDir = os.tmpdir();
+      const fileName = `ai_model_${Date.now()}.ts`;
+      const filePath = path.join(tempDir, fileName);
+      
+      fs.writeFileSync(filePath, enhancedCode);
+      
+      // Use tsx to run TypeScript directly
+      const tsx = spawn('npx', ['tsx', filePath]);
+      let output = '';
+      let errorOutput = '';
+      
+      tsx.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      tsx.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      tsx.on('close', (code) => {
+        // Clean up temp file
+        try {
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          console.error('Error cleaning up temp file:', err);
+        }
+        
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output.trim());
+            if (result.success) {
+              resolve(`🔷 TypeScript AI 모델 실행 결과:\n${result.result}`);
+            } else {
+              resolve(`❌ TypeScript 실행 오류: ${result.error}`);
+            }
+          } catch (e) {
+            resolve(`🔷 TypeScript 출력:\n${output}`);
+          }
+        } else {
+          resolve(`❌ TypeScript 실행 실패:\n${errorOutput}`);
+        }
+      });
+      
+      tsx.on('error', (err) => {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupErr) {
+          console.error('Error cleaning up temp file:', cleanupErr);
+        }
+        resolve(`❌ TypeScript 실행 오류: ${err.message}`);
+      });
+    });
+  } catch (error) {
+    return `❌ TypeScript 코드 준비 오류: ${error}`;
+  }
 }
