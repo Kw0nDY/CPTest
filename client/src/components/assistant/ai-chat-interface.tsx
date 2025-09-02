@@ -145,7 +145,7 @@ export function AiChatInterface() {
     };
 
     loadConfigurations();
-  }, [toast]);
+  }, []); // 컴포넌트 마운트 시에만 로드
 
   // Load Data Integration list
   useEffect(() => {
@@ -369,21 +369,36 @@ export function AiChatInterface() {
       if (response.ok) {
         const updatedConfig = await response.json();
         
-        // Log the actual response to debug
-        console.log('Toggle response:', updatedConfig);
-        console.log('isActive value:', updatedConfig.isActive, 'type:', typeof updatedConfig.isActive);
-        
-        setConfigurations(prev =>
-          prev.map(config => ({
+        // 즉시 상태 업데이트 및 리렌더링 강제
+        setConfigurations(prev => {
+          const updatedConfigs = prev.map(config => ({
             ...config,
             // Multiple configs can be active at the same time
             isActive: config.id === configId ? updatedConfig.isActive : config.isActive
-          }))
-        );
+          }));
+          
+          // 활성화 상태 변경 시 정렬 다시 적용
+          return updatedConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
+            const aIsActive = a.isActive === true || a.isActive === 1;
+            const bIsActive = b.isActive === true || b.isActive === 1;
+            
+            // If both have same active status, sort by name
+            if (aIsActive === bIsActive) {
+              return a.name.localeCompare(b.name);
+            }
+            
+            // Active configurations come first
+            return bIsActive ? 1 : -1;
+          });
+        });
+        
+        // 선택된 구성도 업데이트
+        if (selectedConfig?.id === configId) {
+          setSelectedConfig(updatedConfig);
+        }
         
         // Determine the new status message based on the updated value
         const isNowActive = Boolean(updatedConfig.isActive);
-        console.log('Message decision - isNowActive:', isNowActive);
         
         toast({
           title: '상태 변경 완료',
