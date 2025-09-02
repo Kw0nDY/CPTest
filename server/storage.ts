@@ -1004,12 +1004,15 @@ export class DatabaseStorage implements IStorage {
   async createChatbotDataIntegration(integration: InsertChatbotDataIntegration): Promise<ChatbotDataIntegration> {
     try {
       const newId = `cdi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
       const [created] = await db
         .insert(chatbotDataIntegrations)
         .values({
           id: newId,
           ...integration,
-          connectedAt: new Date().toISOString()
+          connectedAt: now,
+          createdAt: now,
+          updatedAt: now
         })
         .returning();
       return created;

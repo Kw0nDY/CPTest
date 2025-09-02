@@ -550,7 +550,8 @@ export function AiChatInterface() {
     setIsUploading(true);
 
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const newItem: KnowledgeBaseItem = {
           id: `kb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           name: file.name,

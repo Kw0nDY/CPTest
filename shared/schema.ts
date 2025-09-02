@@ -643,10 +643,14 @@ export const insertUploadedDataSchema = createInsertSchema(uploadedData).omit({
   id: true
 });
 export const insertChatConfigurationSchema = createInsertSchema(chatConfigurations).omit({
-  id: true
+  id: true,
+  createdAt: true,
+  updatedAt: true
 });
 export const insertChatbotDataIntegrationSchema = createInsertSchema(chatbotDataIntegrations).omit({
-  id: true
+  id: true,
+  createdAt: true,
+  updatedAt: true
 });
 
 // Types
