@@ -5608,6 +5608,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Toggle active status for chat configuration
+  app.put("/api/chat-configurations/:id/toggle-active", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get current configuration
+      const currentConfig = await storage.getChatConfiguration(id);
+      if (!currentConfig) {
+        return res.status(404).json({ error: "챗봇 구성을 찾을 수 없습니다" });
+      }
+      
+      // Toggle the isActive status (0 becomes 1, 1 becomes 0)
+      const newIsActive = currentConfig.isActive === 1 ? 0 : 1;
+      
+      // Update the configuration
+      const updatedConfig = await storage.updateChatConfiguration(id, {
+        isActive: newIsActive
+      });
+      
+      res.json(updatedConfig);
+    } catch (error) {
+      console.error('Error toggling chat configuration active status:', error);
+      res.status(500).json({ 
+        error: "챗봇 활성화 상태 변경에 실패했습니다",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Upload and parse Flowise API configuration file
   app.post("/api/upload-chatbot-config", upload.single('file'), async (req, res) => {
     try {
