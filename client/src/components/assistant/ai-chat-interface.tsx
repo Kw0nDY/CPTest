@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface UploadedFile {
   id: string;
@@ -807,33 +808,44 @@ export function AiChatInterface() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {configurations.map((config) => (
-                <div 
-                  key={config.id}
-                  className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                    selectedConfig?.id === config.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                  onClick={() => setSelectedConfig(config)}
-                  data-testid={`config-item-${config.id}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{config.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{config.chatflowId}</p>
+              <AnimatePresence>
+                {configurations.map((config) => (
+                  <motion.div 
+                    key={config.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ 
+                      duration: 0.3,
+                      ease: "easeInOut",
+                      layout: { duration: 0.4, ease: "easeInOut" }
+                    }}
+                    className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                      selectedConfig?.id === config.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
+                    }`}
+                    onClick={() => setSelectedConfig(config)}
+                    data-testid={`config-item-${config.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{config.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{config.chatflowId}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={config.isActive}
+                          onCheckedChange={() => toggleActive(config.id)}
+                          data-testid={`switch-active-${config.id}`}
+                        />
+                        <Badge variant={config.isActive ? 'default' : 'secondary'}>
+                          {config.isActive ? '활성' : '비활성'}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={config.isActive}
-                        onCheckedChange={() => toggleActive(config.id)}
-                        data-testid={`switch-active-${config.id}`}
-                      />
-                      <Badge variant={config.isActive ? 'default' : 'secondary'}>
-                        {config.isActive ? '활성' : '비활성'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </CardContent>
         </Card>
