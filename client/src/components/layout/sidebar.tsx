@@ -184,8 +184,6 @@ export default function Sidebar({ activeView, onViewChange, isCollapsed = false,
       icon: MessageCircle,
       items: [
         { id: "ai-chat", label: "AI Chat Interface" },
-        { id: "knowledge-base", label: "Knowledge Base" },
-        { id: "task-automation", label: "Task Automation" },
       ]
     }
   ];

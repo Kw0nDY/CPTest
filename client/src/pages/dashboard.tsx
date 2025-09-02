@@ -76,7 +76,6 @@ import ViewComponentRenderer from "@/components/view/view-component-renderer";
 import AIResultsAnalysis from "@/components/intelligence/ai-results-analysis";
 import DataQualitySecurity from "@/components/data-pipeline/data-quality-security";
 import { PipelineBuilder } from "@/components/data-pipeline/pipeline-builder";
-import { KnowledgeBase } from "@/components/assistant/knowledge-base";
 import { AiChatInterface } from "@/components/assistant/ai-chat-interface";
 import { useQuery } from "@tanstack/react-query";
 import type { View } from "@shared/schema";
@@ -156,7 +155,7 @@ type ViewType =
   // Business Intelligence
   | "boi-overview" | "organization-analytics" | "ai-recommendations"
   // Assistant
-  | "ai-chat" | "knowledge-base" | "task-automation"
+  | "ai-chat"
   // Management & Other
   | "member" | "apis" | "view-list" | string;
 
@@ -244,10 +243,6 @@ export default function Dashboard() {
       // Assistant (LLM 도구 레지스트리)
       case "ai-chat":
         return <AiChatInterface />;
-      case "knowledge-base":
-        return <KnowledgeBase />;
-      case "task-automation":
-        return <PlaceholderModule title="Task Automation" description="Natural language task automation with scoped tool execution" />;
       
       // Management & Other
       case "member":
