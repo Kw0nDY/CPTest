@@ -5329,12 +5329,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat session endpoints
   app.post("/api/chat/session", async (req, res) => {
     try {
+      const { configId } = req.body;
       const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
       const session = await storage.createChatSession({
         sessionId,
         title: "새 채팅",
+        configId: configId || null, // Store which chatbot config this session uses
         createdAt: now,
         updatedAt: now
       });
@@ -5367,13 +5369,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat/:sessionId/message", async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { message } = req.body;
+      const { message, configId } = req.body;
 
       if (!message || typeof message !== 'string') {
         return res.status(400).json({ error: "메시지가 필요합니다" });
       }
 
-      console.log(`채팅 요청: ${sessionId} - "${message}"`);
+      console.log(`채팅 요청: ${sessionId} - "${message}" (configId: ${configId})`);
+
+      // Get connected data sources for this chatbot configuration (data isolation)
+      let connectedDataSources = [];
+      if (configId) {
+        try {
+          connectedDataSources = await storage.getChatbotDataIntegrations(configId);
+          console.log(`챗봇 ${configId}에 연결된 데이터 소스: ${connectedDataSources.length}개`);
+        } catch (error) {
+          console.error('Error getting connected data sources:', error);
+        }
+      }
 
       // Save user message
       const userMessage = await storage.createChatMessage({
@@ -5386,22 +5399,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update session activity
       await storage.updateChatSessionActivity(sessionId);
 
-      // Use Flowise API for intelligent responses
+      // Use Flowise API for intelligent responses with data isolation
       let botResponse = '';
       let searchQuery = message;
       let foundMatches = 0;
       let confidence = 0;
 
+      // Build context data from connected data sources only (DATA ISOLATION)
+      let contextData = '';
+      if (connectedDataSources.length > 0) {
+        console.log(`데이터 분리: ${connectedDataSources.length}개 연결된 데이터 소스에서만 검색`);
+        try {
+          for (const integration of connectedDataSources) {
+            const dataSource = await storage.getDataSource(integration.dataSourceId);
+            if (dataSource && dataSource.sampleData) {
+              contextData += `\n=== ${dataSource.name} 데이터 ===\n`;
+              
+              // Add sample data from this specific data source
+              if (typeof dataSource.sampleData === 'object') {
+                for (const [tableName, records] of Object.entries(dataSource.sampleData)) {
+                  if (Array.isArray(records) && records.length > 0) {
+                    contextData += `테이블: ${tableName}\n`;
+                    contextData += JSON.stringify(records.slice(0, 5), null, 2) + '\n'; // Limited to first 5 records
+                  }
+                }
+              }
+            }
+          }
+          foundMatches = connectedDataSources.length;
+        } catch (error) {
+          console.error('Error building context from connected data sources:', error);
+        }
+      } else {
+        console.log(`데이터 분리: configId ${configId} - 연결된 데이터 소스가 없습니다.`);
+      }
+
       try {
-        // Call Flowise chat API
-        console.log(`Flowise API 호출: "${message}"`);
+        // Enhanced question with chatbot-specific context data
+        const enhancedQuestion = contextData 
+          ? `다음 데이터를 참고해서 질문에 답해주세요:\n${contextData}\n\n질문: ${message}`
+          : message;
+
+        // Call Flowise chat API with isolated data context
+        console.log(`Flowise API 호출: "${message}" (컨텍스트 데이터: ${contextData.length}자)`);
         const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            question: message,
+            question: enhancedQuestion,
             history: []
           })
         });

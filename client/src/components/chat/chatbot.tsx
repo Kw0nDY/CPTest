@@ -59,21 +59,31 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     scrollToBottom();
   }, [messages]);
 
-  // Load configurations on mount
+  // Load configurations on mount - ONLY active ones
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
         const response = await fetch('/api/chat-configurations');
         if (response.ok) {
-          const configs = await response.json();
-          setConfigurations(configs);
+          const allConfigs = await response.json();
           
-          // Find and set the active configuration
-          const activeConfig = configs.find((config: ChatConfiguration) => config.isActive);
-          if (activeConfig) {
-            setSelectedConfig(activeConfig);
-          } else if (configs.length > 0) {
-            setSelectedConfig(configs[0]);
+          // Filter only active configurations (isActive is boolean, but stored as integer)
+          const activeConfigs = allConfigs.filter((config: ChatConfiguration) => 
+            config.isActive === true || config.isActive === 1
+          );
+          
+          // Sort active configs by name (ascending)
+          const sortedActiveConfigs = activeConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => 
+            a.name.localeCompare(b.name)
+          );
+          
+          setConfigurations(sortedActiveConfigs);
+          
+          // Set the first active configuration as selected
+          if (sortedActiveConfigs.length > 0) {
+            setSelectedConfig(sortedActiveConfigs[0]);
+          } else {
+            setSelectedConfig(null);
           }
         }
       } catch (error) {
@@ -102,22 +112,27 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     setIsLoading(true);
 
     try {
-      // Create or get chat session
+      // Create or get chat session with selected chatbot config
       const sessionResponse = await fetch('/api/chat/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ 
+          configId: selectedConfig?.id || null 
+        })
       });
 
       if (!sessionResponse.ok) throw new Error('Failed to create chat session');
       
       const { sessionId } = await sessionResponse.json();
 
-      // Send message to AI
+      // Send message to AI with config information
       const response = await fetch(`/api/chat/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentMessage })
+        body: JSON.stringify({ 
+          message: currentMessage,
+          configId: selectedConfig?.id || null
+        })
       });
 
       if (!response.ok) throw new Error('Failed to send message');

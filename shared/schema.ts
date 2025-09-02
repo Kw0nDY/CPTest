@@ -531,6 +531,7 @@ export const chatSessions = pgTable('chat_sessions', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull().unique(),
   title: text('title').notNull().default('새 채팅'),
+  configId: text('config_id').references(() => chatConfigurations.id), // Which chatbot config this session uses
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   lastActivity: text('last_activity')

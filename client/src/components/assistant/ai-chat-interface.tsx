@@ -81,6 +81,8 @@ export function AiChatInterface() {
   const [dataIntegrations, setDataIntegrations] = useState<any[]>([]);
   const [connectedDataIntegrations, setConnectedDataIntegrations] = useState<any[]>([]);
   const [showDataIntegrationModal, setShowDataIntegrationModal] = useState(false);
+  const [showDataDetailModal, setShowDataDetailModal] = useState(false);
+  const [selectedDataDetail, setSelectedDataDetail] = useState<any>(null);
   
   // Existing states
   const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
@@ -100,20 +102,35 @@ export function AiChatInterface() {
   const apiConfigInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Load configurations from API
+  // Load configurations from API with sorting
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
         const response = await fetch('/api/chat-configurations');
         if (response.ok) {
           const configs = await response.json();
-          setConfigurations(configs);
+          
+          // Sort configurations: Active first (by name), then inactive (by name)
+          const sortedConfigs = configs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
+            const aIsActive = a.isActive === true || a.isActive === 1;
+            const bIsActive = b.isActive === true || b.isActive === 1;
+            
+            // If both have same active status, sort by name
+            if (aIsActive === bIsActive) {
+              return a.name.localeCompare(b.name);
+            }
+            
+            // Active configurations come first
+            return bIsActive ? 1 : -1;
+          });
+          
+          setConfigurations(sortedConfigs);
           
           // Set first configuration as selected for editing
-          if (configs.length > 0) {
-            setSelectedConfig(configs[0]);
-            setSelectedConfigForTest(configs[0]);
-            setSelectedConfigForKnowledge(configs[0]);
+          if (sortedConfigs.length > 0) {
+            setSelectedConfig(sortedConfigs[0]);
+            setSelectedConfigForTest(sortedConfigs[0]);
+            setSelectedConfigForKnowledge(sortedConfigs[0]);
           }
         }
       } catch (error) {
@@ -167,6 +184,25 @@ export function AiChatInterface() {
 
     loadConnectedDataIntegrations();
   }, [selectedConfigForKnowledge]);
+
+  // Re-load connected data when Knowledge Base tab becomes active
+  useEffect(() => {
+    const loadConnectedDataOnTabChange = async () => {
+      if (activeTab === 'knowledge' && selectedConfigForKnowledge) {
+        try {
+          const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}`);
+          if (response.ok) {
+            const connected = await response.json();
+            setConnectedDataIntegrations(connected);
+          }
+        } catch (error) {
+          console.error('Error reloading connected data on tab change:', error);
+        }
+      }
+    };
+
+    loadConnectedDataOnTabChange();
+  }, [activeTab, selectedConfigForKnowledge]);
 
   const handleCreateNew = () => {
     const newConfig: ChatConfiguration = {
@@ -1226,6 +1262,18 @@ export function AiChatInterface() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  onClick={() => {
+                                    setSelectedDataDetail(integration);
+                                    setShowDataDetailModal(true);
+                                  }}
+                                  className="h-8 w-8 p-0"
+                                  title="상세 정보 보기"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => disconnectDataIntegration(integration.id)}
                                   className="h-8 w-8 p-0"
                                   title="연동 해제"
@@ -1594,6 +1642,139 @@ export function AiChatInterface() {
                   <Save className="w-4 h-4 mr-2" />
                   저장
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Detail Information Modal */}
+      <Dialog open={showDataDetailModal} onOpenChange={setShowDataDetailModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>데이터 연동 상세 정보</DialogTitle>
+            <p className="text-sm text-gray-600">
+              {selectedDataDetail?.name}의 연동 정보를 확인하세요
+            </p>
+          </DialogHeader>
+
+          {selectedDataDetail && (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">데이터 소스명</Label>
+                  <p className="text-sm p-2 bg-gray-50 rounded border">{selectedDataDetail.name}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">타입</Label>
+                  <p className="text-sm p-2 bg-gray-50 rounded border">{selectedDataDetail.type || 'Unknown'}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">연동 시간</Label>
+                  <p className="text-sm p-2 bg-gray-50 rounded border">
+                    {new Date(selectedDataDetail.connectedAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">상태</Label>
+                  <Badge variant="default" className="bg-green-100 text-green-800">
+                    연결됨
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Data Schema Information */}
+              {selectedDataDetail.dataSchema && selectedDataDetail.dataSchema.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">데이터 스키마</Label>
+                  <div className="space-y-3">
+                    {selectedDataDetail.dataSchema.map((table: any, idx: number) => (
+                      <div key={idx} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">{table.table || `테이블 ${idx + 1}`}</h4>
+                          <Badge variant="outline">
+                            {table.recordCount ? `${table.recordCount.toLocaleString()}개 레코드` : '레코드 수 불명'}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-2">
+                          <div className="grid grid-cols-3 gap-2 text-xs font-medium text-gray-500 border-b pb-2">
+                            <span>필드명</span>
+                            <span>타입</span>
+                            <span>설명</span>
+                          </div>
+                          {table.fields && table.fields.slice(0, 5).map((field: any, fieldIdx: number) => (
+                            <div key={fieldIdx} className="grid grid-cols-3 gap-2 text-xs py-1">
+                              <span className="font-medium">{field.name}</span>
+                              <span className="text-gray-600">{field.type}</span>
+                              <span className="text-gray-500 truncate">{field.description || '-'}</span>
+                            </div>
+                          ))}
+                          {table.fields && table.fields.length > 5 && (
+                            <div className="text-xs text-gray-500 text-center py-2">
+                              ... 및 {table.fields.length - 5}개 필드 더
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sample Data */}
+              {selectedDataDetail.sampleData && Object.keys(selectedDataDetail.sampleData).length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">샘플 데이터</Label>
+                  <div className="space-y-3">
+                    {Object.entries(selectedDataDetail.sampleData).map(([tableName, data]: [string, any]) => (
+                      <div key={tableName} className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-3">{tableName}</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b">
+                                {data && data.length > 0 && Object.keys(data[0]).map((key: string) => (
+                                  <th key={key} className="text-left p-2 font-medium text-gray-500">
+                                    {key}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data && data.slice(0, 3).map((row: any, rowIdx: number) => (
+                                <tr key={rowIdx} className="border-b">
+                                  {Object.values(row).map((value: any, colIdx: number) => (
+                                    <td key={colIdx} className="p-2 text-gray-700 truncate max-w-[150px]">
+                                      {String(value)}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {data && data.length > 3 && (
+                            <div className="text-xs text-gray-500 text-center py-2">
+                              ... 및 {data.length - 3}개 행 더
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Connection Info */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Database className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-300">연동 정보</span>
+                </div>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  이 데이터는 현재 선택된 챗봇({selectedConfigForKnowledge?.name})에서 사용할 수 있습니다.
+                  챗봇 대화 시 이 데이터를 기반으로 질문에 답변합니다.
+                </p>
               </div>
             </div>
           )}
