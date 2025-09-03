@@ -5372,84 +5372,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper functions for AI question processing
-  function extractQuestionKeywords(question: string): { types: string[], faults: string[], actions: string[] } {
+  function extractQuestionKeywords(question: string): { types: string[], faults: string[], actions: string[], allTerms: string[] } {
     const lowerQuestion = question.toLowerCase();
     
     // Common maintenance types
     const typeKeywords = [
       '센서', '계측기', '압력', '유량', '온도', '전력', '공급', '장치', 'ups', '배터리',
       '유압', '공압', '실린더', '열교환기', '냉각', '시스템', '로봇', '자동화', '암',
-      '생산', '장비', '효율화', '덕트', '배관', '관리', '밸브', '스틱션'
+      '생산', '장비', '효율화', '덕트', '배관', '관리', '밸브', '스틱션', '진공'
     ];
     
     // Common fault keywords  
     const faultKeywords = [
       '누설', '전압', '저하', '응답', '지연', '드리프트', '동작', '멈춤', '진공도', '미달',
-      'hunting', 'drop', '부식', '오차', '진동', '미스얼라인', '정렬'
+      'hunting', 'drop', '부식', '오차', '진동', '미스얼라인', '정렬', '제로', '불안정',
+      '펌프다운', '게이지', '실린더', '클램프', '스로틀', '펌프'
     ];
     
     // Common action keywords
     const actionKeywords = [
       '교체', '보강', '점검', '보정', '제거', '청소', '조정', '확인', '필터', 
-      '용접', '가스켓', '배터리', '충전', '회로', '센서', '오프셋', '케이블', '노이즈'
+      '용접', '가스켓', '배터리', '충전', '회로', '센서', '오프셋', '케이블', '노이즈',
+      '재교정', '재조임', '튜닝', '성능', '접촉'
     ];
     
     const extractedTypes = typeKeywords.filter(keyword => lowerQuestion.includes(keyword));
     const extractedFaults = faultKeywords.filter(keyword => lowerQuestion.includes(keyword));
     const extractedActions = actionKeywords.filter(keyword => lowerQuestion.includes(keyword));
     
+    // Extract all meaningful terms from the question
+    const allTerms = question.toLowerCase()
+      .replace(/[^\w\s가-힣]/g, ' ') // Remove special characters except Korean
+      .split(/\s+/)
+      .filter(term => term.length > 1) // Keep terms longer than 1 character
+      .filter(term => !['그에', '따른', '해결', '방법', '문제', '발생', '어떻게', '있어', '이에', '대한', '뭐야', '어떤'].includes(term)); // Remove common question words
+    
     return {
       types: extractedTypes,
       faults: extractedFaults,
-      actions: extractedActions
+      actions: extractedActions,
+      allTerms: allTerms
     };
   }
 
-  function filterRelevantData(allData: any[], keywords: { types: string[], faults: string[], actions: string[] }): any[] {
+  function filterRelevantData(allData: any[], keywords: { types: string[], faults: string[], actions: string[], allTerms: string[] }): any[] {
     if (!allData || allData.length === 0) return [];
     
-    const relevantData = allData.filter(record => {
-      if (!record || typeof record !== 'object') return false;
+    // Score each record for relevance
+    const scoredData = allData.map(record => {
+      if (!record || typeof record !== 'object') return { record, score: 0 };
       
       const recordText = JSON.stringify(record).toLowerCase();
       const typeText = (record.Type || '').toLowerCase();
       const faultText = (record.Fault || '').toLowerCase();
       const actionText = (record.Action || '').toLowerCase();
       
-      // Check for type matches
-      const typeMatch = keywords.types.some(type => 
-        typeText.includes(type) || recordText.includes(type)
-      );
+      let score = 0;
       
-      // Check for fault matches
-      const faultMatch = keywords.faults.some(fault => 
-        faultText.includes(fault) || recordText.includes(fault)
-      );
+      // Exact field matches get highest scores
+      keywords.types.forEach(type => {
+        if (typeText.includes(type)) score += 10;
+      });
       
-      // Check for action matches
-      const actionMatch = keywords.actions.some(action => 
-        actionText.includes(action) || recordText.includes(action)
-      );
+      keywords.faults.forEach(fault => {
+        if (faultText.includes(fault)) score += 15; // Fault matches are most important
+      });
       
-      // Return true if any category matches
-      return typeMatch || faultMatch || actionMatch;
+      keywords.actions.forEach(action => {
+        if (actionText.includes(action)) score += 8;
+      });
+      
+      // All terms matching gets medium score
+      keywords.allTerms.forEach(term => {
+        if (recordText.includes(term)) score += 3;
+        // Higher score for exact field matches
+        if (typeText.includes(term)) score += 2;
+        if (faultText.includes(term)) score += 3;
+        if (actionText.includes(term)) score += 2;
+      });
+      
+      return { record, score };
     });
     
-    // If we have specific matches, return them. Otherwise, return a broader search
+    // Sort by score and filter out zero scores
+    const relevantData = scoredData
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.record);
+    
+    // If we have matches, return them
     if (relevantData.length > 0) {
-      return relevantData;
+      console.log(`관련 데이터 점수별 정렬: ${relevantData.length}개 발견`);
+      return relevantData.slice(0, 15); // Return top 15 most relevant
     }
     
-    // Fallback: return records that contain any of the keywords
-    const broadMatch = allData.filter(record => {
+    // Fallback: if no keyword matches, try partial string matching
+    const partialMatches = allData.filter(record => {
       if (!record || typeof record !== 'object') return false;
       const recordText = JSON.stringify(record).toLowerCase();
       
-      const allKeywords = [...keywords.types, ...keywords.faults, ...keywords.actions];
-      return allKeywords.some(keyword => recordText.includes(keyword));
+      // Check if any term from the question appears in the record
+      return keywords.allTerms.some(term => recordText.includes(term));
     });
     
-    return broadMatch.slice(0, 10); // Limit to 10 most relevant
+    console.log(`부분 매칭으로 ${partialMatches.length}개 데이터 발견`);
+    return partialMatches.slice(0, 10);
   }
 
   // AI-powered chat endpoint with Flowise integration
@@ -5626,34 +5653,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const relevantData = filterRelevantData(allConnectedData, questionKeywords);
           console.log(`관련 데이터 필터링: ${allConnectedData.length}개 → ${relevantData.length}개`);
           
-          // Build focused context with only relevant data
+          // Build focused context with prioritized relevant data
           let focusedContext = '';
           if (relevantData.length > 0) {
-            focusedContext = `=== 질문과 관련된 데이터 ===\n${JSON.stringify(relevantData, null, 2)}\n\n`;
+            // Show relevant data first
+            focusedContext = `=== 질문과 관련된 데이터 (우선순위별 정렬) ===\n${JSON.stringify(relevantData, null, 2)}\n\n`;
+            
+            // If we have many relevant items, also show a few random samples for context
+            if (relevantData.length < allConnectedData.length) {
+              const remainingData = allConnectedData.filter(item => !relevantData.includes(item));
+              const randomSamples = remainingData.slice(0, 2);
+              if (randomSamples.length > 0) {
+                focusedContext += `=== 추가 참고 데이터 ===\n${JSON.stringify(randomSamples, null, 2)}\n\n`;
+              }
+            }
           } else {
-            // If no specific matches, provide a small sample
-            focusedContext = `=== 사용 가능한 데이터 (샘플) ===\n${JSON.stringify(allConnectedData.slice(0, 5), null, 2)}\n\n`;
+            // If no specific matches, provide all data but warn about it
+            focusedContext = `=== 전체 데이터 (정확한 매칭 없음) ===\n${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}\n\n`;
           }
           
           // Use AI with connected data as context - this preserves AI functionality
           // while ensuring only connected data is used
           try {
-            const enhancedQuestion = `당신은 유지보수 전문가입니다. 다음 데이터에서 사용자 질문에 정확히 일치하는 정보를 찾아 답변해주세요.
+            const enhancedQuestion = `당신은 산업 설비 유지보수 전문가입니다. 제공된 데이터에서 사용자 질문에 가장 정확히 일치하는 정보를 찾아 답변해주세요.
 
 ${focusedContext}
 
 사용자 질문: ${message}
 
-답변 규칙:
-1. Type(유형)과 Fault(문제)가 질문과 정확히 일치하는 경우, 해당 Action(해결방안)을 제시하세요
-2. 정확한 일치가 없으면 가장 유사한 케이스를 찾아 "유사한 사례"로 제시하세요  
-3. 관련 정보가 전혀 없으면 "제공된 데이터에서 해당 문제에 대한 정보를 찾을 수 없습니다"라고 답변하세요
-4. 답변은 구체적이고 실용적이어야 합니다
+중요한 답변 규칙:
+1. **정확한 매칭 우선**: Type(유형)과 Fault(문제)가 질문과 정확히 일치하는 항목을 먼저 찾으세요
+2. **구체적 답변**: 정확한 매칭이 있으면 해당 Action(해결방안)을 그대로 제시하세요
+3. **유사 케이스**: 정확한 매칭이 없으면 가장 유사한 케이스를 찾아 제시하세요
+4. **데이터 제한**: 위에 제공된 데이터에만 기반해서 답변하세요
+5. **명확한 형식**: 아래 형식으로 답변하세요
 
-형식: 
-문제 유형: [Type]
-발생 문제: [Fault] 
-해결 방안: [Action]`;
+반드시 이 형식으로 답변하세요:
+문제 유형: [정확한 Type]
+발생 문제: [정확한 Fault]
+해결 방안: [정확한 Action]
+
+질문과 일치하는 데이터가 없으면: "제공된 데이터에서 해당 문제에 대한 정보를 찾을 수 없습니다"`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
