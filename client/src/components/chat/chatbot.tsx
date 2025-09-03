@@ -111,7 +111,19 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   }, [isOpen]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedConfig) return;
+    if (!inputMessage.trim()) return;
+    
+    if (!selectedConfig) {
+      console.error('No configuration selected for chatbot');
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'bot',
+        message: '죄송합니다. 챗봇 구성이 선택되지 않았습니다.\n\n설정 버튼을 클릭하여 사용할 챗봇 구성을 선택해 주세요.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
 
     console.log('Sending message with config:', selectedConfig);
 

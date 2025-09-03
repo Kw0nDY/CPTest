@@ -85,6 +85,9 @@ export function AiChatInterface() {
   // Knowledge Base items per chatbot configuration (separated by configId)
   const [knowledgeBaseItems, setKnowledgeBaseItems] = useState<Record<string, KnowledgeBaseItem[]>>({});
   const knowledgeBaseInputRef = useRef<HTMLInputElement>(null);
+  
+  // Persistent state management
+  const STORAGE_KEY_PREFIX = 'ai-chat-interface';
 
   // File Analysis Functions
   const analyzeSourceCode = (content: string, extension: string) => {
