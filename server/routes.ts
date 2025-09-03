@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { storage, initializeSampleData } from "./storage";
-import { createDataSourceSchema, updateDataSourceSchema } from "@shared/schema";
+import { insertDataSourceSchema } from "@shared/schema";
 import { z } from "zod";
 import FormData from "form-data";
 import { aiModels, type AiModel, insertAiModelSchema } from "@shared/schema";
@@ -241,6 +241,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         sessionId,
         configId: configId || null,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         lastActivity: new Date().toISOString()
       });
       

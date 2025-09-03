@@ -738,12 +738,11 @@ export class DatabaseStorage implements IStorage {
   async saveAiModelResult(result: any): Promise<AiModelResult> {
     // Use createAiModelResult with the provided data
     const insertData: InsertAiModelResult = {
-      id: result.id || `result-${Date.now()}`,
       modelId: result.modelId,
       configurationId: result.configurationId || null,
-      inputData: JSON.stringify(result.inputData || {}),
-      resultData: JSON.stringify(result.resultData || {}),
-      executedAt: result.executedAt || new Date().toISOString(),
+      inputData: result.inputData || {},
+      resultData: result.resultData || {},
+      executedAt: result.executedAt || new Date(),
       status: result.status || 'completed',
       executionTime: result.executionTime || 0,
       error: result.error || null
@@ -1143,7 +1142,8 @@ export async function initializeSampleData() {
           configId: configs[0].id,
           dataSourceId: sampleDataSource.id,
           connectionName: 'RawData_1M Connection',
-          isActive: true
+          connectedAt: new Date().toISOString(),
+          isConnected: 1
         };
         await storage.createChatbotDataIntegration(integration);
         console.log('✅ 챗봇-데이터소스 연결 완료');

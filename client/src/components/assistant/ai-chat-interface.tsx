@@ -308,7 +308,12 @@ export function AiChatInterface() {
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
-        const response = await fetch('/api/chat-configurations');
+        const response = await fetch('/api/chat-configurations', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
         if (response.ok) {
           const configs = await response.json();
           
@@ -359,7 +364,12 @@ export function AiChatInterface() {
   useEffect(() => {
     const loadDataIntegrations = async () => {
       try {
-        const response = await fetch('/api/data-sources');
+        const response = await fetch('/api/data-sources', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
         if (response.ok) {
           const dataSources = await response.json();
           setDataIntegrations(dataSources);
@@ -385,7 +395,12 @@ export function AiChatInterface() {
 
     setIsLoadingIntegrations(true);
     try {
-      const response = await fetch(`/api/chatbot-data-integrations/${configId}`);
+      const response = await fetch(`/api/chatbot-data-integrations/${configId}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
       if (response.ok) {
         const connected = await response.json();
         setConnectedDataIntegrations(connected);
