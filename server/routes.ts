@@ -5674,26 +5674,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Use AI with connected data as context - this preserves AI functionality
           // while ensuring only connected data is used
+          // Check if we have exact matches first - provide direct answer if found
+          let exactMatch = null;
+          if (relevantData.length > 0) {
+            // Look for exact Type + Fault matches
+            exactMatch = relevantData.find(record => {
+              const typeMatch = record.Type && questionKeywords.types.some(type => 
+                record.Type.toLowerCase().includes(type)
+              );
+              const faultMatch = record.Fault && questionKeywords.faults.some(fault => 
+                record.Fault.toLowerCase().includes(fault)
+              );
+              return typeMatch && faultMatch;
+            });
+          }
+
+          // If we have an exact match, provide direct answer
+          if (exactMatch) {
+            console.log('정확한 매칭 발견, 직접 답변 제공:', exactMatch);
+            const directAnswer = `문제 유형: ${exactMatch.Type}\n발생 문제: ${exactMatch.Fault}\n해결 방안: ${exactMatch.Action}`;
+            
+            const botMessage = await storage.createChatMessage({
+              sessionId,
+              type: 'bot',
+              message: directAnswer,
+              createdAt: new Date().toISOString()
+            });
+
+            return res.json({
+              userMessage: userMessage,
+              botMessage: botMessage
+            });
+          }
+
           try {
-            const enhancedQuestion = `당신은 산업 설비 유지보수 전문가입니다. 제공된 데이터에서 사용자 질문에 가장 정확히 일치하는 정보를 찾아 답변해주세요.
+            // Simplified prompt for AI
+            const enhancedQuestion = `데이터: ${JSON.stringify(relevantData, null, 2)}
 
-${focusedContext}
+질문: ${message}
 
-사용자 질문: ${message}
+위 데이터에서 질문과 일치하는 Type, Fault, Action을 찾아 다음 형식으로 답변하세요:
 
-중요한 답변 규칙:
-1. **정확한 매칭 우선**: Type(유형)과 Fault(문제)가 질문과 정확히 일치하는 항목을 먼저 찾으세요
-2. **구체적 답변**: 정확한 매칭이 있으면 해당 Action(해결방안)을 그대로 제시하세요
-3. **유사 케이스**: 정확한 매칭이 없으면 가장 유사한 케이스를 찾아 제시하세요
-4. **데이터 제한**: 위에 제공된 데이터에만 기반해서 답변하세요
-5. **명확한 형식**: 아래 형식으로 답변하세요
-
-반드시 이 형식으로 답변하세요:
-문제 유형: [정확한 Type]
-발생 문제: [정확한 Fault]
-해결 방안: [정확한 Action]
-
-질문과 일치하는 데이터가 없으면: "제공된 데이터에서 해당 문제에 대한 정보를 찾을 수 없습니다"`;
+문제 유형: [Type]
+발생 문제: [Fault]  
+해결 방안: [Action]`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
@@ -5711,36 +5735,66 @@ ${focusedContext}
               const flowiseResult = await flowiseResponse.json();
               console.log(`AI 응답 성공:`, flowiseResult);
               
-              let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "AI로부터 응답을 받을 수 없습니다.";
+              let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "";
               
-              // Create bot message with AI response
-              const botMessage = await storage.createChatMessage({
-                sessionId,
-                type: 'bot',
-                message: aiResponse,
-                createdAt: new Date().toISOString()
-              });
+              // Check if AI response is valid (not just repeating the question)
+              const isValidResponse = aiResponse && 
+                !aiResponse.toLowerCase().includes('사용자 질문:') &&
+                !aiResponse.toLowerCase().includes(message.toLowerCase()) &&
+                aiResponse.length > 50 &&
+                (aiResponse.includes('문제 유형:') || aiResponse.includes('해결') || aiResponse.includes('Action'));
+              
+              if (isValidResponse) {
+                console.log('유효한 AI 응답 받음:', aiResponse);
+                const botMessage = await storage.createChatMessage({
+                  sessionId,
+                  type: 'bot',
+                  message: aiResponse,
+                  createdAt: new Date().toISOString()
+                });
 
-              return res.json({
-                userMessage: userMessage,
-                botMessage: botMessage
-              });
+                return res.json({
+                  userMessage: userMessage,
+                  botMessage: botMessage
+                });
+              } else {
+                console.log('AI 응답이 유효하지 않음, 대체 로직 사용:', aiResponse);
+                throw new Error('AI 응답이 질문을 반복하거나 유효하지 않음');
+              }
             } else {
               throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
             }
           } catch (error) {
-            console.error("AI 처리 실패:", error);
+            console.error("AI 처리 실패, 로컬 매칭 시스템 사용:", error);
             
-            // Fallback to connection guidance if AI fails
-            const aiErrorMessage = `AI 처리 중 오류가 발생했습니다.\n\n` +
-              `연결된 데이터: ${allConnectedData.length}개 레코드\n` +
-              `오류 내용: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
-              `잠시 후 다시 시도해주시거나, 시스템 관리자에게 문의하세요.`;
+            // FALLBACK: Local intelligent matching when AI fails
+            let fallbackAnswer = "";
+            
+            if (relevantData.length > 0) {
+              // Find best match using local logic
+              const bestMatch = relevantData[0]; // Already sorted by relevance score
+              console.log('로컬 매칭으로 최적 답변 제공:', bestMatch);
+              
+              fallbackAnswer = `문제 유형: ${bestMatch.Type}\n발생 문제: ${bestMatch.Fault}\n해결 방안: ${bestMatch.Action}\n\n(시스템 매칭 결과)`;
+            } else {
+              // Look for any partial matches in all data
+              const partialMatch = allConnectedData.find(record => {
+                const recordText = JSON.stringify(record).toLowerCase();
+                return questionKeywords.allTerms.some(term => recordText.includes(term));
+              });
+              
+              if (partialMatch) {
+                console.log('부분 매칭으로 답변 제공:', partialMatch);
+                fallbackAnswer = `유사한 사례를 찾았습니다:\n\n문제 유형: ${partialMatch.Type}\n발생 문제: ${partialMatch.Fault}\n해결 방안: ${partialMatch.Action}\n\n(참고용 유사 사례)`;
+              } else {
+                fallbackAnswer = `죄송합니다. 연결된 데이터에서 "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n사용 가능한 문제 유형:\n${[...new Set(allConnectedData.map(d => d.Type))].slice(0, 3).join(', ')} 등\n\n더 구체적인 문제 유형과 증상을 알려주시면 정확한 해결책을 제공할 수 있습니다.`;
+              }
+            }
 
             const botMessage = await storage.createChatMessage({
               sessionId,
               type: 'bot',
-              message: aiErrorMessage,
+              message: fallbackAnswer,
               createdAt: new Date().toISOString()
             });
 
