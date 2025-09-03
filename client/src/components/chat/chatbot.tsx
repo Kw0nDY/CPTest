@@ -97,7 +97,9 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   }, [isOpen]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !selectedConfig) return;
+
+    console.log('Sending message with config:', selectedConfig);
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -113,11 +115,12 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
     try {
       // Create or get chat session with selected chatbot config
+      console.log('Creating session with configId:', selectedConfig.id);
       const sessionResponse = await fetch('/api/chat/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          configId: selectedConfig?.id || null 
+          configId: selectedConfig.id
         })
       });
 
@@ -126,12 +129,13 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       const { sessionId } = await sessionResponse.json();
 
       // Send message to AI with config information
+      console.log('Sending message to session:', sessionId, 'with configId:', selectedConfig.id);
       const response = await fetch(`/api/chat/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: currentMessage,
-          configId: selectedConfig?.id || null
+          configId: selectedConfig.id
         })
       });
 
@@ -176,7 +180,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[800px]'} transition-all duration-300`}>
+      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[800px]'} transition-all duration-300 flex flex-col overflow-hidden`}>
         {/* Header */}
         <CardHeader className="pb-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
           <div className="flex items-center justify-between gap-2">
@@ -304,7 +308,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="p-0 flex flex-col h-[750px]">
+          <CardContent className="p-0 flex flex-col flex-1 min-h-0">
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3">
@@ -355,24 +359,32 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
               </div>
             </ScrollArea>
 
-            {/* Input */}
-            <div className="p-4 border-t border-gray-200">
+            {/* Input Section - Fixed at bottom */}
+            <div className="p-4 border-t border-gray-200 bg-white">
+              {/* Configuration Status */}
+              {!selectedConfig && (
+                <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                  <Settings className="w-3 h-3 inline mr-1" />
+                  챗봇 구성을 선택해주세요
+                </div>
+              )}
+              
               {/* Message Input */}
               <div className="flex gap-2">
                 <Input
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="메시지를 입력하세요..."
+                  placeholder={selectedConfig ? "메시지를 입력하세요..." : "먼저 챗봇 구성을 선택해주세요"}
                   className="flex-1 text-sm"
-                  disabled={isLoading}
+                  disabled={isLoading || !selectedConfig}
                   data-testid="chat-input"
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || isLoading}
+                  disabled={!inputMessage.trim() || isLoading || !selectedConfig}
                   size="sm"
-                  className="px-3"
+                  className="px-3 shrink-0"
                   data-testid="chat-send-button"
                 >
                   {isLoading ? (
