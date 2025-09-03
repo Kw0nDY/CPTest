@@ -5737,19 +5737,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "";
               
+              // Clean up AI response - extract only the answer part
+              let cleanedResponse = aiResponse;
+              
+              // Extract only the answer section if it exists
+              if (aiResponse.includes('=== 답변 ===')) {
+                const answerStart = aiResponse.indexOf('=== 답변 ===') + '=== 답변 ==='.length;
+                const answerEnd = aiResponse.indexOf('=== 관련 데이터 ===');
+                if (answerEnd !== -1) {
+                  cleanedResponse = aiResponse.substring(answerStart, answerEnd).trim();
+                } else {
+                  cleanedResponse = aiResponse.substring(answerStart).trim();
+                }
+              }
+              
+              // Remove any remaining unwanted sections
+              cleanedResponse = cleanedResponse
+                .replace(/=== 관련 데이터 ===[\s\S]*$/g, '') // Remove related data section
+                .replace(/사용자 질문:.*?\n/g, '') // Remove question repetition
+                .replace(/\[[\s\S]*?\]/g, '') // Remove JSON data arrays
+                .trim();
+              
               // Check if AI response is valid (not just repeating the question)
-              const isValidResponse = aiResponse && 
-                !aiResponse.toLowerCase().includes('사용자 질문:') &&
-                !aiResponse.toLowerCase().includes(message.toLowerCase()) &&
-                aiResponse.length > 50 &&
-                (aiResponse.includes('문제 유형:') || aiResponse.includes('해결') || aiResponse.includes('Action'));
+              const isValidResponse = cleanedResponse && 
+                !cleanedResponse.toLowerCase().includes('사용자 질문:') &&
+                !cleanedResponse.toLowerCase().includes(message.toLowerCase()) &&
+                cleanedResponse.length > 30 &&
+                (cleanedResponse.includes('문제 유형:') || cleanedResponse.includes('해결') || cleanedResponse.includes('Action'));
               
               if (isValidResponse) {
-                console.log('유효한 AI 응답 받음:', aiResponse);
+                console.log('유효한 AI 응답 받음 (정리됨):', cleanedResponse);
                 const botMessage = await storage.createChatMessage({
                   sessionId,
                   type: 'bot',
-                  message: aiResponse,
+                  message: cleanedResponse,
                   createdAt: new Date().toISOString()
                 });
 
