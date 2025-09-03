@@ -1052,18 +1052,24 @@ export function AiChatInterface() {
     if (!selectedConfigForKnowledge) return;
 
     try {
+      console.log('Disconnecting:', { configId: selectedConfigForKnowledge.id, dataSourceId });
+      
       const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}/${dataSourceId}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
         // Update local state - filter by dataSourceId field
-        setConnectedDataIntegrations(prev => prev.filter(integration => integration.dataSourceId !== dataSourceId));
+        setConnectedDataIntegrations(prev => prev.filter(integration => 
+          (integration.dataSourceId || integration.id) !== dataSourceId
+        ));
         
         // Update cache immediately
         setDataIntegrationCache(prev => ({
           ...prev,
-          [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).filter(integration => integration.dataSourceId !== dataSourceId)
+          [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).filter(integration => 
+            (integration.dataSourceId || integration.id) !== dataSourceId
+          )
         }));
 
         const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
@@ -1072,7 +1078,9 @@ export function AiChatInterface() {
           description: `${dataSource?.name}의 연동이 해제되었습니다.`,
         });
       } else {
-        throw new Error('Failed to disconnect data integration');
+        const errorText = await response.text();
+        console.error('Delete failed:', response.status, errorText);
+        throw new Error(`Failed to disconnect integration: ${response.status}`);
       }
     } catch (error) {
       toast({
@@ -1668,15 +1676,35 @@ export function AiChatInterface() {
                           <Database className="w-5 h-5" />
                           Data Integration 연동 ({connectedDataIntegrations.length})
                         </h3>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowDataIntegrationModal(true)}
-                          className="flex items-center gap-2"
-                        >
-                          <Database className="w-4 h-4" />
-                          추가 연동
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {connectedDataIntegrations.length > 0 && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('모든 데이터 연동을 해제하시겠습니까?')) {
+                                  connectedDataIntegrations.forEach(integration => {
+                                    disconnectDataIntegration(integration.dataSourceId || integration.id);
+                                  });
+                                }
+                              }}
+                              className="flex items-center gap-2"
+                              title="모든 연동 해제"
+                            >
+                              <X className="w-4 h-4" />
+                              전체 해제
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowDataIntegrationModal(true)}
+                            className="flex items-center gap-2"
+                          >
+                            <Database className="w-4 h-4" />
+                            추가 연동
+                          </Button>
+                        </div>
                       </div>
                       
                       {connectedDataIntegrations.length > 0 ? (
@@ -1711,7 +1739,7 @@ export function AiChatInterface() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => disconnectDataIntegration(integration.id)}
+                                  onClick={() => disconnectDataIntegration(integration.dataSourceId || integration.id)}
                                   className="h-8 w-8 p-0"
                                   title="연동 해제"
                                 >
