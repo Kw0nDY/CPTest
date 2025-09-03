@@ -321,6 +321,60 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   });
 
   // Chatbot Data Integrations API
+  // Chat Configuration endpoints
+  app.get("/api/chat-configurations", async (req, res) => {
+    try {
+      const configurations = await storage.getAllChatConfigurations();
+      res.json(configurations);
+    } catch (error) {
+      console.error('Error fetching chat configurations:', error);
+      res.status(500).json({ error: "챗봇 구성 조회에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/chat-configurations", async (req, res) => {
+    try {
+      const config = await storage.createChatConfiguration(req.body);
+      res.status(201).json(config);
+    } catch (error) {
+      console.error('Error creating chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 생성에 실패했습니다" });
+    }
+  });
+
+  app.put("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.updateChatConfiguration(id, req.body);
+      res.json(config);
+    } catch (error) {
+      console.error('Error updating chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 업데이트에 실패했습니다" });
+    }
+  });
+
+  app.put("/api/chat-configurations/:id/toggle-active", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.toggleChatConfigurationActive(id);
+      res.json(config);
+    } catch (error) {
+      console.error('Error toggling chat configuration active status:', error);
+      res.status(500).json({ error: "챗봇 구성 활성화 상태 변경에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteChatConfiguration(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 삭제에 실패했습니다" });
+    }
+  });
+
   app.get("/api/chatbot-data-integrations/:configId", async (req, res) => {
     try {
       const { configId } = req.params;
