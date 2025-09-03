@@ -5674,38 +5674,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Use AI with connected data as context - this preserves AI functionality
           // while ensuring only connected data is used
-          // Check if we have exact matches first - provide direct answer if found
-          let exactMatch = null;
-          if (relevantData.length > 0) {
-            // Look for exact Type + Fault matches
-            exactMatch = relevantData.find(record => {
-              const typeMatch = record.Type && questionKeywords.types.some(type => 
-                record.Type.toLowerCase().includes(type)
-              );
-              const faultMatch = record.Fault && questionKeywords.faults.some(fault => 
-                record.Fault.toLowerCase().includes(fault)
-              );
-              return typeMatch && faultMatch;
-            });
-          }
-
-          // If we have an exact match, provide direct answer
-          if (exactMatch) {
-            console.log('정확한 매칭 발견, 직접 답변 제공:', exactMatch);
-            const directAnswer = `요청 내용: ${message}\n\n문제 유형: ${exactMatch.Type}\n발생 문제: ${exactMatch.Fault}\n해결 방안: ${exactMatch.Action}`;
-            
-            const botMessage = await storage.createChatMessage({
-              sessionId,
-              type: 'bot',
-              message: directAnswer,
-              createdAt: new Date().toISOString()
-            });
-
-            return res.json({
-              userMessage: userMessage,
-              botMessage: botMessage
-            });
-          }
 
           try {
             // Send only the original message without any modification
