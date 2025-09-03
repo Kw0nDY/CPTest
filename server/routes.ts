@@ -5741,40 +5741,13 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
               
               console.log('Original AI response:', aiResponse);
               
-              // Clean and extract the structured answer
-              let cleanedResponse = aiResponse;
-              
-              // Look for the expected structured answer pattern
-              const answerPattern = /문제 유형:\s*([^\n]+)[\s\n]*발생 문제:\s*([^\n]+)[\s\n]*해결 방안:\s*([^\n]+)/i;
-              const answerMatch = aiResponse.match(answerPattern);
-              
-              if (answerMatch && answerMatch[1] && answerMatch[2] && answerMatch[3]) {
-                // Use structured answer if found and all parts exist
-                cleanedResponse = `문제 유형: ${answerMatch[1].trim()}\n발생 문제: ${answerMatch[2].trim()}\n해결 방안: ${answerMatch[3].trim()}`;
-              } else {
-                // Try alternative cleaning approaches
-                cleanedResponse = aiResponse
-                  .replace(/다음 데이터를 분석하여.*?(?=문제 유형:|$)/g, '') // Remove prompt repetition
-                  .replace(/데이터:[\s\S]*?(?=응답 형식:|문제 유형:|$)/g, '') // Remove data section
-                  .replace(/응답 형식:[\s\S]*?(?=문제 유형:|$)/g, '') // Remove format instructions
-                  .replace(/\[[\s\S]*?\]/g, '') // Remove JSON arrays  
-                  .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-                  .replace(/\n\s*\n/g, '\n') // Remove extra line breaks
-                  .trim();
-              }
-              
-              // Simple validation - accept any meaningful response
-              const isNotQuestionRepeat = !cleanedResponse.toLowerCase().includes(message.toLowerCase().substring(0, 15));
-              const hasSubstantiveContent = cleanedResponse.length > 5 && cleanedResponse.trim() !== '';
-              
-              const isValidResponse = hasSubstantiveContent && isNotQuestionRepeat;
-              
-              if (isValidResponse) {
-                console.log('유효한 AI 응답 받음 (정리됨):', cleanedResponse);
+              // Use AI response as-is without any modification
+              if (aiResponse && aiResponse.trim().length > 0) {
+                console.log('AI 응답 그대로 사용:', aiResponse);
                 const botMessage = await storage.createChatMessage({
                   sessionId,
                   type: 'bot',
-                  message: cleanedResponse,
+                  message: aiResponse.trim(),
                   createdAt: new Date().toISOString()
                 });
 
@@ -5783,8 +5756,8 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
                   botMessage: botMessage
                 });
               } else {
-                console.log('AI 응답이 유효하지 않음, 대체 로직 사용:', aiResponse);
-                throw new Error('AI 응답이 질문을 반복하거나 유효하지 않음');
+                console.log('AI 응답이 비어있음, 대체 로직 사용');
+                throw new Error('AI 응답이 비어있음');
               }
             } else {
               throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
@@ -5796,24 +5769,21 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
             let fallbackAnswer = "";
             
             if (relevantData.length > 0) {
-              // Find best match using local logic
-              const bestMatch = relevantData[0]; // Already sorted by relevance score
-              console.log('로컬 매칭으로 최적 답변 제공:', bestMatch);
+              // Try to find direct data match and provide simple answer
+              const bestMatch = relevantData[0];
+              console.log('로컬 매칭으로 직접 답변 제공:', bestMatch);
               
-              fallbackAnswer = `요청 내용: ${message}\n\n문제 유형: ${bestMatch.Type}\n발생 문제: ${bestMatch.Fault}\n해결 방안: ${bestMatch.Action}`;
-            } else {
-              // Look for any partial matches in all data
-              const partialMatch = allConnectedData.find(record => {
-                const recordText = JSON.stringify(record).toLowerCase();
-                return questionKeywords.allTerms.some(term => recordText.includes(term));
-              });
-              
-              if (partialMatch) {
-                console.log('부분 매칭으로 답변 제공:', partialMatch);
-                fallbackAnswer = `요청 내용: ${message}\n\n유사한 사례:\n문제 유형: ${partialMatch.Type}\n발생 문제: ${partialMatch.Fault}\n해결 방안: ${partialMatch.Action}`;
+              // Extract the requested information naturally
+              if (message.includes('Agitation') && bestMatch.Agitation !== undefined) {
+                fallbackAnswer = `${bestMatch['Asset Name'] || 'ID ' + bestMatch.Id}의 Agitation는 ${bestMatch.Agitation}입니다.`;
+              } else if (message.includes('온도') || message.includes('Temperature') && bestMatch.Temperature !== undefined) {
+                fallbackAnswer = `${bestMatch['Asset Name'] || 'ID ' + bestMatch.Id}의 온도는 ${bestMatch.Temperature}도입니다.`;
               } else {
-                fallbackAnswer = `요청 내용: ${message}\n\n죄송합니다. 해당 문제에 대한 정보를 찾을 수 없습니다.\n\n사용 가능한 문제 유형: ${[...new Set(allConnectedData.map(d => d.Type))].slice(0, 3).join(', ')} 등`;
+                // General response with key info
+                fallbackAnswer = `요청하신 정보: ${JSON.stringify(bestMatch, null, 2)}`;
               }
+            } else {
+              fallbackAnswer = `죄송합니다. "${message}"에 대한 정보를 찾을 수 없습니다. 다른 질문을 시도해보세요.`;
             }
 
             const botMessage = await storage.createChatMessage({
