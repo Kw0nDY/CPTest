@@ -17,8 +17,15 @@ interface UploadedFile {
   id: string;
   name: string;
   size: string;
-  uploadedAt: Date;
+  uploadedAt: string;
   status: 'processing' | 'completed' | 'error';
+  type?: string;
+  language?: string;
+  content?: string;
+  metadata?: any;
+  isExecutable?: boolean;
+  isLoadable?: boolean;
+  requiresSpecialHandling?: boolean;
 }
 
 interface ChatConfiguration {
@@ -355,46 +362,55 @@ export function AiChatInterface() {
     loadDataIntegrations();
   }, []);
 
-  // Load connected data integrations for selected chatbot
+  // Optimized data integration loading with caching
+  const [dataIntegrationCache, setDataIntegrationCache] = useState<{[key: string]: any[]}>({});
+  const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
+
+  const loadConnectedDataIntegrationsOptimized = async (configId: string, forceRefresh = false) => {
+    // Use cache if available and not forcing refresh
+    if (!forceRefresh && dataIntegrationCache[configId]) {
+      setConnectedDataIntegrations(dataIntegrationCache[configId]);
+      return;
+    }
+
+    setIsLoadingIntegrations(true);
+    try {
+      const response = await fetch(`/api/chatbot-data-integrations/${configId}`);
+      if (response.ok) {
+        const connected = await response.json();
+        setConnectedDataIntegrations(connected);
+        // Update cache
+        setDataIntegrationCache(prev => ({
+          ...prev,
+          [configId]: connected
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load connected data integrations:', error);
+    } finally {
+      setIsLoadingIntegrations(false);
+    }
+  };
+
+  // Load connected data integrations for selected chatbot (with caching)
   useEffect(() => {
-    const loadConnectedDataIntegrations = async () => {
-      if (!selectedConfigForKnowledge) {
-        setConnectedDataIntegrations([]);
-        return;
-      }
+    if (!selectedConfigForKnowledge) {
+      setConnectedDataIntegrations([]);
+      return;
+    }
 
-      try {
-        const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}`);
-        if (response.ok) {
-          const connected = await response.json();
-          setConnectedDataIntegrations(connected);
-        }
-      } catch (error) {
-        console.error('Failed to load connected data integrations:', error);
-      }
-    };
-
-    loadConnectedDataIntegrations();
+    loadConnectedDataIntegrationsOptimized(selectedConfigForKnowledge.id);
   }, [selectedConfigForKnowledge]);
 
-  // Re-load connected data when Knowledge Base tab becomes active
+  // Only reload when Knowledge Base tab becomes active and no data is cached
   useEffect(() => {
-    const loadConnectedDataOnTabChange = async () => {
-      if (activeTab === 'knowledge' && selectedConfigForKnowledge) {
-        try {
-          const response = await fetch(`/api/chatbot-data-integrations/${selectedConfigForKnowledge.id}`);
-          if (response.ok) {
-            const connected = await response.json();
-            setConnectedDataIntegrations(connected);
-          }
-        } catch (error) {
-          console.error('Error reloading connected data on tab change:', error);
-        }
+    if (activeTab === 'knowledge' && selectedConfigForKnowledge) {
+      // Only refresh if cache is empty or stale (optional)
+      if (!dataIntegrationCache[selectedConfigForKnowledge.id]) {
+        loadConnectedDataIntegrationsOptimized(selectedConfigForKnowledge.id, true);
       }
-    };
-
-    loadConnectedDataOnTabChange();
-  }, [activeTab, selectedConfigForKnowledge]);
+    }
+  }, [activeTab]);
 
   const handleCreateNew = () => {
     const newConfig: ChatConfiguration = {
@@ -601,6 +617,25 @@ export function AiChatInterface() {
       if (configData.temperature !== undefined) {
         updatedConfig.temperature = parseFloat(configData.temperature) || updatedConfig.temperature;
       }
+
+      // Add uploaded file to the list
+      const newUploadedFile: UploadedFile = {
+        id: `file-${Date.now()}`,
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        uploadedAt: new Date().toISOString(),
+        status: 'completed',
+        type: configData.type || 'config',
+        language: configData.language,
+        content: configData.content,
+        metadata: configData.metadata || configData.apiUrlInfo,
+        isExecutable: configData.isExecutable,
+        isLoadable: configData.isLoadable,
+        requiresSpecialHandling: configData.requiresSpecialHandling
+      };
+
+      // Add to uploadedFiles array
+      updatedConfig.uploadedFiles = [...(updatedConfig.uploadedFiles || []), newUploadedFile];
 
       setEditingConfig(updatedConfig);
 
@@ -973,6 +1008,12 @@ export function AiChatInterface() {
         
         setConnectedDataIntegrations(prev => [...prev, integrationWithDetails]);
 
+        // Update cache immediately for real-time feel
+        setDataIntegrationCache(prev => ({
+          ...prev,
+          [selectedConfigForKnowledge.id]: [...(prev[selectedConfigForKnowledge.id] || []), integrationWithDetails]
+        }));
+
         toast({
           title: 'Data Integration 연동 완료',
           description: `${dataSource?.name}이(가) 성공적으로 연동되었습니다.`,
@@ -1000,6 +1041,12 @@ export function AiChatInterface() {
       if (response.ok) {
         // Update local state - filter by dataSourceId field
         setConnectedDataIntegrations(prev => prev.filter(integration => integration.dataSourceId !== dataSourceId));
+        
+        // Update cache immediately
+        setDataIntegrationCache(prev => ({
+          ...prev,
+          [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).filter(integration => integration.dataSourceId !== dataSourceId)
+        }));
 
         const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
         toast({
