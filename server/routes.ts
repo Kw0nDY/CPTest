@@ -5464,66 +5464,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error building context from connected data sources:', error);
         }
 
-        // PRECISE LOCAL MATCHING: Find exact Type and Fault matches
+        // AI FUNCTIONALITY WITH CONNECTED DATA ONLY
         if (allConnectedData.length > 0) {
-          console.log(`정밀 매칭 시작: "${message}"`);
+          console.log(`AI 처리 시작: 연결된 데이터 ${allConnectedData.length}개 레코드를 컨텍스트로 사용`);
           
-          // Find matching records based on Type and Fault fields
-          const matchedRecords = allConnectedData.filter(record => {
-            if (!record.Type || !record.Fault || !record.Action) return false;
-            
-            const typeMatch = message.toLowerCase().includes(record.Type.toLowerCase());
-            const faultMatch = message.toLowerCase().includes(record.Fault.toLowerCase());
-            
-            console.log(`레코드 검사: Type="${record.Type}" (매칭=${typeMatch}), Fault="${record.Fault}" (매칭=${faultMatch})`);
-            
-            return typeMatch && faultMatch;
-          });
+          // Use AI with connected data as context - this preserves AI functionality
+          // while ensuring only connected data is used
+          try {
+            const enhancedQuestion = `다음은 이 챗봇에 연결된 데이터입니다. 이 데이터만을 사용해서 질문에 답변해주세요:\n\n${contextData}\n\n사용자 질문: ${message}\n\n중요: 위에 제공된 데이터에서만 정보를 찾아 답변하고, 해당 데이터에 없는 내용은 "제공된 데이터에서 관련 정보를 찾을 수 없습니다"라고 답변해주세요.`;
 
-          if (matchedRecords.length > 0) {
-            console.log(`정밀 매칭 성공: ${matchedRecords.length}개 결과 발견`);
-            
-            // Return the exact action from matched records
-            let localResponse = '';
-            if (matchedRecords.length === 1) {
-              const match = matchedRecords[0];
-              localResponse = `**문제 유형:** ${match.Type}\n**장애 내용:** ${match.Fault}\n\n**해결 방법:** ${match.Action}`;
-            } else {
-              localResponse = `해당 문제에 대한 ${matchedRecords.length}개의 해결 방법을 찾았습니다:\n\n`;
-              matchedRecords.forEach((match, index) => {
-                localResponse += `**${index + 1}. ${match.Type} - ${match.Fault}**\n`;
-                localResponse += `해결 방법: ${match.Action}\n\n`;
+            console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
+            const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                question: enhancedQuestion,
+                history: []
+              })
+            });
+
+            if (flowiseResponse.ok) {
+              const flowiseResult = await flowiseResponse.json();
+              console.log(`AI 응답 성공:`, flowiseResult);
+              
+              let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "AI로부터 응답을 받을 수 없습니다.";
+              
+              // Create bot message with AI response
+              const botMessage = await storage.createChatMessage({
+                sessionId,
+                configId: configId || undefined,
+                type: 'bot',
+                message: aiResponse
               });
+
+              return res.json({
+                userMessage: userMessage,
+                botMessage: botMessage
+              });
+            } else {
+              throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
             }
-
-            // Create bot message with precise local match
-            const botMessage = await storage.createChatMessage({
-              sessionId,
-              configId: configId || undefined,
-              type: 'bot',
-              message: localResponse
-            });
-
-            return res.json({
-              userMessage: userMessage,
-              botMessage: botMessage
-            });
-          } else {
-            console.log(`정밀 매칭 실패: 연결된 데이터에서 해당 내용을 찾을 수 없음`);
+          } catch (error) {
+            console.error("AI 처리 실패:", error);
             
-            // No matching data found in connected sources
-            const noMatchMessage = `죄송합니다. 연결된 데이터에서 "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n` +
-              `다음 사항을 확인해주세요:\n` +
-              `• 올바른 챗봇을 선택했는지 확인\n` +
-              `• Knowledge Base에 관련 데이터가 업로드되었는지 확인\n` +
-              `• Data Integration이 제대로 연결되었는지 확인\n\n` +
-              `현재 연결된 데이터에는 ${allConnectedData.length}개의 레코드가 있습니다.`;
+            // Fallback to connection guidance if AI fails
+            const aiErrorMessage = `AI 처리 중 오류가 발생했습니다.\n\n` +
+              `연결된 데이터: ${allConnectedData.length}개 레코드\n` +
+              `오류 내용: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+              `잠시 후 다시 시도해주시거나, 시스템 관리자에게 문의하세요.`;
 
             const botMessage = await storage.createChatMessage({
               sessionId,
               configId: configId || undefined,
               type: 'bot',
-              message: noMatchMessage
+              message: aiErrorMessage
             });
 
             return res.json({
