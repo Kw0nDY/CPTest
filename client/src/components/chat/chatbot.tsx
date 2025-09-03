@@ -153,7 +153,10 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
 
       const data = await response.json();
       
@@ -167,10 +170,21 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Extract detailed error information
+      let errorDetails = '';
+      if (error instanceof Error) {
+        errorDetails = error.message;
+      } else if (typeof error === 'string') {
+        errorDetails = error;
+      } else {
+        errorDetails = JSON.stringify(error);
+      }
+      
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
         type: 'bot',
-        message: '죄송합니다. 메시지 전송에 실패했습니다. 다시 시도해 주세요.',
+        message: `메시지 전송에 실패했습니다.\n\n오류 정보:\n${errorDetails}\n\n다시 시도해 주세요.`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);

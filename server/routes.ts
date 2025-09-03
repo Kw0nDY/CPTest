@@ -5333,6 +5333,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat/session", async (req, res) => {
     try {
       const { configId } = req.body;
+      console.log('Creating chat session with configId:', configId);
+      
       const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
@@ -5344,6 +5346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: now
       });
 
+      console.log('Chat session created successfully:', sessionId);
       res.json({ sessionId: session.sessionId });
     } catch (error) {
       console.error('Error creating chat session:', error);
