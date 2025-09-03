@@ -79,11 +79,25 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           
           setConfigurations(sortedActiveConfigs);
           
-          // Set the first active configuration as selected
-          if (sortedActiveConfigs.length > 0) {
-            setSelectedConfig(sortedActiveConfigs[0]);
-          } else {
-            setSelectedConfig(null);
+          // Try to restore previously selected configuration from localStorage
+          const savedConfigId = localStorage.getItem('selectedChatbotConfigId');
+          let configToSelect = null;
+          
+          if (savedConfigId) {
+            // Find the saved configuration if it still exists and is active
+            configToSelect = sortedActiveConfigs.find(config => config.id === savedConfigId);
+          }
+          
+          // Fallback to first active configuration if no saved config or saved config not found
+          if (!configToSelect && sortedActiveConfigs.length > 0) {
+            configToSelect = sortedActiveConfigs[0];
+          }
+          
+          setSelectedConfig(configToSelect);
+          
+          // Save the selected config to localStorage
+          if (configToSelect) {
+            localStorage.setItem('selectedChatbotConfigId', configToSelect.id);
           }
         }
       } catch (error) {
@@ -222,6 +236,10 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                         onValueChange={(value) => {
                           const config = configurations.find(c => c.id === value);
                           setSelectedConfig(config || null);
+                          // Save selected config to localStorage
+                          if (config) {
+                            localStorage.setItem('selectedChatbotConfigId', config.id);
+                          }
                         }}
                       >
                         <SelectTrigger className="w-full mt-2">

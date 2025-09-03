@@ -5457,6 +5457,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         console.log(`데이터 분리: configId ${configId} - 연결된 데이터 소스가 없습니다.`);
+        
+        // If no data sources are connected, return an appropriate message
+        const noDataMessage = "죄송합니다. 현재 이 챗봇에는 연결된 데이터가 없습니다.\n\n" +
+          "Assistant 모듈의 Knowledge Base에서 다음 중 하나를 수행해주세요:\n" +
+          "• 파일 업로드 (PDF, Excel, CSV 등)\n" +
+          "• Data Integration 연동\n\n" +
+          "데이터 연결 후 다시 질문해주시면 정확한 답변을 제공해드릴 수 있습니다.";
+
+        const botMessage = await storage.createChatMessage({
+          sessionId,
+          configId: configId || undefined,
+          type: 'bot',
+          message: noDataMessage
+        });
+
+        return res.json({
+          userMessage: userMessage,
+          botMessage: botMessage
+        });
       }
 
       try {
