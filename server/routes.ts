@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { storage } from "./storage";
+import { storage, initializeSampleData } from "./storage";
 import { createDataSourceSchema, updateDataSourceSchema } from "@shared/schema";
 import { z } from "zod";
 import FormData from "form-data";
@@ -19,6 +19,9 @@ const upload = multer({
 
 // 매우 단순화된 routes.ts 파일 - 오직 필수 기능만
 export async function registerRoutes(app: express.Express): Promise<Server> {
+  // Initialize sample data on startup
+  await initializeSampleData();
+  
   // 채팅 메시지 처리 - 완전한 데이터 격리
   app.post("/api/chat/:sessionId/message", async (req, res) => {
     try {

@@ -1065,3 +1065,93 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+// Initialize sample data for AI Assistant
+export async function initializeSampleData() {
+  try {
+    // Check if sample data already exists
+    const existingConfigs = await storage.getChatConfigurations();
+    const existingDataSources = await storage.getDataSources();
+
+    // Create sample chatbot configuration if none exists
+    if (existingConfigs.length === 0) {
+      const sampleConfig = {
+        id: `config-${Date.now()}`,
+        name: 'DXT Bio-Manufacturing AI Assistant',
+        chatflowId: 'bio-manufacturing-flow',
+        apiEndpoint: 'http://localhost:5000/api/chat',
+        systemPrompt: '당신은 바이오 제조업 전문 AI 어시스턴트입니다. 업로드된 RawData_1M 데이터를 기반으로 정확한 답변을 제공하세요.',
+        maxTokens: 2000,
+        temperature: 70,
+        isActive: 1,
+        uploadedFiles: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await storage.createChatConfiguration(sampleConfig);
+      console.log('✅ 샘플 챗봇 구성 생성 완료');
+    }
+
+    // Create sample data source for RawData_1M if none exists
+    if (existingDataSources.length === 0) {
+      const sampleDataSource = {
+        id: `ds-rawdata-${Date.now()}`,
+        name: 'RawData_1M',
+        type: 'Excel',
+        category: 'file',
+        vendor: 'Internal',
+        status: 'connected',
+        description: '바이오 제조업 원시 데이터 (178,564개 레코드)',
+        config: {
+          fileName: 'RawData_1M.xlsx',
+          sheetName: 'Sheet1',
+          hasHeaders: true,
+          recordCount: 178564,
+          dataSchema: [
+            {
+              table: "RawData_1M",
+              fields: [
+                { name: "ID", type: "INTEGER", description: "고유 식별자" },
+                { name: "Asset Name", type: "VARCHAR(255)", description: "자산명" },
+                { name: "TimeStamp", type: "DATETIME", description: "타임스탬프" },
+                { name: "Target Production Rate", type: "VARCHAR(50)", description: "목표 생산율" },
+                { name: "OEE", type: "FLOAT", description: "전체 설비 효율성" },
+                { name: "Agitation", type: "FLOAT", description: "교반 수치" }
+              ],
+              recordCount: 178564,
+              lastUpdated: new Date().toISOString()
+            }
+          ],
+          sampleData: {
+            "RawData_1M": [
+              { "ID": 1, "Asset Name": "BR-50L-1", "TimeStamp": "7-4-2025 7:04:25.491 오후", "Target Production Rate": "Running", "OEE": 63.5153884887695, "Agitation": 105.640480041504 },
+              { "ID": 4, "Asset Name": "BR-50L-1", "TimeStamp": "7-4-2025 7:04:25.491 오후", "Target Production Rate": "Running", "OEE": 63.5153884887695, "Agitation": 105.640480041504 },
+              { "ID": 96, "Asset Name": "BR-200L-3", "TimeStamp": "7-4-2025 7:04:25.491 오후", "Target Production Rate": "Running", "OEE": 78.2456789123456, "Agitation": 98.7654321098765 }
+            ]
+          }
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await storage.createDataSource(sampleDataSource);
+      console.log('✅ 샘플 데이터 소스 (RawData_1M) 생성 완료');
+
+      // Connect the sample data source to the sample chatbot configuration  
+      const configs = await storage.getChatConfigurations();
+      if (configs.length > 0) {
+        const integration = {
+          configId: configs[0].id,
+          dataSourceId: sampleDataSource.id,
+          connectionName: 'RawData_1M Connection',
+          isActive: true
+        };
+        await storage.createChatbotDataIntegration(integration);
+        console.log('✅ 챗봇-데이터소스 연결 완료');
+      }
+    }
+
+    console.log('🎉 샘플 데이터 초기화 완료');
+  } catch (error) {
+    console.error('❌ 샘플 데이터 초기화 실패:', error);
+  }
+}
