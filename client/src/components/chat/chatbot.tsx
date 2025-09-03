@@ -210,19 +210,19 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     <div className="fixed bottom-4 right-4 z-50">
       <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[800px]'} transition-all duration-300 flex flex-col overflow-hidden`}>
         {/* Header */}
-        <CardHeader className="pb-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
-          <div className="flex items-center justify-between gap-2">
+        <CardHeader className={`${isMinimized ? 'pb-0 py-3' : 'pb-2'} bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg flex-shrink-0`}>
+          <div className="flex items-center justify-between gap-2 h-full">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <Bot className="w-5 h-5 flex-shrink-0" />
-              <div className="flex flex-col min-w-0 flex-1">
+              <div className={`flex ${isMinimized ? 'flex-row items-center gap-2' : 'flex-col'} min-w-0 flex-1`}>
                 <CardTitle className="text-sm font-medium truncate">AI Assistant</CardTitle>
-                {selectedConfig && (
+                {selectedConfig && !isMinimized && (
                   <p className="text-xs text-blue-100 truncate">
                     {selectedConfig.name}
                   </p>
                 )}
               </div>
-              <Badge variant="secondary" className="text-xs bg-blue-500 text-white border-blue-400 flex-shrink-0">
+              <Badge variant="secondary" className={`${isMinimized ? 'text-xs px-2 py-0.5' : 'text-xs'} bg-blue-500 text-white border-blue-400 flex-shrink-0`}>
                 {selectedConfig ? 'Ready' : 'No Config'}
               </Badge>
             </div>
