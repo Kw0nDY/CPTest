@@ -5371,6 +5371,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper functions for AI question processing
+  function extractQuestionKeywords(question: string): { types: string[], faults: string[], actions: string[] } {
+    const lowerQuestion = question.toLowerCase();
+    
+    // Common maintenance types
+    const typeKeywords = [
+      '센서', '계측기', '압력', '유량', '온도', '전력', '공급', '장치', 'ups', '배터리',
+      '유압', '공압', '실린더', '열교환기', '냉각', '시스템', '로봇', '자동화', '암',
+      '생산', '장비', '효율화', '덕트', '배관', '관리', '밸브', '스틱션'
+    ];
+    
+    // Common fault keywords  
+    const faultKeywords = [
+      '누설', '전압', '저하', '응답', '지연', '드리프트', '동작', '멈춤', '진공도', '미달',
+      'hunting', 'drop', '부식', '오차', '진동', '미스얼라인', '정렬'
+    ];
+    
+    // Common action keywords
+    const actionKeywords = [
+      '교체', '보강', '점검', '보정', '제거', '청소', '조정', '확인', '필터', 
+      '용접', '가스켓', '배터리', '충전', '회로', '센서', '오프셋', '케이블', '노이즈'
+    ];
+    
+    const extractedTypes = typeKeywords.filter(keyword => lowerQuestion.includes(keyword));
+    const extractedFaults = faultKeywords.filter(keyword => lowerQuestion.includes(keyword));
+    const extractedActions = actionKeywords.filter(keyword => lowerQuestion.includes(keyword));
+    
+    return {
+      types: extractedTypes,
+      faults: extractedFaults,
+      actions: extractedActions
+    };
+  }
+
+  function filterRelevantData(allData: any[], keywords: { types: string[], faults: string[], actions: string[] }): any[] {
+    if (!allData || allData.length === 0) return [];
+    
+    const relevantData = allData.filter(record => {
+      if (!record || typeof record !== 'object') return false;
+      
+      const recordText = JSON.stringify(record).toLowerCase();
+      const typeText = (record.Type || '').toLowerCase();
+      const faultText = (record.Fault || '').toLowerCase();
+      const actionText = (record.Action || '').toLowerCase();
+      
+      // Check for type matches
+      const typeMatch = keywords.types.some(type => 
+        typeText.includes(type) || recordText.includes(type)
+      );
+      
+      // Check for fault matches
+      const faultMatch = keywords.faults.some(fault => 
+        faultText.includes(fault) || recordText.includes(fault)
+      );
+      
+      // Check for action matches
+      const actionMatch = keywords.actions.some(action => 
+        actionText.includes(action) || recordText.includes(action)
+      );
+      
+      // Return true if any category matches
+      return typeMatch || faultMatch || actionMatch;
+    });
+    
+    // If we have specific matches, return them. Otherwise, return a broader search
+    if (relevantData.length > 0) {
+      return relevantData;
+    }
+    
+    // Fallback: return records that contain any of the keywords
+    const broadMatch = allData.filter(record => {
+      if (!record || typeof record !== 'object') return false;
+      const recordText = JSON.stringify(record).toLowerCase();
+      
+      const allKeywords = [...keywords.types, ...keywords.faults, ...keywords.actions];
+      return allKeywords.some(keyword => recordText.includes(keyword));
+    });
+    
+    return broadMatch.slice(0, 10); // Limit to 10 most relevant
+  }
+
   // AI-powered chat endpoint with Flowise integration
   app.post("/api/chat/:sessionId/message", async (req, res) => {
     try {
@@ -5384,7 +5465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`채팅 요청: ${sessionId} - "${message}" (configId: ${configId})`);
 
       // Get connected data sources for this chatbot configuration (data isolation)
-      let connectedDataSources = [];
+      let connectedDataSources: any[] = [];
       if (configId) {
         try {
           connectedDataSources = await storage.getChatbotDataIntegrations(configId);
@@ -5537,10 +5618,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (allConnectedData.length > 0) {
           console.log(`AI 처리 시작: 연결된 데이터 ${allConnectedData.length}개 레코드를 컨텍스트로 사용`);
           
+          // Extract keywords from user question for better matching
+          const questionKeywords = extractQuestionKeywords(message);
+          console.log(`질문에서 추출된 키워드:`, questionKeywords);
+          
+          // Filter relevant data based on keywords
+          const relevantData = filterRelevantData(allConnectedData, questionKeywords);
+          console.log(`관련 데이터 필터링: ${allConnectedData.length}개 → ${relevantData.length}개`);
+          
+          // Build focused context with only relevant data
+          let focusedContext = '';
+          if (relevantData.length > 0) {
+            focusedContext = `=== 질문과 관련된 데이터 ===\n${JSON.stringify(relevantData, null, 2)}\n\n`;
+          } else {
+            // If no specific matches, provide a small sample
+            focusedContext = `=== 사용 가능한 데이터 (샘플) ===\n${JSON.stringify(allConnectedData.slice(0, 5), null, 2)}\n\n`;
+          }
+          
           // Use AI with connected data as context - this preserves AI functionality
           // while ensuring only connected data is used
           try {
-            const enhancedQuestion = `다음은 이 챗봇에 연결된 데이터입니다. 이 데이터만을 사용해서 질문에 답변해주세요:\n\n${contextData}\n\n사용자 질문: ${message}\n\n중요: 위에 제공된 데이터에서만 정보를 찾아 답변하고, 해당 데이터에 없는 내용은 "제공된 데이터에서 관련 정보를 찾을 수 없습니다"라고 답변해주세요.`;
+            const enhancedQuestion = `당신은 유지보수 전문가입니다. 다음 데이터에서 사용자 질문에 정확히 일치하는 정보를 찾아 답변해주세요.
+
+${focusedContext}
+
+사용자 질문: ${message}
+
+답변 규칙:
+1. Type(유형)과 Fault(문제)가 질문과 정확히 일치하는 경우, 해당 Action(해결방안)을 제시하세요
+2. 정확한 일치가 없으면 가장 유사한 케이스를 찾아 "유사한 사례"로 제시하세요  
+3. 관련 정보가 전혀 없으면 "제공된 데이터에서 해당 문제에 대한 정보를 찾을 수 없습니다"라고 답변하세요
+4. 답변은 구체적이고 실용적이어야 합니다
+
+형식: 
+문제 유형: [Type]
+발생 문제: [Fault] 
+해결 방안: [Action]`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
