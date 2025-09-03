@@ -309,43 +309,53 @@ export function AiChatInterface() {
     const loadConfigurations = async () => {
       try {
         const response = await fetch('/api/chat-configurations', {
+          method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-          }
+          },
+          credentials: 'same-origin'
         });
-        if (response.ok) {
-          const configs = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const contentType = response.headers.get('Content-Type');
+        if (!contentType?.includes('application/json')) {
+          throw new Error(`Expected JSON response, got ${contentType}`);
+        }
+        
+        const configs = await response.json();
+        
+        // Convert server data to client format
+        const convertedConfigs = configs.map((config: any) => ({
+          ...config,
+          temperature: config.temperature || 70, // Keep as integer for internal use
+          isActive: config.isActive === 1 || config.isActive === true
+        }));
+        
+        // Sort configurations: Active first (by name), then inactive (by name)
+        const sortedConfigs = convertedConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
+          const aIsActive = Boolean(a.isActive);
+          const bIsActive = Boolean(b.isActive);
           
-          // Convert server data to client format
-          const convertedConfigs = configs.map((config: any) => ({
-            ...config,
-            temperature: config.temperature || 70, // Keep as integer for internal use
-            isActive: config.isActive === 1 || config.isActive === true
-          }));
-          
-          // Sort configurations: Active first (by name), then inactive (by name)
-          const sortedConfigs = convertedConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
-            const aIsActive = a.isActive === true || a.isActive === 1;
-            const bIsActive = b.isActive === true || b.isActive === 1;
-            
-            // If both have same active status, sort by name
-            if (aIsActive === bIsActive) {
-              return a.name.localeCompare(b.name);
-            }
-            
-            // Active configurations come first
-            return bIsActive ? 1 : -1;
-          });
-          
-          setConfigurations(sortedConfigs);
-          
-          // Set first configuration as selected for editing
-          if (sortedConfigs.length > 0) {
-            setSelectedConfig(sortedConfigs[0]);
-            setSelectedConfigForTest(sortedConfigs[0]);
-            setSelectedConfigForKnowledge(sortedConfigs[0]);
+          // If both have same active status, sort by name
+          if (aIsActive === bIsActive) {
+            return a.name.localeCompare(b.name);
           }
+          
+          // Active configurations come first
+          return bIsActive ? 1 : -1;
+        });
+        
+        setConfigurations(sortedConfigs);
+        
+        // Set first configuration as selected for editing
+        if (sortedConfigs.length > 0) {
+          setSelectedConfig(sortedConfigs[0]);
+          setSelectedConfigForTest(sortedConfigs[0]);
+          setSelectedConfigForKnowledge(sortedConfigs[0]);
         }
       } catch (error) {
         console.error('Failed to load configurations:', error);
@@ -365,15 +375,25 @@ export function AiChatInterface() {
     const loadDataIntegrations = async () => {
       try {
         const response = await fetch('/api/data-sources', {
+          method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-          }
+          },
+          credentials: 'same-origin'
         });
-        if (response.ok) {
-          const dataSources = await response.json();
-          setDataIntegrations(dataSources);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        
+        const contentType = response.headers.get('Content-Type');
+        if (!contentType?.includes('application/json')) {
+          throw new Error(`Expected JSON response, got ${contentType}`);
+        }
+        
+        const dataSources = await response.json();
+        setDataIntegrations(dataSources);
       } catch (error) {
         console.error('Failed to load data integrations:', error);
       }
@@ -396,30 +416,38 @@ export function AiChatInterface() {
     setIsLoadingIntegrations(true);
     try {
       const response = await fetch(`/api/chatbot-data-integrations/${configId}`, {
+        method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'same-origin'
       });
-      if (response.ok) {
-        const connected = await response.json();
-        setConnectedDataIntegrations(connected);
-        // Always update cache with fresh data
-        setDataIntegrationCache(prev => ({
-          ...prev,
-          [configId]: connected
-        }));
-      } else {
-        // Handle empty or error case
-        setConnectedDataIntegrations([]);
-        setDataIntegrationCache(prev => ({
-          ...prev,
-          [configId]: []
-        }));
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const contentType = response.headers.get('Content-Type');
+      if (!contentType?.includes('application/json')) {
+        throw new Error(`Expected JSON response, got ${contentType}`);
+      }
+      
+      const connected = await response.json();
+      setConnectedDataIntegrations(connected);
+      // Always update cache with fresh data
+      setDataIntegrationCache(prev => ({
+        ...prev,
+        [configId]: connected
+      }));
     } catch (error) {
       console.error('Failed to load connected data integrations:', error);
+      // Handle empty or error case
       setConnectedDataIntegrations([]);
+      setDataIntegrationCache(prev => ({
+        ...prev,
+        [configId]: []
+      }));
     } finally {
       setIsLoadingIntegrations(false);
     }
@@ -708,8 +736,8 @@ export function AiChatInterface() {
           
           // 활성화 상태 변경 시 정렬 다시 적용
           return updatedConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
-            const aIsActive = a.isActive === true || a.isActive === 1;
-            const bIsActive = b.isActive === true || b.isActive === 1;
+            const aIsActive = Boolean(a.isActive);
+            const bIsActive = Boolean(b.isActive);
             
             // If both have same active status, sort by name
             if (aIsActive === bIsActive) {
