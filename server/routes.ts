@@ -5692,7 +5692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // If we have an exact match, provide direct answer
           if (exactMatch) {
             console.log('정확한 매칭 발견, 직접 답변 제공:', exactMatch);
-            const directAnswer = `문제 유형: ${exactMatch.Type}\n발생 문제: ${exactMatch.Fault}\n해결 방안: ${exactMatch.Action}`;
+            const directAnswer = `요청 내용: ${message}\n\n문제 유형: ${exactMatch.Type}\n발생 문제: ${exactMatch.Fault}\n해결 방안: ${exactMatch.Action}`;
             
             const botMessage = await storage.createChatMessage({
               sessionId,
@@ -5708,16 +5708,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           try {
-            // Simplified prompt for AI
-            const enhancedQuestion = `데이터: ${JSON.stringify(relevantData, null, 2)}
+            // Very simple and clear prompt to prevent confusion
+            const enhancedQuestion = `사용자 질문: "${message}"
 
-질문: ${message}
+관련 데이터:
+${JSON.stringify(relevantData, null, 2)}
 
-위 데이터에서 질문과 일치하는 Type, Fault, Action을 찾아 다음 형식으로 답변하세요:
+이 데이터에서 위 질문에 맞는 해결책을 찾아서 아래 형식으로만 답변하세요:
 
 문제 유형: [Type]
-발생 문제: [Fault]  
-해결 방안: [Action]`;
+발생 문제: [Fault]
+해결 방안: [Action]
+
+질문: ${message}`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
@@ -5737,33 +5740,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "";
               
-              // Clean up AI response - extract only the answer part
-              let cleanedResponse = aiResponse;
+              console.log('Original AI response:', aiResponse);
               
-              // Extract only the answer section if it exists
-              if (aiResponse.includes('=== 답변 ===')) {
-                const answerStart = aiResponse.indexOf('=== 답변 ===') + '=== 답변 ==='.length;
-                const answerEnd = aiResponse.indexOf('=== 관련 데이터 ===');
-                if (answerEnd !== -1) {
-                  cleanedResponse = aiResponse.substring(answerStart, answerEnd).trim();
-                } else {
-                  cleanedResponse = aiResponse.substring(answerStart).trim();
-                }
+              // Verify the question was received correctly
+              const receivedQuestionMatch = aiResponse.match(/사용자 질문:\s*["']?([^"'\n]+)["']?/);
+              const receivedQuestion = receivedQuestionMatch ? receivedQuestionMatch[1].trim() : '';
+              
+              if (receivedQuestion && receivedQuestion !== message.trim()) {
+                console.warn(`질문 불일치 감지! 원본: "${message}" vs 받은것: "${receivedQuestion}"`);
+                // Force use of fallback logic when question mismatch detected
+                throw new Error('질문이 올바르게 전달되지 않음');
               }
               
-              // Remove any remaining unwanted sections
-              cleanedResponse = cleanedResponse
-                .replace(/=== 관련 데이터 ===[\s\S]*$/g, '') // Remove related data section
-                .replace(/사용자 질문:.*?\n/g, '') // Remove question repetition
-                .replace(/\[[\s\S]*?\]/g, '') // Remove JSON data arrays
-                .trim();
+              // Extract only essential answer parts
+              let cleanedResponse = aiResponse;
               
-              // Check if AI response is valid (not just repeating the question)
+              // Look for structured answer pattern
+              const answerPattern = /문제 유형:\s*([^\n]+)\s*발생 문제:\s*([^\n]+)\s*해결 방안:\s*([^\n]+)/i;
+              const answerMatch = aiResponse.match(answerPattern);
+              
+              if (answerMatch) {
+                // Use structured answer if found
+                cleanedResponse = `문제 유형: ${answerMatch[1].trim()}\n발생 문제: ${answerMatch[2].trim()}\n해결 방안: ${answerMatch[3].trim()}`;
+              } else {
+                // Fallback cleaning
+                cleanedResponse = aiResponse
+                  .replace(/사용자 질문:.*?(?=\n|$)/g, '') // Remove question repetition
+                  .replace(/관련 데이터:[\s\S]*?(?=문제 유형:|$)/g, '') // Remove data section
+                  .replace(/\[[\s\S]*?\]/g, '') // Remove JSON arrays
+                  .replace(/=== [^=]+ ===/g, '') // Remove section headers
+                  .replace(/질문:.*?(?=\n|$)/g, '') // Remove question at end
+                  .replace(/\n\s*\n/g, '\n') // Remove extra line breaks
+                  .trim();
+              }
+              
+              // Check if response is valid
               const isValidResponse = cleanedResponse && 
+                cleanedResponse.length > 20 &&
                 !cleanedResponse.toLowerCase().includes('사용자 질문:') &&
-                !cleanedResponse.toLowerCase().includes(message.toLowerCase()) &&
-                cleanedResponse.length > 30 &&
-                (cleanedResponse.includes('문제 유형:') || cleanedResponse.includes('해결') || cleanedResponse.includes('Action'));
+                (cleanedResponse.includes('문제 유형:') || cleanedResponse.includes('해결'));
               
               if (isValidResponse) {
                 console.log('유효한 AI 응답 받음 (정리됨):', cleanedResponse);
@@ -5796,7 +5811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const bestMatch = relevantData[0]; // Already sorted by relevance score
               console.log('로컬 매칭으로 최적 답변 제공:', bestMatch);
               
-              fallbackAnswer = `문제 유형: ${bestMatch.Type}\n발생 문제: ${bestMatch.Fault}\n해결 방안: ${bestMatch.Action}\n\n(시스템 매칭 결과)`;
+              fallbackAnswer = `요청 내용: ${message}\n\n문제 유형: ${bestMatch.Type}\n발생 문제: ${bestMatch.Fault}\n해결 방안: ${bestMatch.Action}`;
             } else {
               // Look for any partial matches in all data
               const partialMatch = allConnectedData.find(record => {
@@ -5806,9 +5821,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (partialMatch) {
                 console.log('부분 매칭으로 답변 제공:', partialMatch);
-                fallbackAnswer = `유사한 사례를 찾았습니다:\n\n문제 유형: ${partialMatch.Type}\n발생 문제: ${partialMatch.Fault}\n해결 방안: ${partialMatch.Action}\n\n(참고용 유사 사례)`;
+                fallbackAnswer = `요청 내용: ${message}\n\n유사한 사례:\n문제 유형: ${partialMatch.Type}\n발생 문제: ${partialMatch.Fault}\n해결 방안: ${partialMatch.Action}`;
               } else {
-                fallbackAnswer = `죄송합니다. 연결된 데이터에서 "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n사용 가능한 문제 유형:\n${[...new Set(allConnectedData.map(d => d.Type))].slice(0, 3).join(', ')} 등\n\n더 구체적인 문제 유형과 증상을 알려주시면 정확한 해결책을 제공할 수 있습니다.`;
+                fallbackAnswer = `요청 내용: ${message}\n\n죄송합니다. 해당 문제에 대한 정보를 찾을 수 없습니다.\n\n사용 가능한 문제 유형: ${[...new Set(allConnectedData.map(d => d.Type))].slice(0, 3).join(', ')} 등`;
               }
             }
 
