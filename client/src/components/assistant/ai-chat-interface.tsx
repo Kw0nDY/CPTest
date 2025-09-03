@@ -740,12 +740,13 @@ export function AiChatInterface() {
       
       const apiData = {
         name: editingConfig.name,
-        chatflow_id: editingConfig.chatflowId,
-        api_endpoint: editingConfig.apiEndpoint,
-        system_prompt: editingConfig.systemPrompt,
-        max_tokens: editingConfig.maxTokens,
+        chatflowId: editingConfig.chatflowId,
+        apiEndpoint: editingConfig.apiEndpoint,
+        systemPrompt: editingConfig.systemPrompt,
+        maxTokens: editingConfig.maxTokens,
         temperature: editingConfig.temperature,
-        is_active: editingConfig.isActive
+        isActive: editingConfig.isActive,
+        uploadedFiles: editingConfig.uploadedFiles || []
       };
 
       let response;
@@ -788,12 +789,16 @@ export function AiChatInterface() {
           description: '챗봇 구성이 성공적으로 저장되었습니다.',
         });
       } else {
-        throw new Error('Failed to save configuration');
+        // Get detailed error message from server response
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || errorData?.details || `HTTP ${response.status} 오류`;
+        throw new Error(errorMessage);
       }
     } catch (error) {
+      console.error('Save error:', error);
       toast({
         title: '저장 실패',
-        description: '챗봇 구성 저장 중 오류가 발생했습니다.',
+        description: error instanceof Error ? error.message : '챗봇 구성 저장 중 오류가 발생했습니다.',
         variant: 'destructive',
       });
     }
@@ -1924,9 +1929,12 @@ export function AiChatInterface() {
 
       {/* Create Configuration Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="new-chatbot-description">
           <DialogHeader>
             <DialogTitle>새 챗봇 구성 생성</DialogTitle>
+            <p id="new-chatbot-description" className="text-sm text-gray-600">
+              새로운 챗봇 구성을 생성하여 AI 어시스턴트를 설정하세요.
+            </p>
           </DialogHeader>
 
           {editingConfig && (
@@ -2069,10 +2077,10 @@ export function AiChatInterface() {
 
       {/* Data Detail Information Modal */}
       <Dialog open={showDataDetailModal} onOpenChange={setShowDataDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" aria-describedby="data-detail-description">
           <DialogHeader>
             <DialogTitle>데이터 연동 상세 정보</DialogTitle>
-            <p className="text-sm text-gray-600">
+            <p id="data-detail-description" className="text-sm text-gray-600">
               {selectedDataDetail?.name}의 연동 정보를 확인하세요
             </p>
           </DialogHeader>
