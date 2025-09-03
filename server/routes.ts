@@ -5724,7 +5724,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const enhancedQuestion = `${message}
 
 Data:
-${dataContext}`;
+${dataContext}
+
+한국어로 간단하게 답변해주세요.`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
