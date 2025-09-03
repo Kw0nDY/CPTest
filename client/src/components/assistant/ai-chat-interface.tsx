@@ -309,8 +309,15 @@ export function AiChatInterface() {
         if (response.ok) {
           const configs = await response.json();
           
+          // Convert server data to client format
+          const convertedConfigs = configs.map((config: any) => ({
+            ...config,
+            temperature: config.temperature || 70, // Keep as integer for internal use
+            isActive: config.isActive === 1 || config.isActive === true
+          }));
+          
           // Sort configurations: Active first (by name), then inactive (by name)
-          const sortedConfigs = configs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
+          const sortedConfigs = convertedConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => {
             const aIsActive = a.isActive === true || a.isActive === 1;
             const bIsActive = b.isActive === true || b.isActive === 1;
             
@@ -420,7 +427,7 @@ export function AiChatInterface() {
       apiEndpoint: 'http://220.118.23.185:3000/api/v1/prediction',
       systemPrompt: '',
       maxTokens: 2000,
-      temperature: 0.7,
+      temperature: 70,
       isActive: false,
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
@@ -743,9 +750,9 @@ export function AiChatInterface() {
         chatflowId: editingConfig.chatflowId,
         apiEndpoint: editingConfig.apiEndpoint,
         systemPrompt: editingConfig.systemPrompt,
-        maxTokens: editingConfig.maxTokens,
-        temperature: editingConfig.temperature,
-        isActive: editingConfig.isActive,
+        maxTokens: Math.round(editingConfig.maxTokens || 2000),
+        temperature: Math.round((editingConfig.temperature || 0.7) * 100), // Convert 0.7 to 70
+        isActive: editingConfig.isActive ? 1 : 0, // Convert boolean to integer
         uploadedFiles: editingConfig.uploadedFiles || []
       };
 
@@ -819,7 +826,7 @@ export function AiChatInterface() {
       apiEndpoint: selectedConfig.apiEndpoint,
       systemPrompt: selectedConfig.systemPrompt,
       maxTokens: selectedConfig.maxTokens,
-      temperature: selectedConfig.temperature,
+      temperature: selectedConfig.temperature / 100,
     };
     
     const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
@@ -1256,8 +1263,8 @@ export function AiChatInterface() {
                       step="0.1"
                       min="0"
                       max="2"
-                      value={editingConfig.temperature}
-                      onChange={(e) => setEditingConfig({...editingConfig, temperature: parseFloat(e.target.value)})}
+                      value={(editingConfig.temperature / 100).toFixed(1)}
+                      onChange={(e) => setEditingConfig({...editingConfig, temperature: Math.round(parseFloat(e.target.value) * 100)})}
                       data-testid="input-temperature"
                     />
                   </div>
@@ -1408,7 +1415,7 @@ export function AiChatInterface() {
                   </div>
                   <div>
                     <Label>Temperature</Label>
-                    <p className="text-sm font-medium mt-1">{selectedConfig.temperature}</p>
+                    <p className="text-sm font-medium mt-1">{(selectedConfig.temperature / 100).toFixed(1)}</p>
                   </div>
                 </div>
 
@@ -1992,7 +1999,7 @@ export function AiChatInterface() {
                       id="max-tokens"
                       type="number"
                       value={editingConfig?.maxTokens || 0}
-                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, maxTokens: parseInt(e.target.value)})}
+                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, maxTokens: parseInt(e.target.value) || 2000})}
                       data-testid="modal-input-max-tokens"
                     />
                   </div>
@@ -2005,8 +2012,8 @@ export function AiChatInterface() {
                       step="0.1"
                       min="0"
                       max="2"
-                      value={editingConfig?.temperature || 0}
-                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, temperature: parseFloat(e.target.value)})}
+                      value={((editingConfig?.temperature || 70) / 100).toFixed(1)}
+                      onChange={(e) => editingConfig && setEditingConfig({...editingConfig, temperature: Math.round((parseFloat(e.target.value) || 0.7) * 100)})}
                       data-testid="modal-input-temperature"
                     />
                   </div>
