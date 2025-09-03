@@ -965,6 +965,23 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async deleteChatSessionsByConfigId(configId: string): Promise<void> {
+    try {
+      // First delete all chat messages associated with sessions that use this config
+      const sessionsToDelete = await db.select().from(chatSessions).where(eq(chatSessions.configId, configId));
+      
+      for (const session of sessionsToDelete) {
+        await db.delete(chatMessages).where(eq(chatMessages.sessionId, session.id));
+      }
+      
+      // Then delete the sessions themselves
+      await db.delete(chatSessions).where(eq(chatSessions.configId, configId));
+    } catch (error) {
+      console.error('Error deleting chat sessions by config ID:', error);
+      throw error;
+    }
+  }
+
   // AI Model File methods
   async getAiModelFiles(modelId: string): Promise<AiModelFile[]> {
     return await db.select().from(aiModelFiles).where(eq(aiModelFiles.modelId, modelId));
