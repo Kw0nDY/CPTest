@@ -5497,9 +5497,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Create bot message with AI response
               const botMessage = await storage.createChatMessage({
                 sessionId,
-                configId: configId || undefined,
                 type: 'bot',
-                message: aiResponse
+                message: aiResponse,
+                createdAt: new Date().toISOString()
               });
 
               return res.json({
@@ -5520,9 +5520,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             const botMessage = await storage.createChatMessage({
               sessionId,
-              configId: configId || undefined,
               type: 'bot',
-              message: aiErrorMessage
+              message: aiErrorMessage,
+              createdAt: new Date().toISOString()
             });
 
             return res.json({
@@ -5543,9 +5543,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const botMessage = await storage.createChatMessage({
             sessionId,
-            configId: configId || undefined,
             type: 'bot',
-            message: noDataMessage
+            message: noDataMessage,
+            createdAt: new Date().toISOString()
           });
 
           return res.json({
@@ -5565,9 +5565,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const botMessage = await storage.createChatMessage({
           sessionId,
-          configId: configId || undefined,
           type: 'bot',
-          message: noDataMessage
+          message: noDataMessage,
+          createdAt: new Date().toISOString()
         });
 
         return res.json({
@@ -5588,9 +5588,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const botMessage = await storage.createChatMessage({
         sessionId,
-        configId: configId || undefined,
         type: 'bot',
-        message: fallbackMessage
+        message: fallbackMessage,
+        createdAt: new Date().toISOString()
       });
 
       return res.json({
