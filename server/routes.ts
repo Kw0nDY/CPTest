@@ -5470,6 +5470,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error building context from connected data sources:', error);
         }
 
+        // Add Knowledge Base uploaded files data to context
+        if (config && config.uploadedFiles && config.uploadedFiles.length > 0) {
+          console.log(`Knowledge Base 파일: ${config.uploadedFiles.length}개 확인`);
+          for (const file of config.uploadedFiles) {
+            if ((file.type === 'csv' || file.type === 'excel' || file.type === 'data') && (file.metadata?.processedData || file.content)) {
+              try {
+                contextData += `\n=== Knowledge Base: ${file.name} ===\n`;
+                
+                // Check multiple possible data locations
+                let fileData = null;
+                
+                if (file.metadata?.processedData?.sampleData) {
+                  fileData = file.metadata.processedData.sampleData;
+                  console.log(`Using metadata.processedData.sampleData for ${file.name}`);
+                } else if (file.metadata?.sampleData) {
+                  fileData = file.metadata.sampleData;
+                  console.log(`Using metadata.sampleData for ${file.name}`);
+                } else if (file.content && file.type === 'csv') {
+                  // Parse CSV content directly
+                  try {
+                    const lines = file.content.split('\n').filter(line => line.trim());
+                    if (lines.length > 1) {
+                      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                      const dataRows = lines.slice(1, 6).map(line => {
+                        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+                        const row: any = {};
+                        headers.forEach((header, index) => {
+                          row[header] = values[index] || '';
+                        });
+                        return row;
+                      });
+                      fileData = dataRows;
+                      console.log(`Parsed CSV content directly for ${file.name}`);
+                    }
+                  } catch (parseError) {
+                    console.error(`Error parsing CSV content for ${file.name}:`, parseError);
+                  }
+                }
+                
+                if (fileData) {
+                  if (Array.isArray(fileData)) {
+                    contextData += JSON.stringify(fileData.slice(0, 5), null, 2) + '\n';
+                    allConnectedData.push(...fileData);
+                  } else if (typeof fileData === 'object') {
+                    for (const [tableName, records] of Object.entries(fileData)) {
+                      if (Array.isArray(records) && records.length > 0) {
+                        contextData += `테이블: ${tableName}\n`;
+                        contextData += JSON.stringify(records.slice(0, 5), null, 2) + '\n';
+                        allConnectedData.push(...records);
+                      }
+                    }
+                  }
+                  console.log(`Knowledge Base 파일 ${file.name}에서 데이터 추가 완료 (${Array.isArray(fileData) ? fileData.length : Object.keys(fileData).length}개 레코드)`);
+                } else {
+                  console.log(`Knowledge Base 파일 ${file.name}에서 데이터를 찾을 수 없음`);
+                }
+              } catch (error) {
+                console.error(`Error processing Knowledge Base file ${file.name}:`, error);
+              }
+            }
+          }
+        }
+
         // AI FUNCTIONALITY WITH CONNECTED DATA ONLY
         if (allConnectedData.length > 0) {
           console.log(`AI 처리 시작: 연결된 데이터 ${allConnectedData.length}개 레코드를 컨텍스트로 사용`);

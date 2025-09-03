@@ -919,6 +919,50 @@ export function AiChatInterface() {
     setIsTesting(false);
   };
 
+  // CSV 파싱 함수
+  const parseCSVContent = (csvText: string, fileName: string) => {
+    try {
+      const lines = csvText.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        return { error: 'CSV 파일에 데이터가 충분하지 않습니다.' };
+      }
+
+      // 헤더 파싱
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      // 데이터 파싱 (최대 100개 레코드)
+      const sampleData = lines.slice(1, 101).map((line, index) => {
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const row: any = {};
+        headers.forEach((header, headerIndex) => {
+          row[header] = values[headerIndex] || '';
+        });
+        return row;
+      });
+
+      // 스키마 생성
+      const dataSchema = headers.map(header => ({
+        name: header,
+        type: 'VARCHAR(255)',
+        description: `${header} field from ${fileName}`
+      }));
+
+      return {
+        headers,
+        sampleData,
+        dataSchema,
+        recordCount: sampleData.length,
+        totalLines: lines.length - 1,
+        fileName
+      };
+    } catch (error) {
+      console.error('CSV 파싱 오류:', error);
+      return { 
+        error: `CSV 파싱 중 오류 발생: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      };
+    }
+  };
+
   // Knowledge Base Functions
   const handleKnowledgeBaseUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -943,8 +987,73 @@ export function AiChatInterface() {
           [selectedConfigForKnowledge.id]: [newItem, ...(prev[selectedConfigForKnowledge.id] || [])]
         }));
 
-        // Simulate processing (replace with actual upload/processing logic)
-        setTimeout(() => {
+        // Process actual file content based on type
+        try {
+          const extension = file.name.split('.').pop()?.toLowerCase();
+          let processedData: any = null;
+          let fileType = 'file';
+
+          if (extension === 'csv') {
+            fileType = 'csv';
+            const text = await file.text();
+            processedData = parseCSVContent(text, file.name);
+          } else if (extension === 'xlsx' || extension === 'xls') {
+            fileType = 'excel';
+            // For Excel files, we'll need to use a library like xlsx
+            const text = await file.text();
+            processedData = { 
+              error: 'Excel 파일 파싱은 아직 구현되지 않았습니다. CSV 파일을 사용해주세요.',
+              rawContent: text.substring(0, 1000) 
+            };
+          } else {
+            // Handle other file types (text files, etc.)
+            const text = await file.text();
+            processedData = { rawContent: text.substring(0, 5000) };
+          }
+
+          // Create uploaded file entry for the chatbot configuration
+          const newUploadedFile: UploadedFile = {
+            id: newItem.id,
+            name: file.name,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            uploadedAt: new Date().toISOString(),
+            status: 'completed',
+            type: fileType,
+            content: fileType === 'csv' ? await file.text() : undefined,
+            metadata: {
+              processedData,
+              recordCount: processedData?.sampleData?.length || 0,
+              fileSize: file.size,
+              originalName: file.name
+            }
+          };
+
+          // Update the chatbot configuration with the uploaded file
+          const updatedConfig = { ...selectedConfigForKnowledge };
+          updatedConfig.uploadedFiles = [...(updatedConfig.uploadedFiles || []), newUploadedFile];
+
+          // Save updated configuration
+          try {
+            const response = await fetch(`/api/chat-configurations/${selectedConfigForKnowledge.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatedConfig)
+            });
+
+            if (response.ok) {
+              // Update local state
+              setConfigurations(prev => prev.map(config => 
+                config.id === selectedConfigForKnowledge.id ? updatedConfig : config
+              ));
+              setSelectedConfigForKnowledge(updatedConfig);
+              
+              console.log(`Knowledge Base 파일 ${file.name} 처리 완료:`, processedData);
+            }
+          } catch (saveError) {
+            console.error('Error saving file to configuration:', saveError);
+          }
+
+          // Update knowledge base item status to ready
           setKnowledgeBaseItems(prev => ({
             ...prev,
             [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).map(item => 
@@ -953,7 +1062,19 @@ export function AiChatInterface() {
                 : item
             )
           }));
-        }, 2000);
+
+        } catch (processingError) {
+          console.error('Error processing file:', processingError);
+          // Update status to error
+          setKnowledgeBaseItems(prev => ({
+            ...prev,
+            [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).map(item => 
+              item.id === newItem.id 
+                ? { ...item, status: 'error' as const }
+                : item
+            )
+          }));
+        }
       }
 
       toast({
