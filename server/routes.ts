@@ -5432,11 +5432,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Build context data from connected data sources only (DATA ISOLATION)
       let contextData = '';
+      let allConnectedData = []; // Store all data for precise matching
+      
       if (connectedDataSources.length > 0) {
         console.log(`데이터 분리: ${connectedDataSources.length}개 연결된 데이터 소스에서만 검색`);
         try {
           for (const integration of connectedDataSources) {
             const dataSource = await storage.getDataSource(integration.dataSourceId);
+            console.log(`데이터 소스 확인: ${dataSource?.name}, sampleData 존재: ${!!dataSource?.sampleData}`);
+            
             if (dataSource && dataSource.sampleData) {
               contextData += `\n=== ${dataSource.name} 데이터 ===\n`;
               
@@ -5445,15 +5449,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 for (const [tableName, records] of Object.entries(dataSource.sampleData)) {
                   if (Array.isArray(records) && records.length > 0) {
                     contextData += `테이블: ${tableName}\n`;
-                    contextData += JSON.stringify(records.slice(0, 5), null, 2) + '\n'; // Limited to first 5 records
+                    contextData += JSON.stringify(records.slice(0, 5), null, 2) + '\n';
+                    
+                    // Store all records for precise matching
+                    allConnectedData.push(...records);
                   }
                 }
               }
             }
           }
           foundMatches = connectedDataSources.length;
+          console.log(`contextData 생성 완료: ${contextData.length}자, 전체 레코드: ${allConnectedData.length}개`);
         } catch (error) {
           console.error('Error building context from connected data sources:', error);
+        }
+
+        // PRECISE LOCAL MATCHING: Find exact Type and Fault matches
+        if (allConnectedData.length > 0) {
+          console.log(`정밀 매칭 시작: "${message}"`);
+          
+          // Find matching records based on Type and Fault fields
+          const matchedRecords = allConnectedData.filter(record => {
+            if (!record.Type || !record.Fault || !record.Action) return false;
+            
+            const typeMatch = message.toLowerCase().includes(record.Type.toLowerCase());
+            const faultMatch = message.toLowerCase().includes(record.Fault.toLowerCase());
+            
+            console.log(`레코드 검사: Type="${record.Type}" (매칭=${typeMatch}), Fault="${record.Fault}" (매칭=${faultMatch})`);
+            
+            return typeMatch && faultMatch;
+          });
+
+          if (matchedRecords.length > 0) {
+            console.log(`정밀 매칭 성공: ${matchedRecords.length}개 결과 발견`);
+            
+            // Return the exact action from matched records
+            let localResponse = '';
+            if (matchedRecords.length === 1) {
+              const match = matchedRecords[0];
+              localResponse = `**문제 유형:** ${match.Type}\n**장애 내용:** ${match.Fault}\n\n**해결 방법:** ${match.Action}`;
+            } else {
+              localResponse = `해당 문제에 대한 ${matchedRecords.length}개의 해결 방법을 찾았습니다:\n\n`;
+              matchedRecords.forEach((match, index) => {
+                localResponse += `**${index + 1}. ${match.Type} - ${match.Fault}**\n`;
+                localResponse += `해결 방법: ${match.Action}\n\n`;
+              });
+            }
+
+            // Create bot message with precise local match
+            const botMessage = await storage.createChatMessage({
+              sessionId,
+              configId: configId || undefined,
+              type: 'bot',
+              message: localResponse
+            });
+
+            return res.json({
+              userMessage: userMessage,
+              botMessage: botMessage
+            });
+          } else {
+            console.log(`정밀 매칭 실패: 연결된 데이터에서 해당 내용을 찾을 수 없음`);
+            
+            // No matching data found in connected sources
+            const noMatchMessage = `죄송합니다. 연결된 데이터에서 "${message}"와 관련된 정보를 찾을 수 없습니다.\n\n` +
+              `다음 사항을 확인해주세요:\n` +
+              `• 올바른 챗봇을 선택했는지 확인\n` +
+              `• Knowledge Base에 관련 데이터가 업로드되었는지 확인\n` +
+              `• Data Integration이 제대로 연결되었는지 확인\n\n` +
+              `현재 연결된 데이터에는 ${allConnectedData.length}개의 레코드가 있습니다.`;
+
+            const botMessage = await storage.createChatMessage({
+              sessionId,
+              configId: configId || undefined,
+              type: 'bot',
+              message: noMatchMessage
+            });
+
+            return res.json({
+              userMessage: userMessage,
+              botMessage: botMessage
+            });
+          }
         }
       } else {
         console.log(`데이터 분리: configId ${configId} - 연결된 데이터 소스가 없습니다.`);
