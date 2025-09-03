@@ -1727,8 +1727,30 @@ export function AiChatInterface() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedDataDetail(integration);
+                                  onClick={async () => {
+                                    // Get detailed data source information
+                                    try {
+                                      // Find the data source detail from dataIntegrations list
+                                      const dataSourceDetail = dataIntegrations.find(ds => ds.id === (integration.dataSourceId || integration.id));
+                                      if (dataSourceDetail) {
+                                        setSelectedDataDetail({
+                                          ...integration,
+                                          // Merge data source details including schema and sample data
+                                          name: dataSourceDetail.name,
+                                          type: dataSourceDetail.sourceType,
+                                          dataSchema: dataSourceDetail.dataSchema,
+                                          sampleData: dataSourceDetail.sampleData,
+                                          // Keep integration-specific fields
+                                          connectedAt: integration.connectedAt,
+                                          configId: integration.configId
+                                        });
+                                      } else {
+                                        setSelectedDataDetail(integration);
+                                      }
+                                    } catch (error) {
+                                      console.error('Failed to get data source details:', error);
+                                      setSelectedDataDetail(integration);
+                                    }
                                     setShowDataDetailModal(true);
                                   }}
                                   className="h-8 w-8 p-0"
@@ -2132,23 +2154,35 @@ export function AiChatInterface() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">데이터 소스명</Label>
-                  <p className="text-sm p-2 bg-gray-50 rounded border">{selectedDataDetail.name}</p>
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                    <Database className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium">{selectedDataDetail.name}</span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">타입</Label>
-                  <p className="text-sm p-2 bg-gray-50 rounded border">{selectedDataDetail.type || 'Unknown'}</p>
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                    {selectedDataDetail.type === 'excel' && <FileText className="w-4 h-4 text-green-500" />}
+                    {selectedDataDetail.type === 'google_sheets' && <FileText className="w-4 h-4 text-blue-500" />}
+                    {selectedDataDetail.type === 'database' && <Database className="w-4 h-4 text-purple-500" />}
+                    {!['excel', 'google_sheets', 'database'].includes(selectedDataDetail.type) && <FileText className="w-4 h-4 text-gray-500" />}
+                    <span className="text-sm">{selectedDataDetail.type || selectedDataDetail.sourceType || 'Unknown'}</span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">연동 시간</Label>
-                  <p className="text-sm p-2 bg-gray-50 rounded border">
+                  <p className="text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded border">
                     {new Date(selectedDataDetail.connectedAt).toLocaleString()}
                   </p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">상태</Label>
-                  <Badge variant="default" className="bg-green-100 text-green-800">
-                    연결됨
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                      연결됨
+                    </Badge>
+                  </div>
                 </div>
               </div>
 
@@ -2198,20 +2232,20 @@ export function AiChatInterface() {
                     {Object.entries(selectedDataDetail.sampleData).map(([tableName, data]: [string, any]) => (
                       <div key={tableName} className="border rounded-lg p-4">
                         <h4 className="font-medium mb-3">{tableName}</h4>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto border rounded">
                           <table className="w-full text-xs">
-                            <thead>
+                            <thead className="bg-gray-50 dark:bg-gray-800">
                               <tr className="border-b">
                                 {data && data.length > 0 && Object.keys(data[0]).map((key: string) => (
-                                  <th key={key} className="text-left p-2 font-medium text-gray-500">
+                                  <th key={key} className="text-left p-3 font-medium text-gray-700 dark:text-gray-300 border-r last:border-r-0">
                                     {key}
                                   </th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
-                              {data && data.slice(0, 3).map((row: any, rowIdx: number) => (
-                                <tr key={rowIdx} className="border-b">
+                              {data && data.slice(0, 5).map((row: any, rowIdx: number) => (
+                                <tr key={rowIdx} className="border-b last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700">
                                   {Object.values(row).map((value: any, colIdx: number) => (
                                     <td key={colIdx} className="p-2 text-gray-700 truncate max-w-[150px]">
                                       {String(value)}
