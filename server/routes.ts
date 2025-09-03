@@ -5697,11 +5697,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "";
               
-              console.log('Original AI response:', aiResponse);
+              console.log('AI 원본 응답:', aiResponse);
               
-              // Use AI response directly without any validation
+              // Remove "Human:" prefix if it exists
+              if (aiResponse.startsWith('Human:')) {
+                aiResponse = aiResponse.substring(6).trim();
+              }
+              
               if (aiResponse && aiResponse.trim().length > 0) {
-                console.log('유효한 AI 응답 받음:', aiResponse);
+                console.log('AI 최종 응답:', aiResponse);
                 const botMessage = await storage.createChatMessage({
                   sessionId,
                   type: 'bot',
@@ -5713,57 +5717,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   userMessage: userMessage,
                   botMessage: botMessage
                 });
-              } else {
-                console.log('AI 응답이 비어있음');
-                throw new Error('AI 응답이 비어있음');
               }
-            } else {
-              throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
             }
-          } catch (error) {
-            console.error("AI 처리 실패, 로컬 매칭 시스템 사용:", error);
             
-            // FALLBACK: Simple direct data extraction
-            let fallbackAnswer = "";
-            
-            if (relevantData.length > 0) {
-              const bestMatch = relevantData[0];
-              console.log('데이터에서 직접 값 추출:', bestMatch);
-              
-              // Extract specific field values directly
-              if (message.includes('레벨') || message.includes('Level')) {
-                fallbackAnswer = `레벨: ${bestMatch.Level}`;
-              } else if (message.includes('Agitation')) {
-                fallbackAnswer = `Agitation: ${bestMatch.Agitation}`;
-              } else if (message.includes('온도') || message.includes('Temperature')) {
-                fallbackAnswer = `Temperature: ${bestMatch.Temperature}`;
-              } else if (message.includes('압력') || message.includes('Pressure')) {
-                fallbackAnswer = `Pressure: ${bestMatch.Pressure}`;
-              } else if (message.includes('OEE')) {
-                fallbackAnswer = `OEE: ${bestMatch.OEE}`;
-              } else {
-                // Find specific ID and return its basic info
-                const requestedId = message.match(/[Ii]d\s*(\d+)|(\d+)번/);
-                if (requestedId) {
-                  const id = requestedId[1] || requestedId[2];
-                  const foundRecord = allConnectedData.find(record => record.Id == id);
-                  if (foundRecord) {
-                    fallbackAnswer = `ID ${id}: ${JSON.stringify(foundRecord, null, 2)}`;
-                  } else {
-                    fallbackAnswer = `ID ${id}를 찾을 수 없습니다.`;
-                  }
-                } else {
-                  fallbackAnswer = `${JSON.stringify(bestMatch, null, 2)}`;
-                }
-              }
-            } else {
-              fallbackAnswer = `데이터를 찾을 수 없습니다.`;
-            }
-
+            // If AI fails, return simple error message
+            const errorMessage = "AI 모델에서 응답을 생성할 수 없습니다. 다시 시도해주세요.";
             const botMessage = await storage.createChatMessage({
               sessionId,
               type: 'bot',
-              message: fallbackAnswer,
+              message: errorMessage,
+              createdAt: new Date().toISOString()
+            });
+
+            return res.json({
+              userMessage: userMessage,
+              botMessage: botMessage
+            });
+          } catch (error) {
+            console.error("AI 처리 실패:", error);
+            
+            const errorMessage = "AI 모델에서 응답을 생성할 수 없습니다. 다시 시도해주세요.";
+            const botMessage = await storage.createChatMessage({
+              sessionId,
+              type: 'bot',
+              message: errorMessage,
               createdAt: new Date().toISOString()
             });
 
