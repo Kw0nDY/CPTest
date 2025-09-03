@@ -374,8 +374,8 @@ export function AiChatInterface() {
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
 
   const loadConnectedDataIntegrationsOptimized = async (configId: string, forceRefresh = false) => {
-    // Use cache if available and not forcing refresh
-    if (!forceRefresh && dataIntegrationCache[configId]) {
+    // Always refresh if explicitly requested or no cache exists
+    if (!forceRefresh && dataIntegrationCache[configId] && dataIntegrationCache[configId].length > 0) {
       setConnectedDataIntegrations(dataIntegrationCache[configId]);
       return;
     }
@@ -386,14 +386,22 @@ export function AiChatInterface() {
       if (response.ok) {
         const connected = await response.json();
         setConnectedDataIntegrations(connected);
-        // Update cache
+        // Always update cache with fresh data
         setDataIntegrationCache(prev => ({
           ...prev,
           [configId]: connected
         }));
+      } else {
+        // Handle empty or error case
+        setConnectedDataIntegrations([]);
+        setDataIntegrationCache(prev => ({
+          ...prev,
+          [configId]: []
+        }));
       }
     } catch (error) {
       console.error('Failed to load connected data integrations:', error);
+      setConnectedDataIntegrations([]);
     } finally {
       setIsLoadingIntegrations(false);
     }
@@ -409,13 +417,11 @@ export function AiChatInterface() {
     loadConnectedDataIntegrationsOptimized(selectedConfigForKnowledge.id);
   }, [selectedConfigForKnowledge]);
 
-  // Only reload when Knowledge Base tab becomes active and no data is cached
+  // Always reload when Knowledge Base tab becomes active
   useEffect(() => {
     if (activeTab === 'knowledge' && selectedConfigForKnowledge) {
-      // Only refresh if cache is empty or stale (optional)
-      if (!dataIntegrationCache[selectedConfigForKnowledge.id]) {
-        loadConnectedDataIntegrationsOptimized(selectedConfigForKnowledge.id, true);
-      }
+      // Always refresh to ensure up-to-date data
+      loadConnectedDataIntegrationsOptimized(selectedConfigForKnowledge.id, true);
     }
   }, [activeTab]);
 
@@ -1682,7 +1688,7 @@ export function AiChatInterface() {
                                 <div>
                                   <p className="font-medium text-sm">{integration.name}</p>
                                   <p className="text-xs text-gray-500">
-                                    연동됨 • {new Date(integration.connectedAt).toLocaleString()}
+                                    {integration.type} • 연동: {new Date(integration.connectedAt).toLocaleString()}
                                   </p>
                                 </div>
                               </div>
@@ -1869,10 +1875,10 @@ export function AiChatInterface() {
 
       {/* Data Integration Connection Modal */}
       <Dialog open={showDataIntegrationModal} onOpenChange={setShowDataIntegrationModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" aria-describedby="integration-modal-description">
           <DialogHeader>
             <DialogTitle>Data Integration 연동</DialogTitle>
-            <p className="text-sm text-gray-600">
+            <p id="integration-modal-description" className="text-sm text-gray-600">
               {selectedConfigForKnowledge?.name}에 연동할 Data Integration을 선택하세요
             </p>
           </DialogHeader>
