@@ -573,6 +573,13 @@ export const chatConfigurations = pgTable('chat_configurations', {
     size: string;
     uploadedAt: string;
     status: 'processing' | 'completed' | 'error';
+    type?: string;
+    language?: string;
+    content?: string;
+    metadata?: any;
+    isExecutable?: boolean;
+    isLoadable?: boolean;
+    requiresSpecialHandling?: boolean;
   }>>().default([]),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull()

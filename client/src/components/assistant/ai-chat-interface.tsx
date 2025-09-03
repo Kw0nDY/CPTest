@@ -235,6 +235,39 @@ export function AiChatInterface() {
                           file.size > 10 * 1024 * 1024 ? 'medium' : 'low'
     };
   };
+
+  // API_URL extraction function
+  const extractApiUrlFromCode = (code: string) => {
+    // Look for API_URL patterns in the code
+    const apiUrlPattern = /API_URL\s*[=:]\s*['"](.*?)['"]|api_url\s*[=:]\s*['"](.*?)['"]|apiUrl\s*[=:]\s*['"](.*?)['"]/gi;
+    const match = apiUrlPattern.exec(code);
+    
+    if (match) {
+      const fullUrl = match[1] || match[2] || match[3];
+      console.log('Found API_URL:', fullUrl);
+      
+      if (fullUrl) {
+        // Parse the URL according to user's specification
+        // Example: http://220.118.23.185:3000/api/v1/vector/upsert/9e85772e-dc56-4b4d-bb00-e18aeb80a484
+        const urlParts = fullUrl.split('/');
+        
+        if (urlParts.length >= 2) {
+          // chatflow ID is the last part
+          const chatflowId = urlParts[urlParts.length - 1];
+          // api endpoint is everything except the last part
+          const apiEndpoint = urlParts.slice(0, -1).join('/');
+          
+          return {
+            fullUrl,
+            chatflowId,
+            apiEndpoint
+          };
+        }
+      }
+    }
+    
+    return null;
+  };
   
   // Data Integration management
   const [dataIntegrations, setDataIntegrations] = useState<any[]>([]);
@@ -522,9 +555,29 @@ export function AiChatInterface() {
         return;
       }
 
+      // Check for API_URL in source code and auto-parse
+      if (configData.type === 'source_code' && configData.content) {
+        const apiUrlInfo = extractApiUrlFromCode(configData.content);
+        if (apiUrlInfo) {
+          configData.apiUrlInfo = apiUrlInfo;
+        }
+      }
+
       // Update editing config with parsed data
       const updatedConfig = { ...editingConfig };
 
+      // Auto-fill from API_URL if available
+      if (configData.apiUrlInfo) {
+        updatedConfig.chatflowId = configData.apiUrlInfo.chatflowId;
+        updatedConfig.apiEndpoint = configData.apiUrlInfo.apiEndpoint;
+        
+        toast({
+          title: 'API 설정 자동 적용',
+          description: `API_URL에서 자동으로 추출: Chatflow ID (${configData.apiUrlInfo.chatflowId.substring(0, 8)}...)`,
+        });
+      }
+
+      // Manual config data parsing (fallback)
       if (configData.chatflowId || configData.chatflow_id || configData.flowId || configData.flow_id) {
         updatedConfig.chatflowId = configData.chatflowId || configData.chatflow_id || configData.flowId || configData.flow_id;
       }
@@ -1194,6 +1247,64 @@ export function AiChatInterface() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     다양한 AI 모델 파일을 업로드할 수 있습니다: 설정 파일 (JSON, YAML), 소스 코드 (.py, .js, .ts, .ipynb), 모델 파일 (.pth, .pkl, .onnx, .h5 등)
                   </p>
+
+                  {/* 업로드된 파일 목록 표시 */}
+                  {editingConfig && editingConfig.uploadedFiles && editingConfig.uploadedFiles.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <Label>업로드된 파일 목록 ({editingConfig.uploadedFiles.length}개)</Label>
+                      <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-2 bg-gray-50 dark:bg-gray-800">
+                        {editingConfig.uploadedFiles.map((file, index) => (
+                          <div key={file.id || index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {file.type === 'source_code' && (
+                                  <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                    {file.language?.toUpperCase() || 'CODE'}
+                                  </span>
+                                )}
+                                {file.type === 'model_file' && (
+                                  <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                                    MODEL
+                                  </span>
+                                )}
+                                {file.type === 'jupyter_notebook' && (
+                                  <span className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                    NOTEBOOK
+                                  </span>
+                                )}
+                                {(!file.type || file.type === 'config') && (
+                                  <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                    CONFIG
+                                  </span>
+                                )}
+                                <span className="text-sm font-medium truncate">{file.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-500">{file.size}</span>
+                                {file.isExecutable && (
+                                  <span className="text-xs px-1 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                    실행가능
+                                  </span>
+                                )}
+                                {file.type === 'source_code' && file.metadata?.apiUrlInfo && (
+                                  <span className="text-xs px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 rounded">
+                                    API 자동설정
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Badge 
+                              variant={file.status === 'completed' ? 'default' : 
+                                     file.status === 'error' ? 'destructive' : 'secondary'}
+                            >
+                              {file.status === 'completed' ? '완료' : 
+                               file.status === 'error' ? '오류' : '처리중'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2">
