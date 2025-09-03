@@ -5731,12 +5731,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               console.log('Original AI response:', aiResponse);
               
-              // Check if AI gave a meaningful response (not just repeating the question)
-              const questionStart = message.substring(0, Math.min(message.length, 15)).toLowerCase();
-              const isQuestionRepeat = aiResponse.toLowerCase().includes(questionStart);
-              
-              if (aiResponse && aiResponse.trim().length > 5 && !isQuestionRepeat) {
-                console.log('AI 응답 사용:', aiResponse);
+              // Use AI response directly without any validation
+              if (aiResponse && aiResponse.trim().length > 0) {
+                console.log('유효한 AI 응답 받음:', aiResponse);
                 const botMessage = await storage.createChatMessage({
                   sessionId,
                   type: 'bot',
@@ -5749,8 +5746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   botMessage: botMessage
                 });
               } else {
-                console.log('AI 응답이 질문을 반복하거나 비어있음, 대체 로직 사용:', aiResponse);
-                throw new Error('AI 응답이 질문을 반복하거나 유효하지 않음');
+                console.log('AI 응답이 비어있음');
+                throw new Error('AI 응답이 비어있음');
               }
             } else {
               throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
