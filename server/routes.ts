@@ -5708,19 +5708,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           try {
-            // Very simple and clear prompt to prevent confusion
-            const enhancedQuestion = `사용자 질문: "${message}"
+            // Simplified prompt structure to prevent AI confusion
+            let enhancedQuestion;
+            
+            if (relevantData.length > 0) {
+              enhancedQuestion = `다음 데이터를 분석하여 "${message}" 질문에 대한 해결책을 제시해주세요.
 
-관련 데이터:
-${JSON.stringify(relevantData, null, 2)}
+데이터:
+${JSON.stringify(relevantData.slice(0, 3), null, 2)}
 
-이 데이터에서 위 질문에 맞는 해결책을 찾아서 아래 형식으로만 답변하세요:
+응답 형식:
+문제 유형: [구체적인 문제 유형]
+발생 문제: [상세한 문제 설명]  
+해결 방안: [실용적인 해결책]`;
+            } else {
+              enhancedQuestion = `"${message}" 질문에 대해 다음 데이터에서 관련된 해결책을 찾아주세요.
 
-문제 유형: [Type]
-발생 문제: [Fault]
-해결 방안: [Action]
+사용 가능한 데이터:
+${JSON.stringify(allConnectedData.slice(0, 5), null, 2)}
 
-질문: ${message}`;
+응답 형식:
+문제 유형: [구체적인 문제 유형]
+발생 문제: [상세한 문제 설명]
+해결 방안: [실용적인 해결책]`;
+            }
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
@@ -5742,43 +5753,39 @@ ${JSON.stringify(relevantData, null, 2)}
               
               console.log('Original AI response:', aiResponse);
               
-              // Verify the question was received correctly
-              const receivedQuestionMatch = aiResponse.match(/사용자 질문:\s*["']?([^"'\n]+)["']?/);
-              const receivedQuestion = receivedQuestionMatch ? receivedQuestionMatch[1].trim() : '';
-              
-              if (receivedQuestion && receivedQuestion !== message.trim()) {
-                console.warn(`질문 불일치 감지! 원본: "${message}" vs 받은것: "${receivedQuestion}"`);
-                // Force use of fallback logic when question mismatch detected
-                throw new Error('질문이 올바르게 전달되지 않음');
-              }
-              
-              // Extract only essential answer parts
+              // Clean and extract the structured answer
               let cleanedResponse = aiResponse;
               
-              // Look for structured answer pattern
-              const answerPattern = /문제 유형:\s*([^\n]+)\s*발생 문제:\s*([^\n]+)\s*해결 방안:\s*([^\n]+)/i;
+              // Look for the expected structured answer pattern
+              const answerPattern = /문제 유형:\s*([^\n]+)[\s\n]*발생 문제:\s*([^\n]+)[\s\n]*해결 방안:\s*([^\n]+)/i;
               const answerMatch = aiResponse.match(answerPattern);
               
-              if (answerMatch) {
-                // Use structured answer if found
+              if (answerMatch && answerMatch[1] && answerMatch[2] && answerMatch[3]) {
+                // Use structured answer if found and all parts exist
                 cleanedResponse = `문제 유형: ${answerMatch[1].trim()}\n발생 문제: ${answerMatch[2].trim()}\n해결 방안: ${answerMatch[3].trim()}`;
               } else {
-                // Fallback cleaning
+                // Try alternative cleaning approaches
                 cleanedResponse = aiResponse
-                  .replace(/사용자 질문:.*?(?=\n|$)/g, '') // Remove question repetition
-                  .replace(/관련 데이터:[\s\S]*?(?=문제 유형:|$)/g, '') // Remove data section
-                  .replace(/\[[\s\S]*?\]/g, '') // Remove JSON arrays
-                  .replace(/=== [^=]+ ===/g, '') // Remove section headers
-                  .replace(/질문:.*?(?=\n|$)/g, '') // Remove question at end
+                  .replace(/다음 데이터를 분석하여.*?(?=문제 유형:|$)/g, '') // Remove prompt repetition
+                  .replace(/데이터:[\s\S]*?(?=응답 형식:|문제 유형:|$)/g, '') // Remove data section
+                  .replace(/응답 형식:[\s\S]*?(?=문제 유형:|$)/g, '') // Remove format instructions
+                  .replace(/\[[\s\S]*?\]/g, '') // Remove JSON arrays  
+                  .replace(/```[\s\S]*?```/g, '') // Remove code blocks
                   .replace(/\n\s*\n/g, '\n') // Remove extra line breaks
                   .trim();
               }
               
-              // Check if response is valid
+              // Enhanced validation logic
+              const hasRequiredStructure = cleanedResponse.includes('문제 유형:') && 
+                                         cleanedResponse.includes('발생 문제:') && 
+                                         cleanedResponse.includes('해결 방안:');
+              
+              const isNotQuestionRepeat = !cleanedResponse.toLowerCase().includes(message.toLowerCase().substring(0, 20));
+              
               const isValidResponse = cleanedResponse && 
-                cleanedResponse.length > 20 &&
-                !cleanedResponse.toLowerCase().includes('사용자 질문:') &&
-                (cleanedResponse.includes('문제 유형:') || cleanedResponse.includes('해결'));
+                cleanedResponse.length > 30 &&
+                hasRequiredStructure &&
+                isNotQuestionRepeat;
               
               if (isValidResponse) {
                 console.log('유효한 AI 응답 받음 (정리됨):', cleanedResponse);
