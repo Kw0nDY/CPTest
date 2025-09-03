@@ -5708,18 +5708,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           try {
-            // Use minimal prompt to let AI respond naturally
-            let enhancedQuestion;
+            // Create simple data context for AI
+            let dataContext = "";
+            const dataToUse = relevantData.length > 0 ? relevantData.slice(0, 5) : allConnectedData.slice(0, 5);
             
-            if (relevantData.length > 0) {
-              enhancedQuestion = `${message}
+            // Format data in simple key-value pairs
+            dataToUse.forEach((record, index) => {
+              dataContext += `Record ${record.Id || index + 1}:\n`;
+              Object.entries(record).forEach(([key, value]) => {
+                dataContext += `${key}: ${value}\n`;
+              });
+              dataContext += "\n";
+            });
+            
+            const enhancedQuestion = `${message}
 
-${JSON.stringify(relevantData.slice(0, 10), null, 2)}`;
-            } else {
-              enhancedQuestion = `${message}
-
-${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
-            }
+Data:
+${dataContext}`;
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
             const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
@@ -5741,9 +5746,12 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
               
               console.log('Original AI response:', aiResponse);
               
-              // Use AI response as-is without any modification
-              if (aiResponse && aiResponse.trim().length > 0) {
-                console.log('AI 응답 그대로 사용:', aiResponse);
+              // Check if AI gave a meaningful response (not just repeating the question)
+              const questionStart = message.substring(0, Math.min(message.length, 15)).toLowerCase();
+              const isQuestionRepeat = aiResponse.toLowerCase().includes(questionStart);
+              
+              if (aiResponse && aiResponse.trim().length > 5 && !isQuestionRepeat) {
+                console.log('AI 응답 사용:', aiResponse);
                 const botMessage = await storage.createChatMessage({
                   sessionId,
                   type: 'bot',
@@ -5756,8 +5764,8 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
                   botMessage: botMessage
                 });
               } else {
-                console.log('AI 응답이 비어있음, 대체 로직 사용');
-                throw new Error('AI 응답이 비어있음');
+                console.log('AI 응답이 질문을 반복하거나 비어있음, 대체 로직 사용:', aiResponse);
+                throw new Error('AI 응답이 질문을 반복하거나 유효하지 않음');
               }
             } else {
               throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
@@ -5765,25 +5773,41 @@ ${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
           } catch (error) {
             console.error("AI 처리 실패, 로컬 매칭 시스템 사용:", error);
             
-            // FALLBACK: Local intelligent matching when AI fails
+            // FALLBACK: Simple direct data extraction
             let fallbackAnswer = "";
             
             if (relevantData.length > 0) {
-              // Try to find direct data match and provide simple answer
               const bestMatch = relevantData[0];
-              console.log('로컬 매칭으로 직접 답변 제공:', bestMatch);
+              console.log('데이터에서 직접 값 추출:', bestMatch);
               
-              // Extract the requested information naturally
-              if (message.includes('Agitation') && bestMatch.Agitation !== undefined) {
-                fallbackAnswer = `${bestMatch['Asset Name'] || 'ID ' + bestMatch.Id}의 Agitation는 ${bestMatch.Agitation}입니다.`;
-              } else if (message.includes('온도') || message.includes('Temperature') && bestMatch.Temperature !== undefined) {
-                fallbackAnswer = `${bestMatch['Asset Name'] || 'ID ' + bestMatch.Id}의 온도는 ${bestMatch.Temperature}도입니다.`;
+              // Extract specific field values directly
+              if (message.includes('레벨') || message.includes('Level')) {
+                fallbackAnswer = `레벨: ${bestMatch.Level}`;
+              } else if (message.includes('Agitation')) {
+                fallbackAnswer = `Agitation: ${bestMatch.Agitation}`;
+              } else if (message.includes('온도') || message.includes('Temperature')) {
+                fallbackAnswer = `Temperature: ${bestMatch.Temperature}`;
+              } else if (message.includes('압력') || message.includes('Pressure')) {
+                fallbackAnswer = `Pressure: ${bestMatch.Pressure}`;
+              } else if (message.includes('OEE')) {
+                fallbackAnswer = `OEE: ${bestMatch.OEE}`;
               } else {
-                // General response with key info
-                fallbackAnswer = `요청하신 정보: ${JSON.stringify(bestMatch, null, 2)}`;
+                // Find specific ID and return its basic info
+                const requestedId = message.match(/[Ii]d\s*(\d+)|(\d+)번/);
+                if (requestedId) {
+                  const id = requestedId[1] || requestedId[2];
+                  const foundRecord = allConnectedData.find(record => record.Id == id);
+                  if (foundRecord) {
+                    fallbackAnswer = `ID ${id}: ${JSON.stringify(foundRecord, null, 2)}`;
+                  } else {
+                    fallbackAnswer = `ID ${id}를 찾을 수 없습니다.`;
+                  }
+                } else {
+                  fallbackAnswer = `${JSON.stringify(bestMatch, null, 2)}`;
+                }
               }
             } else {
-              fallbackAnswer = `죄송합니다. "${message}"에 대한 정보를 찾을 수 없습니다. 다른 질문을 시도해보세요.`;
+              fallbackAnswer = `데이터를 찾을 수 없습니다.`;
             }
 
             const botMessage = await storage.createChatMessage({
