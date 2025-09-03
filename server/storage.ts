@@ -102,11 +102,13 @@ export interface IStorage {
   searchUploadedData(query: string): Promise<any[]>;
   
   // Chat Configuration methods
+  getAllChatConfigurations(): Promise<ChatConfiguration[]>;
   getChatConfigurations(): Promise<ChatConfiguration[]>;
   getChatConfiguration(id: string): Promise<ChatConfiguration | undefined>;
   createChatConfiguration(config: InsertChatConfiguration): Promise<ChatConfiguration>;
   updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration>;
   deleteChatConfiguration(id: string): Promise<void>;
+  toggleChatConfigurationActive(id: string): Promise<ChatConfiguration>;
   
   // Chatbot Data Integration methods
   getChatbotDataIntegrations(configId: string): Promise<ChatbotDataIntegration[]>;
@@ -900,6 +902,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Chat Configuration methods
+  async getAllChatConfigurations(): Promise<ChatConfiguration[]> {
+    try {
+      return await db.select().from(chatConfigurations);
+    } catch (error) {
+      console.warn('ChatConfigurations table not ready, returning empty array');
+      return [];
+    }
+  }
+
   async getChatConfigurations(): Promise<ChatConfiguration[]> {
     try {
       return await db.select().from(chatConfigurations);
@@ -960,6 +971,33 @@ export class DatabaseStorage implements IStorage {
       await db.delete(chatConfigurations).where(eq(chatConfigurations.id, id));
     } catch (error) {
       console.error('Error deleting chat configuration:', error);
+      throw error;
+    }
+  }
+
+  async toggleChatConfigurationActive(id: string): Promise<ChatConfiguration> {
+    try {
+      // First get the current configuration
+      const current = await this.getChatConfiguration(id);
+      if (!current) {
+        throw new Error(`Chat configuration with id ${id} not found`);
+      }
+      
+      // Toggle the active status
+      const newActiveStatus = current.isActive ? 0 : 1;
+      
+      const [updated] = await db
+        .update(chatConfigurations)
+        .set({
+          isActive: newActiveStatus,
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(chatConfigurations.id, id))
+        .returning();
+      
+      return updated;
+    } catch (error) {
+      console.error('Error toggling chat configuration active status:', error);
       throw error;
     }
   }
