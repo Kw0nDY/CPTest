@@ -5708,52 +5708,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           try {
-            // Detect question type to use appropriate prompt style
-            const isInfoQuery = /알려줘|보여줘|확인|조회|값|정보|상태|현재/.test(message);
-            const isValueQuery = /온도|압력|레벨|OEE|품질|생산|상태/.test(message);
-            
+            // Use minimal prompt to let AI respond naturally
             let enhancedQuestion;
             
-            if (isInfoQuery || isValueQuery) {
-              // For information queries, use natural language prompt
-              if (relevantData.length > 0) {
-                enhancedQuestion = `다음 데이터에서 "${message}" 질문에 답변해주세요.
+            if (relevantData.length > 0) {
+              enhancedQuestion = `${message}
 
-데이터:
-${JSON.stringify(relevantData.slice(0, 10), null, 2)}
-
-자연스럽게 답변해주세요.`;
-              } else {
-                enhancedQuestion = `다음 데이터에서 "${message}" 질문에 답변해주세요.
-
-데이터:
-${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}
-
-자연스럽게 답변해주세요.`;
-              }
+${JSON.stringify(relevantData.slice(0, 10), null, 2)}`;
             } else {
-              // For problem-solving queries, use structured format
-              if (relevantData.length > 0) {
-                enhancedQuestion = `다음 데이터를 분석하여 "${message}" 문제에 대한 해결책을 제시해주세요.
+              enhancedQuestion = `${message}
 
-데이터:
-${JSON.stringify(relevantData.slice(0, 3), null, 2)}
-
-문제 해결 형식으로 답변:
-문제 유형: [구체적인 문제 유형]
-발생 문제: [상세한 문제 설명]  
-해결 방안: [실용적인 해결책]`;
-              } else {
-                enhancedQuestion = `"${message}" 문제에 대해 다음 데이터에서 관련된 해결책을 찾아주세요.
-
-사용 가능한 데이터:
-${JSON.stringify(allConnectedData.slice(0, 5), null, 2)}
-
-문제 해결 형식으로 답변:
-문제 유형: [구체적인 문제 유형]
-발생 문제: [상세한 문제 설명]
-해결 방안: [실용적인 해결책]`;
-              }
+${JSON.stringify(allConnectedData.slice(0, 10), null, 2)}`;
             }
 
             console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
@@ -5798,31 +5763,11 @@ ${JSON.stringify(allConnectedData.slice(0, 5), null, 2)}
                   .trim();
               }
               
-              // Flexible validation logic based on question type
-              const isInfoQuery = /알려줘|보여줘|확인|조회|값|정보|상태|현재/.test(message);
-              const isValueQuery = /온도|압력|레벨|OEE|품질|생산|상태/.test(message);
+              // Simple validation - accept any meaningful response
+              const isNotQuestionRepeat = !cleanedResponse.toLowerCase().includes(message.toLowerCase().substring(0, 15));
+              const hasSubstantiveContent = cleanedResponse.length > 5 && cleanedResponse.trim() !== '';
               
-              let isValidResponse = false;
-              
-              if (isInfoQuery || isValueQuery) {
-                // For info queries, accept natural responses
-                const isNotQuestionRepeat = !cleanedResponse.toLowerCase().includes(message.toLowerCase().substring(0, 15));
-                const hasSubstantiveContent = cleanedResponse.length > 10 && cleanedResponse.trim() !== '';
-                const seemsRelevant = /\d+|도|값|상태|정보|데이터/.test(cleanedResponse);
-                
-                isValidResponse = hasSubstantiveContent && isNotQuestionRepeat && seemsRelevant;
-              } else {
-                // For problem-solving queries, require structured format
-                const hasRequiredStructure = cleanedResponse.includes('문제 유형:') && 
-                                           cleanedResponse.includes('발생 문제:') && 
-                                           cleanedResponse.includes('해결 방안:');
-                const isNotQuestionRepeat = !cleanedResponse.toLowerCase().includes(message.toLowerCase().substring(0, 20));
-                
-                isValidResponse = cleanedResponse && 
-                  cleanedResponse.length > 30 &&
-                  hasRequiredStructure &&
-                  isNotQuestionRepeat;
-              }
+              const isValidResponse = hasSubstantiveContent && isNotQuestionRepeat;
               
               if (isValidResponse) {
                 console.log('유효한 AI 응답 받음 (정리됨):', cleanedResponse);
