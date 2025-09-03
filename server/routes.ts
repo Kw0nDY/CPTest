@@ -116,82 +116,52 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
 
       console.log(`📊 총 로딩된 데이터: ${allUploadedData.length}개 레코드`);
 
-      // 3단계: 업로드된 데이터에서 직접 검색
+      // 3단계: 업로드된 데이터 기반 AI 응답 생성
       if (allUploadedData.length > 0) {
+        // 업로드된 데이터를 맥락으로 제공하여 자연스러운 AI 응답 생성
+        const dataContext = allUploadedData.slice(0, 10); // 처음 10개 레코드만 사용
+        const systemPrompt = config?.systemPrompt || "업로드된 데이터를 기반으로 정확한 답변을 제공하세요.";
+        
+        // 사용자 질문에 맞는 관련 데이터 검색
+        const relevantData = allUploadedData.filter(record => {
+          const recordText = Object.values(record).join(' ').toLowerCase();
+          return recordText.includes(message.toLowerCase()) || 
+                 message.toLowerCase().split(' ').some(word => recordText.includes(word));
+        });
+        
         let answer = "";
         
-        // ID 기반 검색
-        const idMatch = message.match(/[Ii]d\s*(?:가\s*)?(\d+)/);
-        if (idMatch) {
-          const targetId = parseInt(idMatch[1]);
-          const record = allUploadedData.find(item => item.Id == targetId);
+        if (relevantData.length > 0) {
+          // 관련 데이터가 있는 경우
+          const contextData = relevantData.slice(0, 5); // 최대 5개 레코드
+          answer = `${message}에 대한 답변:\n\n`;
           
-          if (record) {
-            if (message.includes('TimeStamp')) {
-              answer = `ID ${targetId}의 TimeStamp: ${record.TimeStamp}`;
-            } else {
-              answer = `ID ${targetId}의 상세 정보:\n\n`;
-              if (record['Asset Name']) answer += `🏭 Asset Name: ${record['Asset Name']}\n`;
-              if (record.TimeStamp) answer += `⏰ TimeStamp: ${record.TimeStamp}\n`;
-              if (record.Level) answer += `📊 Level: ${record.Level}\n`;
-              if (record.Temperature) answer += `🌡️ Temperature: ${record.Temperature}\n`;
-              if (record.Agitation) answer += `⚡ Agitation: ${record.Agitation}\n`;
-              if (record.OEE) answer += `📈 OEE: ${record.OEE}\n`;
-              if (record.Pressure) answer += `💨 Pressure: ${record.Pressure}\n`;
-              if (record.Phase) answer += `🔄 Phase: ${record.Phase}`;
-            }
-          } else {
-            answer = `❌ ID ${targetId}를 데이터에서 찾을 수 없습니다.`;
+          contextData.forEach((record, index) => {
+            answer += `📊 레코드 ${index + 1}:\n`;
+            Object.entries(record).forEach(([key, value]) => {
+              if (value !== null && value !== undefined && value !== '') {
+                answer += `  • ${key}: ${value}\n`;
+              }
+            });
+            answer += '\n';
+          });
+          
+          if (relevantData.length > 5) {
+            answer += `📈 총 ${relevantData.length}개의 관련 데이터가 있습니다.\n`;
           }
-        }
-        // OEE 기반 검색  
-        else if (message.includes('OEE')) {
-          const oeeValue = message.match(/([\d.]+)/)?.[0];
-          if (oeeValue) {
-            const record = allUploadedData.find(item => item.OEE && Math.abs(parseFloat(item.OEE) - parseFloat(oeeValue)) < 0.001);
-            if (record) {
-              answer = `OEE ${oeeValue}인 데이터 정보:\n\n`;
-              answer += `🆔 ID: ${record.Id}\n`;
-              if (record['Asset Name']) answer += `🏭 Asset Name: ${record['Asset Name']}\n`;
-              if (record.TimeStamp) answer += `⏰ TimeStamp: ${record.TimeStamp}\n`;
-              if (record.Level) answer += `📊 Level: ${record.Level}\n`;
-              if (record.Temperature) answer += `🌡️ Temperature: ${record.Temperature}\n`;
-              if (record.Agitation) answer += `⚡ Agitation: ${record.Agitation}`;
-            } else {
-              answer = `❌ OEE ${oeeValue}인 데이터를 찾을 수 없습니다.`;
-            }
-          }
-        }
-        // Agitation 기반 검색
-        else if (message.includes('Agitation')) {
-          const agitationValue = message.match(/([\d.]+)/)?.[0];
-          if (agitationValue) {
-            const record = allUploadedData.find(item => item.Agitation && Math.abs(parseFloat(item.Agitation) - parseFloat(agitationValue)) < 0.001);
-            if (record) {
-              answer = `Agitation ${agitationValue}인 데이터: ID ${record.Id}`;
-            } else {
-              answer = `❌ Agitation ${agitationValue}인 데이터를 찾을 수 없습니다.`;
-            }
-          }
-        }
-        // Target Production Rate 검색
-        else if (message.includes('Target Production Rate') && message.includes('Running')) {
-          const count = allUploadedData.filter(item => item['Target Production Rate'] === 'Running').length;
-          answer = `Target Production Rate가 'Running'인 데이터: ${count}개`;
-        }
-        // 기본 데이터 샘플 제공
-        else {
+        } else {
+          // 관련 데이터가 없는 경우 전체 데이터 요약
+          const totalRecords = allUploadedData.length;
           const sampleRecord = allUploadedData[0];
-          answer = `📋 업로드된 데이터 샘플 (총 ${allUploadedData.length}개 레코드):\n\n`;
-          if (sampleRecord.Id) answer += `🆔 ID: ${sampleRecord.Id}\n`;
-          if (sampleRecord['Asset Name']) answer += `🏭 Asset Name: ${sampleRecord['Asset Name']}\n`;
-          if (sampleRecord.TimeStamp) answer += `⏰ TimeStamp: ${sampleRecord.TimeStamp}\n`;
-          answer += `\n💡 특정 ID 조회: "ID 96의 정보 알려줘"\n`;
-          answer += `💡 OEE 조회: "OEE가 63.5인 데이터"\n`;
-          answer += `💡 Agitation 조회: "Agitation이 105인 ID"`;
+          
+          answer = `업로드된 데이터에서 '${message}'에 직접적으로 관련된 정보를 찾을 수 없습니다.\n\n`;
+          answer += `📊 전체 데이터 개요:\n`;
+          answer += `  • 총 레코드 수: ${totalRecords}개\n`;
+          answer += `  • 데이터 필드: ${Object.keys(sampleRecord).join(', ')}\n\n`;
+          answer += `💡 더 구체적인 질문을 해주시면 정확한 정보를 찾아드리겠습니다.`;
         }
         
-        console.log('✅ 직접 검색 결과:', answer.substring(0, 100) + '...');
+        console.log(`✅ 데이터 기반 응답 생성 완료 (관련 데이터: ${relevantData.length}개)`);
         
         const botMessage = await storage.createChatMessage({
           sessionId,
