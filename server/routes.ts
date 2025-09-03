@@ -5675,82 +5675,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Use AI with connected data as context - this preserves AI functionality
           // while ensuring only connected data is used
 
-          try {
-            // Send question with uploaded data context
-            const enhancedQuestion = `${message}
-
-${focusedContext}`;
-
-            console.log(`Flowise API 호출 - 연결된 데이터로만 제한된 컨텍스트 사용`);
-            const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                question: enhancedQuestion,
-                history: []
-              })
-            });
-
-            if (flowiseResponse.ok) {
-              const flowiseResult = await flowiseResponse.json();
-              console.log(`AI 응답 성공:`, flowiseResult);
-              
-              let aiResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "";
-              
-              console.log('AI 원본 응답:', aiResponse);
-              
-              // Remove "Human:" prefix if it exists
-              if (aiResponse.startsWith('Human:')) {
-                aiResponse = aiResponse.substring(6).trim();
-              }
-              
-              if (aiResponse && aiResponse.trim().length > 0) {
-                console.log('AI 최종 응답:', aiResponse);
-                const botMessage = await storage.createChatMessage({
-                  sessionId,
-                  type: 'bot',
-                  message: aiResponse.trim(),
-                  createdAt: new Date().toISOString()
-                });
-
-                return res.json({
-                  userMessage: userMessage,
-                  botMessage: botMessage
-                });
+          // DIRECT DATA SEARCH: Only use uploaded RawData_1M, no external APIs
+          console.log('로컬 데이터만 사용하여 답변 생성');
+          
+          let directAnswer = "";
+          
+          // Search for specific data matches
+          if (message.includes('OEE') && relevantData.length > 0) {
+            const match = relevantData.find(item => item.OEE && item.OEE.toString().includes(message.match(/[\d.]+/)?.[0] || ''));
+            if (match) {
+              directAnswer = `ID ${match.Id}의 정보:\n`;
+              directAnswer += `Asset Name: ${match['Asset Name']}\n`;
+              directAnswer += `TimeStamp: ${match.TimeStamp}\n`;
+              directAnswer += `OEE: ${match.OEE}\n`;
+              directAnswer += `Level: ${match.Level}\n`;
+              directAnswer += `Temperature: ${match.Temperature}\n`;
+              directAnswer += `Agitation: ${match.Agitation}\n`;
+              directAnswer += `Pressure: ${match.Pressure}\n`;
+              directAnswer += `Phase: ${match.Phase}`;
+            }
+          } else if (message.includes('Agitation') && relevantData.length > 0) {
+            const agitationValue = message.match(/[\d.]+/)?.[0];
+            const match = allConnectedData.find(item => item.Agitation && item.Agitation.toString().includes(agitationValue || ''));
+            if (match) {
+              directAnswer = `Agitation ${agitationValue}인 데이터: ID ${match.Id}`;
+            } else {
+              directAnswer = `Agitation ${agitationValue}인 데이터를 찾을 수 없습니다.`;
+            }
+          } else if (message.includes('Id') || message.includes('ID')) {
+            const idMatch = message.match(/[Ii]d\s*(?:가\s*)?(\d+)/);
+            if (idMatch) {
+              const targetId = idMatch[1];
+              const match = allConnectedData.find(item => item.Id == targetId);
+              if (match) {
+                if (message.includes('TimeStamp')) {
+                  directAnswer = `ID ${targetId}의 TimeStamp: ${match.TimeStamp}`;
+                } else {
+                  directAnswer = `ID ${targetId}의 정보:\n`;
+                  directAnswer += `Asset Name: ${match['Asset Name']}\n`;
+                  directAnswer += `TimeStamp: ${match.TimeStamp}\n`;
+                  directAnswer += `Level: ${match.Level}\n`;
+                  directAnswer += `Temperature: ${match.Temperature}\n`;
+                  directAnswer += `Agitation: ${match.Agitation}\n`;
+                  directAnswer += `OEE: ${match.OEE}`;
+                }
+              } else {
+                directAnswer = `ID ${targetId}를 찾을 수 없습니다.`;
               }
             }
-            
-            // If AI fails, return simple error message
-            const errorMessage = "AI 모델에서 응답을 생성할 수 없습니다. 다시 시도해주세요.";
-            const botMessage = await storage.createChatMessage({
-              sessionId,
-              type: 'bot',
-              message: errorMessage,
-              createdAt: new Date().toISOString()
-            });
-
-            return res.json({
-              userMessage: userMessage,
-              botMessage: botMessage
-            });
-          } catch (error) {
-            console.error("AI 처리 실패:", error);
-            
-            const errorMessage = "AI 모델에서 응답을 생성할 수 없습니다. 다시 시도해주세요.";
-            const botMessage = await storage.createChatMessage({
-              sessionId,
-              type: 'bot',
-              message: errorMessage,
-              createdAt: new Date().toISOString()
-            });
-
-            return res.json({
-              userMessage: userMessage,
-              botMessage: botMessage
-            });
+          } else if (message.includes('Target Production Rate') && message.includes('Running')) {
+            const runningCount = allConnectedData.filter(item => 
+              item['Target Production Rate'] === 'Running'
+            ).length;
+            directAnswer = `Target Production Rate가 'Running'인 갯수: ${runningCount}개`;
+          } else if (relevantData.length > 0) {
+            const match = relevantData[0];
+            directAnswer = `ID ${match.Id}의 정보:\n`;
+            directAnswer += `Asset Name: ${match['Asset Name']}\n`;
+            directAnswer += `TimeStamp: ${match.TimeStamp}\n`;
+            directAnswer += `Level: ${match.Level}\n`;
+            directAnswer += `Temperature: ${match.Temperature}\n`;
+            directAnswer += `Agitation: ${match.Agitation}`;
+          } else {
+            directAnswer = "요청하신 데이터를 RawData_1M에서 찾을 수 없습니다.";
           }
+
+          console.log('직접 데이터 검색 결과:', directAnswer);
+          
+          const botMessage = await storage.createChatMessage({
+            sessionId,
+            type: 'bot',
+            message: directAnswer,
+            createdAt: new Date().toISOString()
+          });
+
+          return res.json({
+            userMessage: userMessage,
+            botMessage: botMessage
+          });
         } else {
           console.log(`연결된 데이터 소스는 있지만 실제 데이터가 없음: ${connectedDataSources.length}개 연결됨`);
           
