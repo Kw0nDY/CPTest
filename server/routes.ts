@@ -5442,14 +5442,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           for (const integration of connectedDataSources) {
             const dataSource = await storage.getDataSource(integration.dataSourceId);
-            console.log(`데이터 소스 확인: ${dataSource?.name}, sampleData 존재: ${!!dataSource?.sampleData}`);
             
-            if (dataSource && dataSource.sampleData) {
+            // Access sampleData from config object (correct path)
+            const sampleData = dataSource?.config?.sampleData;
+            console.log(`데이터 소스 확인: ${dataSource?.name}, config.sampleData 존재: ${!!sampleData}`);
+            
+            if (dataSource && sampleData) {
               contextData += `\n=== ${dataSource.name} 데이터 ===\n`;
               
               // Add sample data from this specific data source
-              if (typeof dataSource.sampleData === 'object') {
-                for (const [tableName, records] of Object.entries(dataSource.sampleData)) {
+              if (typeof sampleData === 'object') {
+                for (const [tableName, records] of Object.entries(sampleData)) {
                   if (Array.isArray(records) && records.length > 0) {
                     contextData += `테이블: ${tableName}\n`;
                     contextData += JSON.stringify(records.slice(0, 5), null, 2) + '\n';
