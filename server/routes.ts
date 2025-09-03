@@ -252,7 +252,28 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
-  // 기본 라우트들
+  // Data Sources API
+  app.get("/api/data-sources", async (req, res) => {
+    try {
+      const dataSources = await storage.getDataSources();
+      res.json(dataSources);
+    } catch (error) {
+      console.error("Error fetching data sources:", error);
+      res.status(500).json({ error: "Failed to fetch data sources" });
+    }
+  });
+
+  app.post("/api/data-sources", async (req, res) => {
+    try {
+      const dataSource = await storage.createDataSource(req.body);
+      res.status(201).json(dataSource);
+    } catch (error) {
+      console.error("Error creating data source:", error);
+      res.status(400).json({ error: "Failed to create data source" });
+    }
+  });
+
+  // Chat Configurations API
   app.get("/api/chat/configurations", async (req, res) => {
     try {
       const configurations = await storage.getChatConfigurations();
@@ -260,6 +281,71 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching chat configurations:', error);
       res.status(500).json({ error: "챗봇 구성 조회에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/chat/configurations", async (req, res) => {
+    try {
+      const configuration = await storage.createChatConfiguration(req.body);
+      res.status(201).json(configuration);
+    } catch (error) {
+      console.error('Error creating chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 생성에 실패했습니다" });
+    }
+  });
+
+  app.put("/api/chat/configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const configuration = await storage.updateChatConfiguration(id, req.body);
+      res.json(configuration);
+    } catch (error) {
+      console.error('Error updating chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 업데이트에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/chat/configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteChatConfiguration(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting chat configuration:', error);
+      res.status(500).json({ error: "챗봇 구성 삭제에 실패했습니다" });
+    }
+  });
+
+  // Chatbot Data Integrations API
+  app.get("/api/chatbot-data-integrations/:configId", async (req, res) => {
+    try {
+      const { configId } = req.params;
+      const integrations = await storage.getChatbotDataIntegrations(configId);
+      res.json(integrations);
+    } catch (error) {
+      console.error('Error fetching chatbot data integrations:', error);
+      res.status(500).json({ error: "데이터 통합 조회에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/chatbot-data-integrations", async (req, res) => {
+    try {
+      const integration = await storage.createChatbotDataIntegration(req.body);
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error('Error creating chatbot data integration:', error);
+      res.status(500).json({ error: "데이터 통합 생성에 실패했습니다" });
+    }
+  });
+
+  app.delete("/api/chatbot-data-integrations/:configId/:dataSourceId", async (req, res) => {
+    try {
+      const { configId, dataSourceId } = req.params;
+      await storage.deleteChatbotDataIntegration(configId, dataSourceId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting chatbot data integration:', error);
+      res.status(500).json({ error: "데이터 통합 삭제에 실패했습니다" });
     }
   });
 
