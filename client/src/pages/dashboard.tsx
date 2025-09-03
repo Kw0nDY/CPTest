@@ -263,7 +263,7 @@ export default function Dashboard() {
     <div className="flex flex-col h-screen bg-gray-50">
       <Header currentUser={currentUser} onUserChange={handleUserChange} />
       
-      <div className="flex flex-1 pt-14">
+      <div className="flex flex-1 pt-14 gap-4">
         <Sidebar 
           activeView={activeView} 
           onViewChange={handleViewChange}
