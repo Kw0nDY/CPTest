@@ -5531,6 +5531,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               botMessage: botMessage
             });
           }
+        } else {
+          console.log(`연결된 데이터 소스는 있지만 실제 데이터가 없음: ${connectedDataSources.length}개 연결됨`);
+          
+          // Connected data sources exist but no actual data is available
+          const noDataMessage = `죄송합니다. 현재 챗봇에 데이터 소스는 연결되어 있지만 실제 데이터를 불러올 수 없습니다.\n\n` +
+            `다음 사항을 확인해주세요:\n` +
+            `• Knowledge Base에 파일이 제대로 업로드되었는지 확인\n` +
+            `• Data Integration 연동이 올바르게 설정되었는지 확인\n` +
+            `• 연결된 데이터 소스에 실제 데이터가 있는지 확인\n\n` +
+            `현재 ${connectedDataSources.length}개의 데이터 소스가 연결되어 있지만 접근 가능한 데이터가 없습니다.`;
+
+          const botMessage = await storage.createChatMessage({
+            sessionId,
+            configId: configId || undefined,
+            type: 'bot',
+            message: noDataMessage
+          });
+
+          return res.json({
+            userMessage: userMessage,
+            botMessage: botMessage
+          });
         }
       } else {
         console.log(`데이터 분리: configId ${configId} - 연결된 데이터 소스가 없습니다.`);
@@ -5555,93 +5577,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      try {
-        // Enhanced question with chatbot-specific context data
-        const enhancedQuestion = contextData 
-          ? `다음 데이터를 참고해서 질문에 답해주세요:\n${contextData}\n\n질문: ${message}`
-          : message;
+      // DATA ISOLATION COMPLETE: All requests are handled above with connected data only
+      // No external API calls allowed - only use explicitly connected data sources
+      console.log(`데이터 분리 완료: 모든 요청이 연결된 데이터로만 처리됨`);
+      
+      // This should never be reached if data isolation is working correctly
+      const fallbackMessage = `시스템 오류: 데이터 분리 로직에 문제가 있습니다.\n\n` +
+        `연결된 데이터 소스: ${connectedDataSources.length}개\n` +
+        `로드된 데이터 레코드: ${allConnectedData.length}개\n\n` +
+        `이 메시지가 표시되면 시스템 관리자에게 문의하세요.`;
 
-        // Call Flowise chat API with isolated data context
-        console.log(`Flowise API 호출: "${message}" (컨텍스트 데이터: ${contextData.length}자)`);
-        const flowiseResponse = await fetch("http://220.118.23.185:3000/api/v1/prediction/9e85772e-dc56-4b4d-bb00-e18aeb80a484", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            question: enhancedQuestion,
-            history: []
-          })
-        });
-
-        if (flowiseResponse.ok) {
-          const flowiseResult = await flowiseResponse.json();
-          console.log(`Flowise 응답:`, flowiseResult);
-          botResponse = flowiseResult.text || flowiseResult.answer || flowiseResult.response || "응답을 받을 수 없습니다.";
-          confidence = 0.90;
-          foundMatches = 1;
-        } else {
-          throw new Error(`Flowise API 오류: ${flowiseResponse.status}`);
-        }
-      } catch (error) {
-        console.error("Flowise API 호출 실패:", error);
-        
-        // Fallback to local data search
-        const searchResults = await storage.searchUploadedData(message);
-        console.log(`로컬 검색 결과: ${searchResults.length}개 항목 발견`);
-
-        if (searchResults.length > 0) {
-          foundMatches = searchResults.length;
-          confidence = 0.70;
-          botResponse = `업로드된 데이터에서 찾은 정보:\n\n`;
-          
-          if (searchResults.length === 1) {
-            const result = searchResults[0];
-            Object.entries(result).forEach(([key, value]) => {
-              if (value && key !== 'id') {
-                botResponse += `**${key}:** ${value}\n`;
-              }
-            });
-          } else {
-            botResponse += `관련된 ${searchResults.length}개의 결과를 찾았습니다:\n\n`;
-            searchResults.slice(0, 3).forEach((result, index) => {
-              botResponse += `**${index + 1}번 결과:**\n`;
-              Object.entries(result).forEach(([key, value]) => {
-                if (value && key !== 'id') {
-                  botResponse += `- ${key}: ${value}\n`;
-                }
-              });
-              botResponse += `\n`;
-            });
-          }
-        } else {
-          confidence = 0;
-          botResponse = `죄송합니다. "${message}"와 관련된 정보를 찾을 수 없습니다.\n\nFlowise API와의 연결에 문제가 있어 로컬 데이터만 검색했습니다.\n\n다음과 같이 시도해 보세요:\n• 더 구체적인 키워드를 입력해 주세요\n• 다른 검색어나 관련 용어를 사용해 보세요\n• CSV 파일을 업로드했는지 확인해 주세요`;
-        }
-      }
-
-      // Save bot response
       const botMessage = await storage.createChatMessage({
         sessionId,
+        configId: configId || undefined,
         type: 'bot',
-        message: botResponse,
-        metadata: {
-          confidence,
-          searchQuery,
-          foundMatches
-        },
-        createdAt: new Date().toISOString()
+        message: fallbackMessage
       });
 
-      res.json({
-        userMessage,
-        botMessage,
-        searchInfo: {
-          query: searchQuery,
-          foundMatches,
-          confidence,
-          hasResults: foundMatches > 0
-        }
+      return res.json({
+        userMessage: userMessage,
+        botMessage: botMessage
       });
 
     } catch (error) {
