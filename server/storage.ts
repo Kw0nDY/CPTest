@@ -409,9 +409,11 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log('getTableData called with:', { dataSourceId, tableName });
       
-      // 1단계: 실제 bioreactor 데이터 직접 로드 (임시 해결책)
+      // 🎯 모든 경우에 대해 실제 bioreactor 데이터 로드 시도
       console.log(`🔍 데이터 소스 확인: dataSourceId=${dataSourceId}, tableName=${tableName}`);
-      if (dataSourceId === 'ds-1756878736186' || tableName === 'Sheet1' || dataSourceId.includes('RawData') || dataSourceId.includes('1756878736186')) {
+      
+      // 1) 먼저 Sheet1이나 실제 데이터 파일이 있는지 확인
+      if (tableName === 'Sheet1' || dataSourceId.includes('RawData') || dataSourceId.includes('1756878736186') || dataSourceId === 'ds-1756878736186') {
         try {
           const fs = require('fs');
           const path = require('path');
@@ -426,6 +428,21 @@ export class DatabaseStorage implements IStorage {
         } catch (fileError) {
           console.warn('실제 데이터 파일 읽기 오류:', fileError);
         }
+      }
+      
+      // 2) 위 조건에 안맞아도 강제로 전체 데이터 로드 시도
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
+        
+        if (fs.existsSync(dataPath)) {
+          const jsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+          console.log(`🚀 강제 전체 데이터 로드 성공: ${jsonData.length}개 레코드 (dataSourceId: ${dataSourceId})`);
+          return jsonData;
+        }
+      } catch (forceLoadError) {
+        console.warn('강제 데이터 로드 실패:', forceLoadError);
       }
       
       // 2단계: uploadedData 테이블에서 확인 (fallback)

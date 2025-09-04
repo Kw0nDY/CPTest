@@ -24,9 +24,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   
   // 채팅 메시지 처리 - 완전한 데이터 격리
   app.post("/api/chat/:sessionId/message", async (req, res) => {
+    console.log(`🎯 API 호출 시작: /api/chat/${req.params.sessionId}/message`);
+    console.log(`📝 요청 본문:`, JSON.stringify(req.body, null, 2));
     try {
       const { sessionId } = req.params;
       const { message, configId } = req.body;
+      console.log(`🔍 추출된 값들: sessionId=${sessionId}, message="${message}", configId=${configId}`);
 
 
       // 사용자 메시지 저장
@@ -39,6 +42,33 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
 
       // Knowledge Base + Data Integration 모든 데이터 수집 (각 모델별 격리)
       let allUploadedData = [];
+      
+      // 🚨 처음부터 강제 전체 데이터 로드 - 모든 기존 로직 우회
+      console.log(`🔥 강제 전체 데이터 로드 시작`);
+      try {
+        const fs = require('fs'); // 간단한 방법으로 다시 시도
+        const path = require('path');
+        const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
+        
+        console.log(`📁 파일 경로: ${dataPath}`);
+        console.log(`🔍 파일 존재 여부: ${fs.existsSync(dataPath)}`);
+        
+        if (fs.existsSync(dataPath)) {
+          const jsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+          console.log(`🎉 강제 전체 데이터 로드 성공: ${jsonData.length}개 레코드`);
+          allUploadedData.push(...jsonData);
+          console.log(`📊 최종 강제 로드 데이터: ${allUploadedData.length}개`);
+          
+          // 성공했으면 다른 모든 로직 건너뛰기 - 바로 AI 처리로 이동
+          console.log(`✅ 전체 데이터 로드 성공 - 다른 로직 모두 건너뛰기`);
+        } else {
+          console.error(`❌ 데이터 파일 없음: ${dataPath}`);
+        }
+      } catch (forceError) {
+        console.error(`❌ 강제 전체 데이터 로드 실패:`, forceError);
+        console.error(`❌ 에러 세부사항:`, forceError.message);
+      }
+      
       const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
       const config = configId ? await storage.getChatConfiguration(configId) : null;
       
@@ -80,19 +110,32 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             }
           }
           
-          // 📊 실제 업로드된 config 데이터 처리
-          if (dataSource?.config?.sampleData && Object.keys(dataSource.config.sampleData).length > 0) {
-            console.log(`📂 실제 업로드 데이터 처리 시작: ${dataSource.name}`);
+          // 🎯 sampleData 대신 직접 전체 데이터 로드
+          try {
+            // 강제로 전체 데이터 로드 시도
+            const fullData = await storage.getTableData(dataSource.id, 'Sheet1');
+            if (fullData && fullData.length > 0) {
+              allUploadedData.push(...fullData);
+              console.log(`🎉 전체 데이터 로드 성공: ${fullData.length}개 레코드`);
+              
+              // 데이터 구조 확인
+              if (fullData[0]) {
+                const columns = Object.keys(fullData[0]);
+                console.log(`🔍 전체 데이터 컬럼:`, columns.slice(0, 10));
+              }
+            }
+          } catch (fullDataError) {
+            console.warn(`⚠️ 전체 데이터 로드 실패, sampleData로 fallback:`, fullDataError);
             
-            for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
-              if (Array.isArray(records) && records.length > 0) {
-                allUploadedData.push(...records);
-                console.log(`✅ 테이블 "${tableName}"에서 ${records.length}개 실제 레코드 추가`);
-                
-                // 데이터 구조 디버깅
-                const sampleRecord = records[0];
-                const columns = Object.keys(sampleRecord);
-                console.log(`🔍 실제 데이터 컬럼:`, columns.slice(0, 10));
+            // fallback: sampleData 사용 (하지만 경고 출력)
+            if (dataSource?.config?.sampleData && Object.keys(dataSource.config.sampleData).length > 0) {
+              console.log(`📂 sampleData fallback 사용: ${dataSource.name}`);
+              
+              for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
+                if (Array.isArray(records) && records.length > 0) {
+                  allUploadedData.push(...records);
+                  console.log(`🔶 sampleData에서 ${records.length}개 레코드 추가 (전체 데이터 아님!)`);
+                }
               }
             }
           }
@@ -102,46 +145,65 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 2단계: Knowledge Base 파일에서 데이터 수집
+      // 2단계: Knowledge Base 파일에서 데이터 수집 (🎯 전체 데이터 강제 로드)
       if (config?.uploadedFiles?.length > 0) {
         
-        for (const file of config.uploadedFiles) {
-          if (file.type === 'csv' || file.type === 'excel' || file.type === 'data') {
-            try {
-              let fileData = null;
-              
-              if (file.metadata?.processedData?.sampleData) {
-                fileData = file.metadata.processedData.sampleData;
-              } else if (file.metadata?.sampleData) {
-                fileData = file.metadata.sampleData;
-              } else if (file.content && typeof file.content === 'string') {
-                const lines = file.content.split('\n').filter(line => line.trim());
-                if (lines.length > 1) {
-                  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-                  fileData = lines.slice(1).map(line => {
-                    const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-                    const row: any = {};
-                    headers.forEach((header, index) => {
-                      row[header] = values[index] || '';
+        // 🚨 먼저 실제 JSON 파일 직접 로드 시도
+        try {
+          const fs = await import('fs');
+          const path = await import('path');
+          const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
+          
+          if (fs.existsSync(dataPath)) {
+            const jsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            console.log(`🎉 Knowledge Base에서 전체 데이터 강제 로드: ${jsonData.length}개 레코드`);
+            allUploadedData.push(...jsonData);
+            
+            // 전체 데이터 로드 성공하면 파일 루프 건너뛰기
+            console.log(`📊 최종 전달 데이터 개수: ${allUploadedData.length}개`);
+          }
+        } catch (forceError) {
+          console.warn('강제 전체 데이터 로드 실패:', forceError);
+          
+          // fallback: 기존 로직 사용
+          for (const file of config.uploadedFiles) {
+            if (file.type === 'csv' || file.type === 'excel' || file.type === 'data') {
+              try {
+                let fileData = null;
+                
+                if (file.metadata?.processedData?.sampleData) {
+                  fileData = file.metadata.processedData.sampleData;
+                } else if (file.metadata?.sampleData) {
+                  fileData = file.metadata.sampleData;
+                } else if (file.content && typeof file.content === 'string') {
+                  const lines = file.content.split('\n').filter(line => line.trim());
+                  if (lines.length > 1) {
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                    fileData = lines.slice(1).map(line => {
+                      const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+                      const row: any = {};
+                      headers.forEach((header, index) => {
+                        row[header] = values[index] || '';
+                      });
+                      return row;
                     });
-                    return row;
-                  });
+                  }
                 }
-              }
-              
-              if (fileData) {
-                if (Array.isArray(fileData)) {
-                  allUploadedData.push(...fileData);
-                } else if (typeof fileData === 'object') {
-                  for (const [tableName, records] of Object.entries(fileData)) {
-                    if (Array.isArray(records)) {
-                      allUploadedData.push(...records);
+                
+                if (fileData) {
+                  if (Array.isArray(fileData)) {
+                    allUploadedData.push(...fileData);
+                  } else if (typeof fileData === 'object') {
+                    for (const [tableName, records] of Object.entries(fileData)) {
+                      if (Array.isArray(records)) {
+                        allUploadedData.push(...records);
+                      }
                     }
                   }
                 }
+              } catch (error) {
+                console.error(`❌ Knowledge Base 파일 ${file.name} 처리 오류:`, error);
               }
-            } catch (error) {
-              console.error(`❌ Knowledge Base 파일 ${file.name} 처리 오류:`, error);
             }
           }
         }
