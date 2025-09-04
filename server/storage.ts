@@ -1067,6 +1067,34 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration | null> {
+    try {
+      console.log(`💾 데이터베이스에 AI 모델 구성 업데이트: ${id}, 파일 ${updates.uploadedFiles?.length || 0}개`);
+      
+      // Get current configuration first
+      const current = await this.getChatConfiguration(id);
+      if (!current) {
+        console.warn(`⚠️ 구성을 찾을 수 없음: ${id}`);
+        return null;
+      }
+      
+      const [updated] = await db
+        .update(chatConfigurations)
+        .set({
+          ...updates,
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(chatConfigurations.id, id))
+        .returning();
+      
+      console.log(`✅ 데이터베이스 업데이트 완료: ${id}`);
+      return updated;
+    } catch (error) {
+      console.error('Error updating chat configuration:', error);
+      return null; // 에러 발생 시 null 반환
+    }
+  }
+
   async toggleChatConfigurationActive(id: string): Promise<ChatConfiguration> {
     try {
       // First get the current configuration

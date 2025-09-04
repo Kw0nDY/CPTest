@@ -67,14 +67,37 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
-        const response = await fetch('/api/chat-configurations');
+        console.log('🔄 챗봇 구성 로드 중...');
+        const response = await fetch('/api/chat-configurations', {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' } // 최신 데이터 강제 로드
+        });
+        
         if (response.ok) {
           const allConfigs = await response.json();
+          console.log(`📋 전체 구성 개수: ${allConfigs.length}개`, allConfigs.map(c => ({ 
+            name: c.name, 
+            isActive: c.isActive, 
+            type: typeof c.isActive,
+            files: c.uploadedFiles?.length || 0
+          })));
           
-          // Filter only active configurations (isActive is boolean, but stored as integer)
-          const activeConfigs = allConfigs.filter((config: ChatConfiguration) => 
-            config.isActive === true || config.isActive === 1
-          );
+          // 🎯 더 포괄적인 활성 상태 확인 (모든 가능한 경우 고려)
+          const activeConfigs = allConfigs.filter((config: ChatConfiguration) => {
+            // isActive가 true, 1, "1", "true" 또는 null/undefined인 경우 활성으로 간주
+            const isActiveValue = config.isActive;
+            return isActiveValue === true || 
+                   isActiveValue === 1 || 
+                   isActiveValue === "1" ||
+                   isActiveValue === "true" ||
+                   isActiveValue == null || // null 또는 undefined도 활성으로 간주
+                   isActiveValue === undefined;
+          });
+          
+          console.log(`✅ 활성 구성 개수: ${activeConfigs.length}개`, activeConfigs.map(c => ({ 
+            name: c.name, 
+            files: c.uploadedFiles?.length || 0 
+          })));
           
           // Sort active configs by name (ascending)
           const sortedActiveConfigs = activeConfigs.sort((a: ChatConfiguration, b: ChatConfiguration) => 
@@ -90,11 +113,13 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           if (savedConfigId) {
             // Find the saved configuration if it still exists and is active
             configToSelect = sortedActiveConfigs.find(config => config.id === savedConfigId);
+            console.log(`💾 저장된 구성 복원: ${configToSelect ? configToSelect.name : '찾을 수 없음'}`);
           }
           
           // Fallback to first active configuration if no saved config or saved config not found
           if (!configToSelect && sortedActiveConfigs.length > 0) {
             configToSelect = sortedActiveConfigs[0];
+            console.log(`🎯 첫 번째 활성 구성 선택: ${configToSelect.name} (파일 ${configToSelect.uploadedFiles?.length || 0}개)`);
           }
           
           setSelectedConfig(configToSelect);
@@ -103,9 +128,26 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           if (configToSelect) {
             localStorage.setItem('selectedChatbotConfigId', configToSelect.id);
           }
+        } else {
+          console.error('구성 로드 실패:', response.status, response.statusText);
         }
       } catch (error) {
         console.error('Failed to load configurations:', error);
+        // 에러 발생 시에도 모든 구성을 로드 시도 (isActive 무시)
+        try {
+          const response = await fetch('/api/chat-configurations');
+          if (response.ok) {
+            const allConfigs = await response.json();
+            console.log('🚨 에러 복구: 모든 구성 로드 (활성 상태 무시)', allConfigs.length);
+            setConfigurations(allConfigs);
+            if (allConfigs.length > 0) {
+              setSelectedConfig(allConfigs[0]);
+              localStorage.setItem('selectedChatbotConfigId', allConfigs[0].id);
+            }
+          }
+        } catch (fallbackError) {
+          console.error('구성 로드 완전 실패:', fallbackError);
+        }
       }
     };
 

@@ -116,29 +116,67 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 2. Data Integration 연결된 데이터 로드
+      // 2. Data Integration 연결된 데이터 로드 (개선된 버전)
+      console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
       const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
+      console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+      
       for (const integration of connectedDataSources) {
         try {
+          console.log(`📊 데이터 소스 로드 중: ${integration.dataSourceId}`);
           const dataSource = await storage.getDataSource(integration.dataSourceId);
+          
+          if (!dataSource) {
+            console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${integration.dataSourceId}`);
+            continue;
+          }
+          
+          console.log(`📋 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}) 처리 중`);
+          
+          // 1) config.sampleData에서 데이터 로드
           if (dataSource?.config?.sampleData) {
-            // sampleData에서 테이블 데이터 가져오기
+            console.log(`📊 sampleData에서 데이터 로드 중...`);
             for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
               if (Array.isArray(tableData) && tableData.length > 0) {
                 allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
+                console.log(`✅ Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
               }
             }
           }
+          
+          // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용)
+          try {
+            if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
+              const tables = await storage.getDataSourceTables(integration.dataSourceId);
+              console.log(`🔍 데이터 소스 테이블: ${tables.length}개 발견`);
+              
+              for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
+                try {
+                  const tableData = await storage.getTableData(integration.dataSourceId, table.name);
+                  if (tableData && tableData.length > 0) {
+                    allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
+                    console.log(`✅ 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드`);
+                  }
+                } catch (tableError) {
+                  console.warn(`테이블 데이터 로드 실패: ${table.name}`, tableError);
+                }
+              }
+            }
+          } catch (tablesError) {
+            console.warn('테이블 데이터 로드 시도 실패:', tablesError);
+          }
+          
         } catch (dataError) {
-          console.warn('데이터 소스 로드 오류:', dataError);
+          console.error('데이터 소스 로드 오류:', dataError);
         }
       }
 
       // 3. 백업 데이터 (bioreactor)
       if (allUploadedData.length === 0) {
         try {
-          const fs = require('fs');
-          const dataPath = require('path').join(process.cwd(), 'real_bioreactor_1000_rows.json');
+          const fs = await import('fs');
+          const path = await import('path');
+          const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
           if (fs.existsSync(dataPath)) {
             allUploadedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
           }
@@ -295,6 +333,25 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   });
 
   // AI 모델 상태 토글 API 추가
+  // 🎯 Knowledge Base 파일 저장을 위한 PUT 엔드포인트 추가
+  app.put("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const configId = req.params.id;
+      const updatedConfig = req.body;
+      
+      console.log(`🔄 AI 모델 구성 업데이트: ${configId}, 파일 ${updatedConfig.uploadedFiles?.length || 0}개`);
+      
+      // 데이터베이스에 업데이트된 구성 저장
+      const result = await storage.updateChatConfiguration(configId, updatedConfig);
+      
+      console.log(`✅ AI 모델 구성 업데이트 완료: ${configId}`);
+      res.json(result);
+    } catch (error) {
+      console.error('구성 업데이트 실패:', error);
+      res.status(500).json({ error: 'Failed to update configuration' });
+    }
+  });
+
   app.put("/api/chat-configurations/:id/toggle-active", async (req, res) => {
     try {
       const updated = await storage.toggleChatConfigurationActive(req.params.id);

@@ -1076,28 +1076,44 @@ export function AiChatInterface() {
           [selectedConfigForKnowledge.id]: [newItem, ...(prev[selectedConfigForKnowledge.id] || [])]
         }));
 
-        // Process actual file content based on type
+        // Process actual file content based on type - 성능 최적화
         try {
           const extension = file.name.split('.').pop()?.toLowerCase();
           let processedData: any = null;
           let fileType = 'file';
+          let fileContent = '';
 
           if (extension === 'csv') {
             fileType = 'csv';
-            const text = await file.text();
-            processedData = parseCSVContent(text, file.name);
+            fileContent = await file.text();
+            processedData = parseCSVContent(fileContent, file.name);
+            console.log(`📊 CSV 파일 처리 완료: ${file.name} → ${processedData?.sampleData?.length || 0}개 레코드`);
           } else if (extension === 'xlsx' || extension === 'xls') {
             fileType = 'excel';
-            // For Excel files, we'll need to use a library like xlsx
-            const text = await file.text();
+            fileContent = await file.text();
             processedData = { 
               error: 'Excel 파일 파싱은 아직 구현되지 않았습니다. CSV 파일을 사용해주세요.',
-              rawContent: text.substring(0, 1000) 
+              rawContent: fileContent.substring(0, 1000) 
             };
+            console.log(`⚠️ Excel 파일은 아직 지원되지 않음: ${file.name}`);
+          } else if (extension === 'json') {
+            fileType = 'json';
+            fileContent = await file.text();
+            try {
+              const jsonData = JSON.parse(fileContent);
+              processedData = {
+                sampleData: Array.isArray(jsonData) ? jsonData.slice(0, 1000) : [jsonData],
+                totalRecords: Array.isArray(jsonData) ? jsonData.length : 1
+              };
+              console.log(`📊 JSON 파일 처리 완료: ${file.name} → ${processedData.sampleData.length}개 레코드`);
+            } catch (jsonError) {
+              processedData = { error: 'JSON 파싱 실패', rawContent: fileContent.substring(0, 1000) };
+            }
           } else {
             // Handle other file types (text files, etc.)
-            const text = await file.text();
-            processedData = { rawContent: text.substring(0, 5000) };
+            fileContent = await file.text();
+            processedData = { rawContent: fileContent.substring(0, 5000) };
+            console.log(`📝 텍스트 파일 처리: ${file.name} (${fileContent.length} 문자)`);
           }
 
           // Create uploaded file entry for the chatbot configuration
