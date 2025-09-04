@@ -159,14 +159,26 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           const chatflowId = config?.chatflowId || '9e85772e-dc56-4b4d-bb00-e18aeb80a484';
           console.log(`🌐 사용할 chatflowId: ${chatflowId}`);
           
-          // 🎯 완전한 응답을 위한 구체적 지시 추가
-          const enhancedMessage = `${message}
+          // 🎯 벡터 DB 완전 우회 - 처음부터 실제 데이터만 사용
+          const directPrompt = `**실제 업로드된 데이터:**
 
-중요: 위 질문에 대해 완전하고 구체적인 답변을 제공해주세요. 분석 결과를 끝까지 다 말씀해주세요. 응답을 중간에 끊지 마세요.`;
+${JSON.stringify(allUploadedData, null, 2)}
 
-          // 원본 chatflowId 사용, 데이터 격리는 modelId로 보장  
+**사용자 질문:** ${message}
+
+**중요 지시사항:**
+- 위의 실제 데이터에서만 정보를 찾아서 답변하세요
+- 데이터에 없는 정보는 "해당 데이터가 없습니다"라고 명확히 말하세요
+- 추측하지 말고 정확한 데이터만 사용하세요
+- 외부 지식이나 학습된 다른 정보는 절대 사용하지 마세요
+- 완전하고 구체적인 답변을 제공하세요
+
+답변:`;
+
+          console.log(`📝 실제 데이터 직접 전달 프롬프트 길이: ${directPrompt.length}자`);
+          
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60초 timeout
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
           
           const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`, {
             method: 'POST',
@@ -175,14 +187,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             },
             signal: controller.signal,
             body: JSON.stringify({
-              question: enhancedMessage,
+              question: directPrompt,
+              chatId: `direct-${sessionId}-${Date.now()}`,
               overrideConfig: {
-                chatData: allUploadedData,
-                modelId: configId,
-                sessionId: `isolated-${configId}`,
-                maxTokens: 12000, // 더 큰 응답 허용
-                temperature: 0.1,  // 정확성 최우선
-                streaming: false   // 스트리밍 비활성화로 완전한 응답 보장
+                maxTokens: 12000,
+                temperature: 0.1,
+                streaming: false
               }
             })
           });
@@ -193,33 +203,15 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           console.log(`🔍 Flowise API 응답:`, response.status, aiResult);
           
           let aiResponse = aiResult.text || '응답을 생성할 수 없습니다.';
+          console.log(`🤖 AI 직접 응답: "${aiResponse.substring(0, 200)}..."`);
+
+          // 🎯 벡터 DB 우회로 더 이상 fallback 불필요하지만 안전을 위해 유지
           
           // 🎯 AI 응답이 불완전하거나 데이터 카운팅 질문일 때 서버에서 직접 분석 제공
           console.log(`🤖 AI 응답: "${aiResponse}"`);
           
-          const needsDataAnalysis = (
-            // ID 조회 질문은 무조건 실제 데이터 사용
-            (message.includes('Id') || message.includes('ID')) && 
-            (message.includes('정보') || message.includes('알려') || message.includes('값') || message.includes('데이터')) ||
-            // AI가 실제 데이터에 없는 용어를 사용하는 경우
-            aiResponse.includes('진공 시스템') || aiResponse.includes('크라이오') || aiResponse.includes('Load Lock') ||
-            aiResponse.includes('챔버') || aiResponse.includes('CVD') || aiResponse.includes('ALD') ||
-            // 응답이 너무 짧거나 불완전한 경우
-            aiResponse.length < 50 ||
-            // 관련없는 기술적 용어가 포함된 경우
-            aiResponse.includes('인덱스') || aiResponse.includes('Index') || 
-            aiResponse.includes('배기/소각') || aiResponse.includes('Abatement') ||
-            // 데이터가 없다고 잘못 답변하는 경우
-            aiResponse.includes('존재하지') || aiResponse.includes('포함하고 있지 않습니다') ||
-            aiResponse.includes('알 수 없습니다') || aiResponse.includes('추론하기 어렵습니다') ||
-            aiResponse.includes('정보가 필요합니다') || aiResponse.includes('제공되지 않았기') ||
-            // 숫자나 개수 질문에 구체적 답변이 없는 경우
-            (message.includes('개수') || message.includes('갯수') || message.includes('count')) && 
-            !/\d+개/.test(aiResponse) ||
-            // 일반적인 설명만 하고 실제 값을 제공하지 않는 경우
-            (message.includes('값은') || message.includes('값이') || message.includes('얼마')) &&
-            !aiResponse.match(/:\s*\d+|=\s*\d+|\d+\.?\d*\s*(도|°|값)/)  // 실제 값 형식이 없음
-          );
+          // 🎯 모든 질문에 대해 실제 데이터 강제 사용 (벡터 DB 완전 우회)
+          const needsDataAnalysis = true;
 
           if (needsDataAnalysis && allUploadedData.length > 0) {
             console.log(`⚠️ AI 모델이 데이터에 제대로 접근하지 못함. 벡터 DB 재업로드 필요`);
