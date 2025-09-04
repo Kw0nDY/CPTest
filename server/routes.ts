@@ -116,10 +116,14 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       if (allUploadedData.length > 0) {
 
         try {
+          // 🔒 각 AI 모델마다 고유한 격리된 chatflowId 사용
+          const isolatedChatflowId = `${config?.chatflowId}-${configId}`;
+          
           console.log(`🚀 AI에게 전달하는 질문: "${message}"`);
           console.log(`📊 전달하는 데이터 개수: ${allUploadedData.length}개`);
+          console.log(`🔒 격리된 chatflowId: ${isolatedChatflowId}`);
           
-          const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config?.chatflowId}`, {
+          const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${isolatedChatflowId}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -127,7 +131,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             body: JSON.stringify({
               question: message,
               overrideConfig: {
-                chatData: allUploadedData
+                chatData: allUploadedData,
+                modelId: configId // 추가 격리 식별자
               }
             })
           });
