@@ -41,6 +41,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       let allUploadedData = [];
       const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
       const config = configId ? await storage.getChatConfiguration(configId) : null;
+      
+      console.log(`🔍 Config 객체 확인:`, JSON.stringify(config, null, 2));
 
       console.log(`🔍 AI 모델 ${configId}의 연결된 데이터 소스:`, connectedDataSources.length);
       console.log(`📝 사용자 원본 메시지: "${message}"`);
@@ -193,10 +195,13 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           console.log(`🚀 AI에게 전달하는 질문: "${message}"`);
           console.log(`📊 전달하는 데이터 개수: ${allUploadedData.length}개`);
           console.log(`🔒 모델 ID: ${configId}`);
-          console.log(`🌐 원본 chatflowId 사용: ${config?.chatflowId}`);
+          
+          // 🔥 chatflowId 강제 설정 (config에서 못 가져올 때)
+          const chatflowId = config?.chatflowId || '9e85772e-dc56-4b4d-bb00-e18aeb80a484';
+          console.log(`🌐 사용할 chatflowId: ${chatflowId}`);
           
           // 원본 chatflowId 사용, 데이터 격리는 modelId로 보장
-          const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config?.chatflowId}`, {
+          const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
