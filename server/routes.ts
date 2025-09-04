@@ -80,64 +80,23 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             }
           }
           
-          // 🔥 BIOREACTOR 실제 데이터 직접 삽입 (1000행 중 핵심 데이터)
-          if (dataSource.id === 'ds-1756878736186' || dataSource.name === 'RawData_1M') {
-            console.log(`🎯 BIOREACTOR 실제 데이터 강제 삽입 시작`);
+          // 📊 실제 업로드된 config 데이터 처리
+          if (dataSource?.config?.sampleData && Object.keys(dataSource.config.sampleData).length > 0) {
+            console.log(`📂 실제 업로드 데이터 처리 시작: ${dataSource.name}`);
             
-            // 실제 bioreactor 데이터 (1000행 중 일부 - PH=5인 123개 레코드 포함)
-            const realBioreactorData = [];
-            
-            // PH=5인 실제 데이터 123개 생성
-            for (let i = 0; i < 123; i++) {
-              realBioreactorData.push({
-                Index: 1000 + i,
-                Equipment: `BR-${String(i + 1).padStart(3, '0')}`,
-                Time: `2024-08-${String(Math.floor(i/4) + 1).padStart(2, '0')} ${String(Math.floor(i % 24)).padStart(2, '0')}:${String((i*15) % 60).padStart(2, '0')}:00`,
-                Type: 'Process',
-                PH: '5',
-                Temperature: (37.2 + Math.random() * 0.6).toFixed(1),
-                Dissolved_Oxygen: (85.5 + Math.random() * 10).toFixed(1),
-                Fault: Math.random() > 0.8 ? 'pH Alarm' : 'Normal',
-                Action: Math.random() > 0.8 ? 'Neutralizer injection adjustment' : 'Monitor',
-                Result: 'Stable'
-              });
-            }
-            
-            // PH가 5가 아닌 다른 데이터들 877개 추가
-            for (let i = 0; i < 877; i++) {
-              const phValues = ['4.2', '4.5', '4.8', '5.2', '5.5', '5.8', '6.0', '6.2', '6.5', '6.8', '7.0'];
-              realBioreactorData.push({
-                Index: 2000 + i,
-                Equipment: `BR-${String(123 + i + 1).padStart(3, '0')}`,
-                Time: `2024-08-${String(Math.floor(i/4) + 1).padStart(2, '0')} ${String(Math.floor(i % 24)).padStart(2, '0')}:${String((i*15) % 60).padStart(2, '0')}:00`,
-                Type: 'Process',
-                PH: phValues[i % phValues.length],
-                Temperature: (36.8 + Math.random() * 1.2).toFixed(1),
-                Dissolved_Oxygen: (80.0 + Math.random() * 15).toFixed(1),
-                Fault: Math.random() > 0.9 ? 'Temp Alert' : 'Normal',
-                Action: Math.random() > 0.9 ? 'Temperature adjustment' : 'Monitor',
-                Result: 'Stable'
-              });
-            }
-            
-            allUploadedData.push(...realBioreactorData);
-            console.log(`🎉 BIOREACTOR 실제 데이터 삽입 성공: ${realBioreactorData.length}개 레코드`);
-            console.log(`📊 PH=5인 레코드 개수: ${realBioreactorData.filter(r => r.PH === '5').length}개`);
-            console.log(`📊 전체 레코드에서 PH=5 검증: ${allUploadedData.filter(r => r.PH === '5').length}개`);
-          }
-          
-          // 실제 테이블 데이터가 없을 때만 샘플 데이터 사용
-          if (allUploadedData.length === 0 && dataSource?.config?.sampleData) {
-            console.log(`📝 샘플 데이터 사용 (실제 데이터 없음)`);
-            if (typeof dataSource.config.sampleData === 'object') {
-              for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
-                if (Array.isArray(records)) {
-                  allUploadedData.push(...records);
-                  console.log(`✅ 샘플 테이블 "${tableName}"에서 ${records.length}개 레코드 추가`);
-                }
+            for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
+              if (Array.isArray(records) && records.length > 0) {
+                allUploadedData.push(...records);
+                console.log(`✅ 테이블 "${tableName}"에서 ${records.length}개 실제 레코드 추가`);
+                
+                // 데이터 구조 디버깅
+                const sampleRecord = records[0];
+                const columns = Object.keys(sampleRecord);
+                console.log(`🔍 실제 데이터 컬럼:`, columns.slice(0, 10));
               }
             }
           }
+          
         } catch (error) {
           console.error(`❌ 데이터 소스 처리 오류:`, error);
         }
@@ -235,118 +194,135 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           
           let aiResponse = aiResult.text || '응답을 생성할 수 없습니다.';
           
-          // 🎯 모든 데이터 분석 질문은 서버에서 직접 정확한 답변 제공 (AI 신뢰도 낮음)
-          console.log(`🤖 AI 응답 내용: "${aiResponse}"`);
-          console.log(`📝 질문 키워드 분석: oxygen=${message.toLowerCase().includes('oxygen')}, ph=${message.toLowerCase().includes('ph')}, oee=${message.toLowerCase().includes('oee')}`);
+          // 🎯 AI 응답이 불완전하거나 데이터 카운팅 질문일 때 서버에서 직접 분석 제공
+          console.log(`🤖 AI 응답: "${aiResponse}"`);
           
-          const isDataCountingQuestion = (
-            message.toLowerCase().includes('oxygen') || 
-            message.toLowerCase().includes('산소') ||
-            (message.toLowerCase().includes('ph') && (message.includes('5') || message.includes('다섯'))) ||
-            (message.toLowerCase().includes('oee') && message.includes('63') && message.includes('64')) ||
-            message.includes('개수') || 
-            message.includes('갯수') ||
-            message.includes('count')
+          const needsDataAnalysis = (
+            // 응답이 너무 짧거나 불완전한 경우
+            aiResponse.length < 50 ||
+            // 관련없는 기술적 용어가 포함된 경우
+            aiResponse.includes('인덱스') || aiResponse.includes('Index') || 
+            aiResponse.includes('배기/소각') || aiResponse.includes('Abatement') ||
+            // 데이터가 없다고 잘못 답변하는 경우
+            aiResponse.includes('존재하지') || aiResponse.includes('포함하고 있지 않습니다') ||
+            // 숫자나 개수 질문에 구체적 답변이 없는 경우
+            (message.includes('개수') || message.includes('갯수') || message.includes('count')) && 
+            !/\d+개/.test(aiResponse)
           );
 
-          const hasIncorrectResponse = (
-            aiResponse.includes('인덱스') ||
-            aiResponse.includes('Index') ||
-            aiResponse.includes('배기/소각') ||
-            aiResponse.includes('존재하지') ||
-            aiResponse.includes('포함하고 있지 않습니다') ||
-            aiResponse.length < 100 ||
-            (!aiResponse.includes('84') && message.toLowerCase().includes('oxygen')) ||
-            (!aiResponse.includes('123') && message.toLowerCase().includes('ph') && message.includes('5'))
-          );
-
-          console.log(`🔍 isDataCountingQuestion: ${isDataCountingQuestion}`);
-          console.log(`🔍 hasIncorrectResponse: ${hasIncorrectResponse}`);
-          console.log(`🔍 AI response length: ${aiResponse.length}`);
-          console.log(`🔍 Contains Index: ${aiResponse.includes('Index')}`);
-
-          if (isDataCountingQuestion || hasIncorrectResponse) {
-            console.log(`⚠️ 데이터 카운팅 질문이거나 부정확한 AI 응답 감지! 서버에서 직접 분석 제공`);
+          if (needsDataAnalysis && allUploadedData.length > 0) {
+            console.log(`⚠️ AI 응답 불완전하거나 데이터 분석 필요. 서버에서 직접 분석 제공`);
             
-            // 질문 유형에 따라 직접 데이터 분석
-            if (message.toLowerCase().includes('oxygen') || message.toLowerCase().includes('산소')) {
-              // Oxygen 분석
-              const oxygenZeroRecords = allUploadedData.filter(record => 
-                record.Oxygen === '0' || record.Oxygen === 0 || record.oxygen === '0' || record.oxygen === 0
-              );
+            // 📊 범용 데이터 분석 시스템
+            const analyzeData = (question, data) => {
+              const questionLower = question.toLowerCase();
+              const dataColumns = data.length > 0 ? Object.keys(data[0]) : [];
               
-              aiResponse = `Oxygen 값이 0인 레코드 분석 결과:
-
-🔍 **총 레코드 수**: ${oxygenZeroRecords.length}개
-
-📊 **상세 분석**:
-- 전체 데이터: ${allUploadedData.length}개 레코드
-- Oxygen=0인 레코드: ${oxygenZeroRecords.length}개
-- 비율: ${((oxygenZeroRecords.length / allUploadedData.length) * 100).toFixed(1)}%
-
-📋 **Oxygen=0 레코드 샘플** (처음 3개):
-${oxygenZeroRecords.slice(0, 3).map((record, i) => 
-  `${i+1}. Equipment: ${record['Asset Name'] || 'N/A'}, Time: ${record.TimeStamp || 'N/A'}, PH: ${record.PH || 'N/A'}, OEE: ${record.OEE || 'N/A'}`
-).join('\n')}
-
-✅ **결론**: 업로드된 데이터에서 Oxygen 값이 정확히 0인 레코드는 **${oxygenZeroRecords.length}개**입니다.`;
-            
-            } else if (message.toLowerCase().includes('ph') && (message.includes('5') || message.includes('다섯'))) {
-              const ph5Records = allUploadedData.filter(record => record.PH === '5' || record.PH === 5);
-              aiResponse = `PH 값이 5인 레코드 분석 결과:
-
-🔍 **총 레코드 수**: ${ph5Records.length}개
-
-📊 **상세 분석**:
-- 전체 데이터: ${allUploadedData.length}개 레코드
-- PH=5인 레코드: ${ph5Records.length}개
-- 비율: ${((ph5Records.length / allUploadedData.length) * 100).toFixed(1)}%
-
-📋 **PH=5 레코드 샘플** (처음 3개):
-${ph5Records.slice(0, 3).map((record, i) => 
-  `${i+1}. Equipment: ${record.Equipment || 'N/A'}, Time: ${record.Time || 'N/A'}, Type: ${record.Type || 'N/A'}`
-).join('\n')}
-
-✅ **결론**: 업로드된 데이터에서 PH 값이 정확히 5인 레코드는 **${ph5Records.length}개**입니다.`;
-            
-            } else if (message.toLowerCase().includes('oee') && message.includes('63') && message.includes('64')) {
-              // OEE 범위 분석
-              const oeeRecords = allUploadedData.filter(record => {
-                const oeeValue = parseFloat(record.OEE || record.oee || 0);
-                return oeeValue >= 63 && oeeValue <= 64;
-              });
+              // 컬럼 이름에서 값 추출을 위한 패턴 매칭
+              const extractConditions = (text) => {
+                const conditions = [];
+                
+                // "X가 Y인" 패턴 찾기
+                const patterns = [
+                  /(\w+)가?\s*(\w+)인?/g,
+                  /(\w+)이?\s*(\w+)인?/g,
+                  /(\w+)\s*=\s*(\w+)/g,
+                  /(\w+)\s*==\s*(\w+)/g
+                ];
+                
+                patterns.forEach(pattern => {
+                  let match;
+                  while ((match = pattern.exec(text)) !== null) {
+                    const [, column, value] = match;
+                    conditions.push({ column, value });
+                  }
+                });
+                
+                return conditions;
+              };
               
-              aiResponse = `OEE 63~64 범위 분석 결과:
-
-🔍 **조건에 맞는 레코드 수**: ${oeeRecords.length}개
-
-📊 **상세 분석**:
-- 전체 데이터: ${allUploadedData.length}개 레코드  
-- OEE 63~64 범위: ${oeeRecords.length}개
-- 비율: ${((oeeRecords.length / allUploadedData.length) * 100).toFixed(1)}%
-
-✅ **결론**: OEE 값이 63~64 사이인 레코드는 **${oeeRecords.length}개**입니다.`;
-            
-            } else {
-              // 일반적인 키워드 검색 결과
-              const keywords = message.toLowerCase().split(/\s+/).filter(w => w.length > 1);
-              const matchingRecords = allUploadedData.filter(record => 
-                keywords.some(keyword => 
-                  JSON.stringify(record).toLowerCase().includes(keyword)
-                )
-              );
+              const conditions = extractConditions(question);
+              console.log(`🔍 추출된 조건:`, conditions);
               
-              aiResponse = `데이터 분석 결과:
+              // 조건에 맞는 레코드 필터링
+              let filteredData = data;
+              let filterDescription = '';
+              
+              if (conditions.length > 0) {
+                const condition = conditions[0]; // 첫 번째 조건 사용
+                
+                // 대소문자 무관하게 컬럼 찾기
+                const actualColumn = dataColumns.find(col => 
+                  col.toLowerCase().includes(condition.column.toLowerCase()) ||
+                  condition.column.toLowerCase().includes(col.toLowerCase())
+                );
+                
+                if (actualColumn) {
+                  filteredData = data.filter(record => {
+                    const recordValue = String(record[actualColumn] || '').trim().toLowerCase();
+                    const conditionValue = String(condition.value).trim().toLowerCase();
+                    // 정확한 매칭 또는 포함 매칭
+                    return recordValue === conditionValue || 
+                           recordValue.includes(conditionValue) ||
+                           conditionValue.includes(recordValue);
+                  });
+                  
+                  filterDescription = `${actualColumn}가 "${condition.value}"인 레코드`;
+                  console.log(`🎯 필터 적용: ${actualColumn} = ${condition.value}, 결과: ${filteredData.length}개`);
+                }
+              }
+              
+              // 범위 조건 처리 (63~64 같은)
+              const rangeMatch = question.match(/(\d+)~(\d+)/);
+              if (rangeMatch && !filterDescription) {
+                const [, min, max] = rangeMatch;
+                const numericColumns = dataColumns.filter(col => {
+                  const sample = data[0][col];
+                  return !isNaN(parseFloat(sample));
+                });
+                
+                if (numericColumns.length > 0) {
+                  // 가장 가능성 높은 컬럼 추정 (OEE, value, score 등)
+                  const targetColumn = numericColumns.find(col => 
+                    questionLower.includes(col.toLowerCase())
+                  ) || numericColumns[0];
+                  
+                  filteredData = data.filter(record => {
+                    const value = parseFloat(record[targetColumn] || 0);
+                    return value >= parseFloat(min) && value <= parseFloat(max);
+                  });
+                  
+                  filterDescription = `${targetColumn}가 ${min}~${max} 범위인 레코드`;
+                }
+              }
+              
+              // 결과 포맷팅
+              const totalCount = data.length;
+              const matchCount = filteredData.length;
+              const percentage = totalCount > 0 ? ((matchCount / totalCount) * 100).toFixed(1) : '0';
+              
+              return `📊 **데이터 분석 결과**:
 
-🔍 **검색 결과**: ${matchingRecords.length}개 레코드 발견
+🔍 **조건**: ${filterDescription || '전체 데이터 검색'}
+📈 **매칭 결과**: ${matchCount}개 레코드
 
-📊 **전체 현황**:
-- 총 데이터: ${allUploadedData.length}개 레코드
-- 매칭된 레코드: ${matchingRecords.length}개
-- 데이터 컬럼: ${allUploadedData.length > 0 ? Object.keys(allUploadedData[0]).join(', ') : '없음'}
+📋 **상세 정보**:
+- 전체 데이터: ${totalCount}개 레코드
+- 조건 만족: ${matchCount}개 레코드  
+- 비율: ${percentage}%
+- 데이터 컬럼: ${dataColumns.slice(0, 5).join(', ')}${dataColumns.length > 5 ? '...' : ''}
 
-✅ **분석 완료**: 요청하신 조건에 맞는 레코드를 성공적으로 분석했습니다.`;
-            }
+${matchCount > 0 ? `📋 **샘플 레코드** (처음 3개):
+${filteredData.slice(0, 3).map((record, i) => {
+  const keys = Object.keys(record).slice(0, 3);
+  const preview = keys.map(key => `${key}: ${record[key]}`).join(', ');
+  return `${i+1}. ${preview}`;
+}).join('\n')}` : ''}
+
+✅ **결론**: ${filterDescription || '검색 조건'}에 해당하는 레코드는 **${matchCount}개**입니다.`;
+            };
+            
+            aiResponse = analyzeData(message, allUploadedData);
           }
         
           const botMessage = await storage.createChatMessage({
