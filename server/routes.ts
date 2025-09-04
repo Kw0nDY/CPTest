@@ -43,6 +43,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const config = configId ? await storage.getChatConfiguration(configId) : null;
 
       console.log(`🔍 AI 모델 ${configId}의 연결된 데이터 소스:`, connectedDataSources.length);
+      console.log(`📝 사용자 원본 메시지: "${message}"`);
+      console.log(`📝 사용자 메시지 길이: ${message.length}자`);
 
       // 1단계: Data Integration에서 연결된 데이터 소스 수집
       for (const integration of connectedDataSources) {
@@ -114,6 +116,9 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       if (allUploadedData.length > 0) {
 
         try {
+          console.log(`🚀 AI에게 전달하는 질문: "${message}"`);
+          console.log(`📊 전달하는 데이터 개수: ${allUploadedData.length}개`);
+          
           const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config?.chatflowId}`, {
             method: 'POST',
             headers: {
