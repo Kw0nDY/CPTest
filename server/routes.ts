@@ -37,11 +37,35 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         createdAt: new Date().toISOString()
       });
 
-      // Knowledge Base 파일에서만 데이터 수집 (완전한 데이터 격리)
+      // Knowledge Base + Data Integration 모든 데이터 수집 (각 모델별 격리)
       let allUploadedData = [];
+      const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
       const config = configId ? await storage.getChatConfiguration(configId) : null;
 
-      // Knowledge Base 파일에서만 데이터 수집
+      console.log(`🔍 AI 모델 ${configId}의 연결된 데이터 소스:`, connectedDataSources.length);
+
+      // 1단계: Data Integration에서 연결된 데이터 소스 수집
+      for (const integration of connectedDataSources) {
+        try {
+          const dataSource = await storage.getDataSource(integration.dataSourceId);
+          if (dataSource?.config?.sampleData) {
+            console.log(`📊 데이터 소스 "${dataSource.name}" 처리 중...`);
+            
+            if (typeof dataSource.config.sampleData === 'object') {
+              for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
+                if (Array.isArray(records)) {
+                  allUploadedData.push(...records);
+                  console.log(`✅ 테이블 "${tableName}"에서 ${records.length}개 레코드 추가`);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ 데이터 소스 처리 오류:`, error);
+        }
+      }
+
+      // 2단계: Knowledge Base 파일에서 데이터 수집
       if (config?.uploadedFiles?.length > 0) {
         
         for (const file of config.uploadedFiles) {
@@ -315,7 +339,29 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     try {
       const { configId } = req.params;
       const integrations = await storage.getChatbotDataIntegrations(configId);
-      res.json(integrations);
+      
+      // 각 integration에 대해 데이터 소스 정보를 포함하여 반환
+      const integrationsWithDataSource = await Promise.all(
+        integrations.map(async (integration: any) => {
+          try {
+            const dataSource = await storage.getDataSource(integration.dataSourceId);
+            return {
+              ...integration,
+              dataSourceName: dataSource?.name || 'Unknown Data Source',
+              dataSourceType: dataSource?.type || 'Unknown Type'
+            };
+          } catch (error) {
+            console.error(`Failed to get data source for integration ${integration.id}:`, error);
+            return {
+              ...integration,
+              dataSourceName: 'Unknown Data Source',
+              dataSourceType: 'Unknown Type'
+            };
+          }
+        })
+      );
+      
+      res.json(integrationsWithDataSource);
     } catch (error) {
       console.error('Error fetching chatbot data integrations:', error);
       res.status(500).json({ error: "데이터 통합 조회에 실패했습니다" });

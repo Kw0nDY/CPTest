@@ -402,6 +402,28 @@ export function AiChatInterface() {
     loadDataIntegrations();
   }, []);
 
+  // 🔧 Knowledge Base 파일 복원 (영속성 보장)
+  useEffect(() => {
+    if (configurations.length > 0) {
+      const restoredKnowledgeBase: Record<string, KnowledgeBaseItem[]> = {};
+      
+      configurations.forEach(config => {
+        if (config.uploadedFiles && config.uploadedFiles.length > 0) {
+          restoredKnowledgeBase[config.id] = config.uploadedFiles.map(file => ({
+            id: file.id || `kb-restored-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: file.name,
+            uploadedAt: file.uploadedAt || new Date().toISOString(),
+            status: 'ready' as const,
+            configId: config.id
+          }));
+          console.log(`✅ AI 모델 "${config.name}"의 Knowledge Base 파일 ${config.uploadedFiles.length}개 복원 완료`);
+        }
+      });
+      
+      setKnowledgeBaseItems(restoredKnowledgeBase);
+    }
+  }, [configurations]);
+
   // Optimized data integration loading with caching
   const [dataIntegrationCache, setDataIntegrationCache] = useState<{[key: string]: any[]}>({});
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
@@ -1187,6 +1209,8 @@ export function AiChatInterface() {
         // Add to local state with data source details
         const integrationWithDetails = {
           ...newIntegration,
+          dataSourceName: dataSource?.name || 'Unknown',
+          dataSourceType: dataSource?.sourceType || 'Unknown',
           name: dataSource?.name || 'Unknown',
           sourceType: dataSource?.sourceType || 'Unknown'
         };
