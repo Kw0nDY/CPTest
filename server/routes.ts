@@ -37,32 +37,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         createdAt: new Date().toISOString()
       });
 
-      // 연결된 데이터 소스 확인
+      // Knowledge Base 파일에서만 데이터 수집 (완전한 데이터 격리)
       let allUploadedData = [];
-      const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
       const config = configId ? await storage.getChatConfiguration(configId) : null;
 
-
-      // 1단계: 연결된 데이터 소스에서 데이터 수집
-      for (const integration of connectedDataSources) {
-        try {
-          const dataSource = await storage.getDataSource(integration.dataSourceId);
-          if (dataSource?.config?.sampleData) {
-            
-            if (typeof dataSource.config.sampleData === 'object') {
-              for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
-                if (Array.isArray(records)) {
-                  allUploadedData.push(...records);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`❌ 데이터 소스 처리 오류:`, error);
-        }
-      }
-
-      // 2단계: Knowledge Base 파일에서 데이터 수집
+      // Knowledge Base 파일에서만 데이터 수집
       if (config?.uploadedFiles?.length > 0) {
         
         for (const file of config.uploadedFiles) {

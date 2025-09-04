@@ -231,8 +231,9 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
       if (!isResizing || !chatContainerRef.current) return;
       
       const rect = chatContainerRef.current.getBoundingClientRect();
-      const newWidth = Math.max(300, Math.min(800, e.clientX - rect.left + 20));
-      const newHeight = Math.max(400, Math.min(800, e.clientY - rect.top + 20));
+      // 좌상단 드래그: 마우스가 왼쪽/위로 갈수록 크기가 커짐
+      const newWidth = Math.max(300, Math.min(800, rect.right - e.clientX + 20));
+      const newHeight = Math.max(400, Math.min(800, rect.bottom - e.clientY + 20));
       
       setChatSize({ width: newWidth, height: newHeight });
     };
@@ -485,16 +486,16 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
           </CardContent>
         )}
         
-        {/* 크기 조정 핸들 (최소화되지 않았을 때만 표시) */}
+        {/* 크기 조정 핸들 (최소화되지 않았을 때만 표시) - 좌상단으로 이동 */}
         {!isMinimized && (
           <div 
             ref={resizeRef}
-            className={`absolute bottom-0 right-0 w-4 h-4 bg-blue-600 cursor-se-resize ${
+            className={`absolute top-0 left-0 w-4 h-4 bg-blue-600 cursor-nw-resize ${
               isResizing ? 'bg-blue-700' : 'hover:bg-blue-700'
             } transition-colors duration-200`}
             onMouseDown={handleMouseDown}
             style={{
-              clipPath: 'polygon(100% 0%, 0% 100%, 100% 100%)'
+              clipPath: 'polygon(0% 0%, 100% 0%, 0% 100%)'
             }}
             title="크기 조정"
           />
