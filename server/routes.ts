@@ -198,6 +198,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           console.log(`🤖 AI 응답: "${aiResponse}"`);
           
           const needsDataAnalysis = (
+            // ID 조회 질문은 무조건 실제 데이터 사용
+            (message.includes('Id') || message.includes('ID')) && 
+            (message.includes('정보') || message.includes('알려') || message.includes('값') || message.includes('데이터')) ||
+            // AI가 실제 데이터에 없는 용어를 사용하는 경우
+            aiResponse.includes('진공 시스템') || aiResponse.includes('크라이오') || aiResponse.includes('Load Lock') ||
+            aiResponse.includes('챔버') || aiResponse.includes('CVD') || aiResponse.includes('ALD') ||
             // 응답이 너무 짧거나 불완전한 경우
             aiResponse.length < 50 ||
             // 관련없는 기술적 용어가 포함된 경우
@@ -210,190 +216,70 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             // 숫자나 개수 질문에 구체적 답변이 없는 경우
             (message.includes('개수') || message.includes('갯수') || message.includes('count')) && 
             !/\d+개/.test(aiResponse) ||
-            // ID나 특정 값 조회 질문이지만 구체적 값이 없는 경우
-            (message.includes('Id') || message.includes('ID') || message.includes('번')) &&
-            (message.includes('온도') || message.includes('Temperature') || message.includes('값')) &&
-            !aiResponse.match(/\d+\.?\d*/) ||  // 숫자 값이 없음
             // 일반적인 설명만 하고 실제 값을 제공하지 않는 경우
             (message.includes('값은') || message.includes('값이') || message.includes('얼마')) &&
             !aiResponse.match(/:\s*\d+|=\s*\d+|\d+\.?\d*\s*(도|°|값)/)  // 실제 값 형식이 없음
           );
 
           if (needsDataAnalysis && allUploadedData.length > 0) {
-            console.log(`⚠️ AI 응답 불완전하거나 데이터 분석 필요. 서버에서 직접 분석 제공`);
+            console.log(`⚠️ AI 모델이 데이터에 제대로 접근하지 못함. 벡터 DB 재업로드 필요`);
             
-            // 📊 범용 데이터 분석 시스템
-            const analyzeData = (question, data) => {
-              const questionLower = question.toLowerCase();
-              const dataColumns = data.length > 0 ? Object.keys(data[0]) : [];
+            // 🔄 실제 데이터를 AI 모델에 직접 전달하여 처리하도록 함
+            try {
+              console.log(`🤖 AI 모델에 실제 데이터 직접 전달하여 재시도`);
               
-              // 컬럼 이름에서 값 추출을 위한 패턴 매칭
-              const extractConditions = (text) => {
-                const conditions = [];
-                
-                // "X가 Y인" 패턴과 "Id X의 Y값" 패턴 찾기
-                const patterns = [
-                  /(\w+)가?\s*(\w+)인?/g,
-                  /(\w+)이?\s*(\w+)인?/g,
-                  /(\w+)\s*=\s*(\w+)/g,
-                  /(\w+)\s*==\s*(\w+)/g
-                ];
-                
-                // "Id 5의 온도값" 특별 패턴 별도 처리
-                const specificPatterns = [
-                  /(Id|ID)\s*(\d+)의?\s*(\w+)값?은?/g,
-                  /(\w+)\s*(\d+)의?\s*(\w+)값?은?/g,
-                  /(Id|ID)\s*(\d+)의?\s*(\w+)/g,
-                  /(\w+)\s*(\d+)의?\s*(\w+)/g
-                ];
-                
-                // 먼저 특별 패턴 처리 ("Id 5의 온도값")
-                specificPatterns.forEach(pattern => {
-                  let match;
-                  while ((match = pattern.exec(text)) !== null) {
-                    const [, idColumn, idValue, targetColumn] = match;
-                    conditions.push({ 
-                      type: 'specific_lookup',
-                      idColumn: idColumn, 
-                      idValue: idValue, 
-                      targetColumn: targetColumn.replace('값', '').replace('은', '') 
-                    });
+              // 실제 데이터를 컨텍스트로 포함해서 AI에게 질문
+              const contextualPrompt = `**중요: 다음 데이터만 사용하세요. 다른 학습된 데이터나 외부 정보는 무시하세요.**
+
+===== 실제 업로드된 데이터 시작 =====
+${JSON.stringify(allUploadedData, null, 2)}
+===== 실제 업로드된 데이터 끝 =====
+
+사용자 질문: ${message}
+
+**규칙:**
+1. 위의 실제 데이터에 있는 정보만 사용하세요
+2. 데이터에 없는 정보는 "데이터에 없음"이라고 말하세요
+3. 추측하거나 외부 지식을 사용하지 마세요
+4. 정확한 값만 제공하세요
+
+이제 사용자 질문에 답변해주세요.`;
+
+              console.log(`📝 컨텍스트 포함 프롬프트 길이: ${contextualPrompt.length}자`);
+              
+              const retryResponse = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  question: contextualPrompt,
+                  chatId: `direct-${sessionId}-${Date.now()}`,
+                  overrideConfig: { 
+                    temperature: 0.1,
+                    maxTokens: 12000
                   }
-                });
-                
-                // 특별 패턴이 없으면 기본 패턴 처리
-                if (conditions.length === 0) {
-                  patterns.forEach(pattern => {
-                    let match;
-                    while ((match = pattern.exec(text)) !== null) {
-                      const [, column, value] = match;
-                      conditions.push({ column, value });
-                    }
-                  });
-                }
-                
-                return conditions;
-              };
+                }),
+                timeout: 60000
+              });
               
-              const conditions = extractConditions(question);
-              console.log(`🔍 추출된 조건:`, conditions);
-              
-              // 조건에 맞는 레코드 필터링
-              let filteredData = data;
-              let filterDescription = '';
-              
-              if (conditions.length > 0) {
-                const condition = conditions[0]; // 첫 번째 조건 사용
+              if (retryResponse.ok) {
+                const retryResult = await retryResponse.json();
+                const newResponse = retryResult.text || aiResponse;
                 
-                if (condition.type === 'specific_lookup') {
-                  // "Id 5의 온도값" 같은 특정 ID 조회
-                  const idColumn = dataColumns.find(col => 
-                    col.toLowerCase().includes(condition.idColumn.toLowerCase()) ||
-                    condition.idColumn.toLowerCase().includes(col.toLowerCase())
-                  );
-                  
-                  const targetColumn = dataColumns.find(col => 
-                    col.toLowerCase().includes(condition.targetColumn.toLowerCase()) ||
-                    condition.targetColumn.toLowerCase().includes(col.toLowerCase()) ||
-                    (condition.targetColumn === '온도' && (col.toLowerCase().includes('temp') || col.toLowerCase().includes('온도'))) ||
-                    (condition.targetColumn === 'temperature' && (col.toLowerCase().includes('temp') || col.toLowerCase().includes('온도')))
-                  );
-                  
-                  console.log(`🔍 ID 조회: ${condition.idColumn}=${condition.idValue}에서 ${condition.targetColumn} 찾기`);
-                  console.log(`🔍 실제 컬럼: ID=${idColumn}, Target=${targetColumn}`);
-                  
-                  if (idColumn) {
-                    const targetRecord = data.find(record => 
-                      String(record[idColumn] || '') === String(condition.idValue)
-                    );
-                    
-                    if (targetRecord) {
-                      if (targetColumn && targetRecord[targetColumn] !== undefined) {
-                        filterDescription = `${condition.idColumn} ${condition.idValue}의 ${condition.targetColumn} 값: ${targetRecord[targetColumn]}`;
-                        filteredData = [targetRecord]; // 해당 레코드만 반환
-                      } else {
-                        // 타겟 컬럼이 없으면 전체 레코드 정보 제공
-                        filterDescription = `${condition.idColumn} ${condition.idValue}의 전체 정보`;
-                        filteredData = [targetRecord];
-                      }
-                    } else {
-                      filterDescription = `${condition.idColumn} ${condition.idValue}에 해당하는 레코드 없음`;
-                      filteredData = [];
-                    }
-                  }
+                console.log(`🔄 직접 전달 AI 응답:`, newResponse.substring(0, 200) + '...');
+                
+                // AI가 제대로 답변했는지 확인
+                if (newResponse && newResponse.length > 50 && !newResponse.includes('Hello there!')) {
+                  aiResponse = newResponse;
+                  console.log(`✅ AI가 실제 데이터로 응답 생성 성공`);
                 } else {
-                  // 기본 "X가 Y인" 형태 조건
-                  const actualColumn = dataColumns.find(col => 
-                    col.toLowerCase().includes(condition.column.toLowerCase()) ||
-                    condition.column.toLowerCase().includes(col.toLowerCase())
-                  );
-                  
-                  if (actualColumn) {
-                    filteredData = data.filter(record => {
-                      const recordValue = String(record[actualColumn] || '').trim().toLowerCase();
-                      const conditionValue = String(condition.value).trim().toLowerCase();
-                      return recordValue === conditionValue || 
-                             recordValue.includes(conditionValue) ||
-                             conditionValue.includes(recordValue);
-                    });
-                    
-                    filterDescription = `${actualColumn}가 "${condition.value}"인 레코드`;
-                    console.log(`🎯 필터 적용: ${actualColumn} = ${condition.value}, 결과: ${filteredData.length}개`);
-                  }
+                  console.log(`❌ AI 응답 여전히 부정확함`);
                 }
+              } else {
+                console.log(`❌ AI 직접 호출 실패: ${retryResponse.status}`);
               }
-              
-              // 범위 조건 처리 (63~64 같은)
-              const rangeMatch = question.match(/(\d+)~(\d+)/);
-              if (rangeMatch && !filterDescription) {
-                const [, min, max] = rangeMatch;
-                const numericColumns = dataColumns.filter(col => {
-                  const sample = data[0][col];
-                  return !isNaN(parseFloat(sample));
-                });
-                
-                if (numericColumns.length > 0) {
-                  // 가장 가능성 높은 컬럼 추정 (OEE, value, score 등)
-                  const targetColumn = numericColumns.find(col => 
-                    questionLower.includes(col.toLowerCase())
-                  ) || numericColumns[0];
-                  
-                  filteredData = data.filter(record => {
-                    const value = parseFloat(record[targetColumn] || 0);
-                    return value >= parseFloat(min) && value <= parseFloat(max);
-                  });
-                  
-                  filterDescription = `${targetColumn}가 ${min}~${max} 범위인 레코드`;
-                }
-              }
-              
-              // 결과 포맷팅
-              const totalCount = data.length;
-              const matchCount = filteredData.length;
-              const percentage = totalCount > 0 ? ((matchCount / totalCount) * 100).toFixed(1) : '0';
-              
-              return `📊 **데이터 분석 결과**:
-
-🔍 **조건**: ${filterDescription || '전체 데이터 검색'}
-📈 **매칭 결과**: ${matchCount}개 레코드
-
-📋 **상세 정보**:
-- 전체 데이터: ${totalCount}개 레코드
-- 조건 만족: ${matchCount}개 레코드  
-- 비율: ${percentage}%
-- 데이터 컬럼: ${dataColumns.slice(0, 5).join(', ')}${dataColumns.length > 5 ? '...' : ''}
-
-${matchCount > 0 ? `📋 **샘플 레코드** (처음 3개):
-${filteredData.slice(0, 3).map((record, i) => {
-  const keys = Object.keys(record).slice(0, 3);
-  const preview = keys.map(key => `${key}: ${record[key]}`).join(', ');
-  return `${i+1}. ${preview}`;
-}).join('\n')}` : ''}
-
-✅ **결론**: ${filterDescription || '검색 조건'}에 해당하는 레코드는 **${matchCount}개**입니다.`;
-            };
-            
-            aiResponse = analyzeData(message, allUploadedData);
+            } catch (error) {
+              console.error(`❌ AI 직접 호출 오류:`, error);
+            }
           }
         
           const botMessage = await storage.createChatMessage({
