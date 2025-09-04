@@ -205,9 +205,18 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             aiResponse.includes('배기/소각') || aiResponse.includes('Abatement') ||
             // 데이터가 없다고 잘못 답변하는 경우
             aiResponse.includes('존재하지') || aiResponse.includes('포함하고 있지 않습니다') ||
+            aiResponse.includes('알 수 없습니다') || aiResponse.includes('추론하기 어렵습니다') ||
+            aiResponse.includes('정보가 필요합니다') || aiResponse.includes('제공되지 않았기') ||
             // 숫자나 개수 질문에 구체적 답변이 없는 경우
             (message.includes('개수') || message.includes('갯수') || message.includes('count')) && 
-            !/\d+개/.test(aiResponse)
+            !/\d+개/.test(aiResponse) ||
+            // ID나 특정 값 조회 질문이지만 구체적 값이 없는 경우
+            (message.includes('Id') || message.includes('ID') || message.includes('번')) &&
+            (message.includes('온도') || message.includes('Temperature') || message.includes('값')) &&
+            !aiResponse.match(/\d+\.?\d*/) ||  // 숫자 값이 없음
+            // 일반적인 설명만 하고 실제 값을 제공하지 않는 경우
+            (message.includes('값은') || message.includes('값이') || message.includes('얼마')) &&
+            !aiResponse.match(/:\s*\d+|=\s*\d+|\d+\.?\d*\s*(도|°|값)/)  // 실제 값 형식이 없음
           );
 
           if (needsDataAnalysis && allUploadedData.length > 0) {
@@ -222,7 +231,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               const extractConditions = (text) => {
                 const conditions = [];
                 
-                // "X가 Y인" 패턴 찾기
+                // "X가 Y인" 패턴과 "Id X의 Y값" 패턴 찾기
                 const patterns = [
                   /(\w+)가?\s*(\w+)인?/g,
                   /(\w+)이?\s*(\w+)인?/g,
@@ -230,13 +239,38 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   /(\w+)\s*==\s*(\w+)/g
                 ];
                 
-                patterns.forEach(pattern => {
+                // "Id 5의 온도값" 특별 패턴 별도 처리
+                const specificPatterns = [
+                  /(Id|ID)\s*(\d+)의?\s*(\w+)값?은?/g,
+                  /(\w+)\s*(\d+)의?\s*(\w+)값?은?/g,
+                  /(Id|ID)\s*(\d+)의?\s*(\w+)/g,
+                  /(\w+)\s*(\d+)의?\s*(\w+)/g
+                ];
+                
+                // 먼저 특별 패턴 처리 ("Id 5의 온도값")
+                specificPatterns.forEach(pattern => {
                   let match;
                   while ((match = pattern.exec(text)) !== null) {
-                    const [, column, value] = match;
-                    conditions.push({ column, value });
+                    const [, idColumn, idValue, targetColumn] = match;
+                    conditions.push({ 
+                      type: 'specific_lookup',
+                      idColumn: idColumn, 
+                      idValue: idValue, 
+                      targetColumn: targetColumn.replace('값', '').replace('은', '') 
+                    });
                   }
                 });
+                
+                // 특별 패턴이 없으면 기본 패턴 처리
+                if (conditions.length === 0) {
+                  patterns.forEach(pattern => {
+                    let match;
+                    while ((match = pattern.exec(text)) !== null) {
+                      const [, column, value] = match;
+                      conditions.push({ column, value });
+                    }
+                  });
+                }
                 
                 return conditions;
               };
@@ -251,24 +285,61 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               if (conditions.length > 0) {
                 const condition = conditions[0]; // 첫 번째 조건 사용
                 
-                // 대소문자 무관하게 컬럼 찾기
-                const actualColumn = dataColumns.find(col => 
-                  col.toLowerCase().includes(condition.column.toLowerCase()) ||
-                  condition.column.toLowerCase().includes(col.toLowerCase())
-                );
-                
-                if (actualColumn) {
-                  filteredData = data.filter(record => {
-                    const recordValue = String(record[actualColumn] || '').trim().toLowerCase();
-                    const conditionValue = String(condition.value).trim().toLowerCase();
-                    // 정확한 매칭 또는 포함 매칭
-                    return recordValue === conditionValue || 
-                           recordValue.includes(conditionValue) ||
-                           conditionValue.includes(recordValue);
-                  });
+                if (condition.type === 'specific_lookup') {
+                  // "Id 5의 온도값" 같은 특정 ID 조회
+                  const idColumn = dataColumns.find(col => 
+                    col.toLowerCase().includes(condition.idColumn.toLowerCase()) ||
+                    condition.idColumn.toLowerCase().includes(col.toLowerCase())
+                  );
                   
-                  filterDescription = `${actualColumn}가 "${condition.value}"인 레코드`;
-                  console.log(`🎯 필터 적용: ${actualColumn} = ${condition.value}, 결과: ${filteredData.length}개`);
+                  const targetColumn = dataColumns.find(col => 
+                    col.toLowerCase().includes(condition.targetColumn.toLowerCase()) ||
+                    condition.targetColumn.toLowerCase().includes(col.toLowerCase()) ||
+                    (condition.targetColumn === '온도' && (col.toLowerCase().includes('temp') || col.toLowerCase().includes('온도'))) ||
+                    (condition.targetColumn === 'temperature' && (col.toLowerCase().includes('temp') || col.toLowerCase().includes('온도')))
+                  );
+                  
+                  console.log(`🔍 ID 조회: ${condition.idColumn}=${condition.idValue}에서 ${condition.targetColumn} 찾기`);
+                  console.log(`🔍 실제 컬럼: ID=${idColumn}, Target=${targetColumn}`);
+                  
+                  if (idColumn) {
+                    const targetRecord = data.find(record => 
+                      String(record[idColumn] || '') === String(condition.idValue)
+                    );
+                    
+                    if (targetRecord) {
+                      if (targetColumn && targetRecord[targetColumn] !== undefined) {
+                        filterDescription = `${condition.idColumn} ${condition.idValue}의 ${condition.targetColumn} 값: ${targetRecord[targetColumn]}`;
+                        filteredData = [targetRecord]; // 해당 레코드만 반환
+                      } else {
+                        // 타겟 컬럼이 없으면 전체 레코드 정보 제공
+                        filterDescription = `${condition.idColumn} ${condition.idValue}의 전체 정보`;
+                        filteredData = [targetRecord];
+                      }
+                    } else {
+                      filterDescription = `${condition.idColumn} ${condition.idValue}에 해당하는 레코드 없음`;
+                      filteredData = [];
+                    }
+                  }
+                } else {
+                  // 기본 "X가 Y인" 형태 조건
+                  const actualColumn = dataColumns.find(col => 
+                    col.toLowerCase().includes(condition.column.toLowerCase()) ||
+                    condition.column.toLowerCase().includes(col.toLowerCase())
+                  );
+                  
+                  if (actualColumn) {
+                    filteredData = data.filter(record => {
+                      const recordValue = String(record[actualColumn] || '').trim().toLowerCase();
+                      const conditionValue = String(condition.value).trim().toLowerCase();
+                      return recordValue === conditionValue || 
+                             recordValue.includes(conditionValue) ||
+                             conditionValue.includes(recordValue);
+                    });
+                    
+                    filterDescription = `${actualColumn}가 "${condition.value}"인 레코드`;
+                    console.log(`🎯 필터 적용: ${actualColumn} = ${condition.value}, 결과: ${filteredData.length}개`);
+                  }
                 }
               }
               
