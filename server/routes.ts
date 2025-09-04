@@ -138,7 +138,33 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           });
           
           const aiResult = await response.json();
-          const aiResponse = aiResult.text || '응답을 생성할 수 없습니다.';
+          console.log(`🔍 Flowise API 응답:`, response.status, aiResult);
+          
+          let aiResponse = '';
+          
+          if (!response.ok) {
+            console.error(`❌ Flowise API 오류: ${response.status}`, aiResult);
+            // 격리된 chatflowId가 실패하면 원본 chatflowId로 시도
+            const fallbackResponse = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config?.chatflowId}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                question: message,
+                overrideConfig: {
+                  chatData: allUploadedData,
+                  modelId: configId
+                }
+              })
+            });
+            
+            const fallbackResult = await fallbackResponse.json();
+            console.log(`🔄 원본 chatflowId 시도 결과:`, fallbackResponse.status, fallbackResult);
+            aiResponse = fallbackResult.text || '응답을 생성할 수 없습니다.';
+          } else {
+            aiResponse = aiResult.text || '응답을 생성할 수 없습니다.';
+          }
         
           const botMessage = await storage.createChatMessage({
             sessionId,
