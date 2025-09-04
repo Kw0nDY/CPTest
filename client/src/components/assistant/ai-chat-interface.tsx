@@ -308,6 +308,23 @@ export function AiChatInterface() {
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
+        // 캐시된 데이터 먼저 확인 (성능 최적화)
+        const cacheKey = 'chat-configurations-cache';
+        const cachedData = sessionStorage.getItem(cacheKey);
+        const cacheTime = sessionStorage.getItem(cacheKey + '-time');
+        
+        // 5분 캐시 유지 (성능 대폭 개선)
+        if (cachedData && cacheTime && (Date.now() - parseInt(cacheTime)) < 5 * 60 * 1000) {
+          const configs = JSON.parse(cachedData);
+          setConfigurations(configs);
+          if (configs.length > 0) {
+            setSelectedConfig(configs[0]);
+            setSelectedConfigForTest(configs[0]);
+            setSelectedConfigForKnowledge(configs[0]);
+          }
+          return; // 캐시된 데이터 사용, API 호출 건너뛰기
+        }
+
         const response = await fetch('/api/chat-configurations', {
           method: 'GET',
           headers: {
@@ -350,6 +367,10 @@ export function AiChatInterface() {
         });
         
         setConfigurations(sortedConfigs);
+        
+        // 캐시에 저장 (다음 로드 시 즉시 표시)
+        sessionStorage.setItem(cacheKey, JSON.stringify(sortedConfigs));
+        sessionStorage.setItem(cacheKey + '-time', Date.now().toString());
         
         // Set first configuration as selected for editing
         if (sortedConfigs.length > 0) {
