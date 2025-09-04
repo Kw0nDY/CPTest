@@ -113,24 +113,52 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       prompt += `- 정확한 수치와 구체적인 정보 제공\n`;
       prompt += `- 한국어로 자연스럽게 답변\n\n`;
 
-      // 실제 데이터 기반 응답 생성
+      // 🚨 실제 AI 모델(Flowise)에 데이터 전달하여 응답 생성
       let aiResponse = "";
-      if (allUploadedData.length > 0) {
-        if (message.includes("개수") || message.includes("몇 개") || message.includes("총")) {
-          aiResponse = `📊 **분석 결과**: 총 **${allUploadedData.length}개**의 데이터 레코드가 있습니다.`;
-        } else if (message.includes("온도") || message.includes("Temperature")) {
-          const tempData = allUploadedData.filter((record: any) => record.Temperature || record.temperature);
-          if (tempData.length > 0) {
-            const avgTemp = tempData.reduce((sum: number, record: any) => sum + parseFloat(record.Temperature || record.temperature || 0), 0) / tempData.length;
-            aiResponse = `🌡️ **온도 분석**: 평균 온도는 ${avgTemp.toFixed(2)}도이며, ${tempData.length}개의 온도 기록이 있습니다.`;
+      
+      if (config && config.chatflowId) {
+        try {
+          // Flowise API 엔드포인트 구성
+          const flowiseUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
+          
+          console.log(`🎯 AI 모델에 실제 요청 전송: ${flowiseUrl}`);
+          console.log(`📊 전송할 데이터 개수: ${allUploadedData.length}개`);
+          
+          // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
+          const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
+          
+          const response = await fetch(flowiseUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              question: fullPrompt,
+              overrideConfig: {
+                systemMessagePrompt: config.systemPrompt || "",
+              }
+            })
+          });
+
+          if (response.ok) {
+            const aiResult = await response.json();
+            aiResponse = aiResult.text || aiResult.answer || aiResult.response || "AI 응답을 받지 못했습니다.";
+            console.log(`✅ AI 모델 응답 성공: ${aiResponse.substring(0, 100)}...`);
           } else {
-            aiResponse = "온도 관련 데이터가 없습니다.";
+            console.error(`❌ AI 모델 응답 실패: ${response.status}`);
+            aiResponse = `AI 모델 연결 실패 (상태: ${response.status}). 실제 데이터 ${allUploadedData.length}개를 분석할 준비가 되어있습니다.`;
           }
-        } else {
-          aiResponse = `📈 **데이터 요약**: ${allUploadedData.length}개의 레코드를 분석했습니다. 구체적인 질문을 해주시면 더 정확한 분석을 제공하겠습니다.`;
+        } catch (apiError) {
+          console.error('❌ AI API 호출 오류:', apiError);
+          // Fallback: 실제 데이터 기반 간단 분석
+          if (allUploadedData.length > 0) {
+            aiResponse = `📊 **실제 데이터 분석**: 총 ${allUploadedData.length}개의 레코드를 확인했습니다. AI 모델 연결 중 오류가 발생했지만, 데이터는 정상적으로 로드되었습니다. 다시 질문해주세요.`;
+          } else {
+            aiResponse = "AI 모델 연결 오류 및 데이터 없음. Knowledge Base에 파일을 업로드하거나 Data Integration을 연결해주세요.";
+          }
         }
       } else {
-        aiResponse = "연결된 데이터가 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 연결해주세요.";
+        aiResponse = "AI 모델 설정이 없습니다. 챗봇 구성을 확인해주세요.";
       }
 
       const botMessage = await storage.createChatMessage({
