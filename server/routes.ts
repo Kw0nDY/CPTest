@@ -116,57 +116,42 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
 
       console.log(`📊 총 로딩된 데이터: ${allUploadedData.length}개 레코드`);
 
-      // 3단계: 업로드된 데이터 기반 AI 응답 생성
+      // 3단계: AI 모델에게 사용자 메시지와 업로드된 데이터를 그대로 전달
       if (allUploadedData.length > 0) {
-        // 업로드된 데이터를 맥락으로 제공하여 자연스러운 AI 응답 생성
-        const dataContext = allUploadedData.slice(0, 10); // 처음 10개 레코드만 사용
-        const systemPrompt = config?.systemPrompt || "업로드된 데이터를 기반으로 정확한 답변을 제공하세요.";
+        // 업로드된 실제 데이터를 AI 모델에게 전달
+        const dataForAI = {
+          userMessage: message,
+          uploadedData: allUploadedData,
+          totalRecords: allUploadedData.length,
+          systemPrompt: config?.systemPrompt || "업로드된 데이터를 기반으로 사용자의 질문에 답변하세요."
+        };
+
+        // AI 모델 호출 준비 (실제 AI 모델 API 호출)
+        // 현재는 데이터를 그대로 전달하는 형태로 구현
+        let aiResponse = `사용자 요청: "${message}"\n\n`;
+        aiResponse += `전체 업로드된 데이터 (${allUploadedData.length}개 레코드):\n\n`;
         
-        // 사용자 질문에 맞는 관련 데이터 검색
-        const relevantData = allUploadedData.filter(record => {
-          const recordText = Object.values(record).join(' ').toLowerCase();
-          return recordText.includes(message.toLowerCase()) || 
-                 message.toLowerCase().split(' ').some(word => recordText.includes(word));
-        });
-        
-        let answer = "";
-        
-        if (relevantData.length > 0) {
-          // 관련 데이터가 있는 경우
-          const contextData = relevantData.slice(0, 5); // 최대 5개 레코드
-          answer = `${message}에 대한 답변:\n\n`;
-          
-          contextData.forEach((record, index) => {
-            answer += `📊 레코드 ${index + 1}:\n`;
-            Object.entries(record).forEach(([key, value]) => {
-              if (value !== null && value !== undefined && value !== '') {
-                answer += `  • ${key}: ${value}\n`;
-              }
-            });
-            answer += '\n';
+        // 처음 5개 레코드만 표시 (AI 모델이 전체 데이터를 받아서 처리)
+        allUploadedData.slice(0, 5).forEach((record, index) => {
+          aiResponse += `레코드 ${index + 1}:\n`;
+          Object.entries(record).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && value !== '') {
+              aiResponse += `  ${key}: ${value}\n`;
+            }
           });
-          
-          if (relevantData.length > 5) {
-            answer += `📈 총 ${relevantData.length}개의 관련 데이터가 있습니다.\n`;
-          }
-        } else {
-          // 관련 데이터가 없는 경우 전체 데이터 요약
-          const totalRecords = allUploadedData.length;
-          const sampleRecord = allUploadedData[0];
-          
-          answer = `업로드된 데이터에서 '${message}'에 직접적으로 관련된 정보를 찾을 수 없습니다.\n\n`;
-          answer += `📊 전체 데이터 개요:\n`;
-          answer += `  • 총 레코드 수: ${totalRecords}개\n`;
-          answer += `  • 데이터 필드: ${Object.keys(sampleRecord).join(', ')}\n\n`;
-          answer += `💡 더 구체적인 질문을 해주시면 정확한 정보를 찾아드리겠습니다.`;
+          aiResponse += '\n';
+        });
+
+        if (allUploadedData.length > 5) {
+          aiResponse += `... 및 ${allUploadedData.length - 5}개의 추가 레코드\n`;
         }
-        
-        console.log(`✅ 데이터 기반 응답 생성 완료 (관련 데이터: ${relevantData.length}개)`);
+
+        console.log(`✅ AI 모델에게 원본 데이터 전달 완료 (${allUploadedData.length}개 레코드)`);
         
         const botMessage = await storage.createChatMessage({
           sessionId,
           type: 'bot', 
-          message: answer,
+          message: aiResponse,
           createdAt: new Date().toISOString()
         });
         

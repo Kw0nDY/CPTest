@@ -406,49 +406,56 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTableData(dataSourceId: string, tableName: string): Promise<any[]> {
-    // Check if this is an Excel data source and return its data
-    const dataSource = await this.getDataSource(dataSourceId);
-    console.log('getTableData - dataSource:', JSON.stringify(dataSource, null, 2));
-    console.log('getTableData - looking for table:', tableName);
-    
-    if (dataSource && (dataSource.type === 'Excel' || dataSource.type === 'excel' || dataSource.type === 'Google Sheets' || dataSource.type === 'ai-result')) {
+    try {
+      // Get the data source to access its actual data
+      const dataSource = await this.getDataSource(dataSourceId);
+      console.log('getTableData - dataSource:', JSON.stringify(dataSource, null, 2));
+      console.log('getTableData - looking for table:', tableName);
+      
+      if (!dataSource) {
+        console.warn(`Data source ${dataSourceId} not found`);
+        return [];
+      }
+
+      // Check for actual stored data in the data source
+      if (dataSource.config?.sampleData) {
+        // Handle file-based data sources (Excel, CSV, etc.)
+        if (typeof dataSource.config.sampleData === 'object') {
+          // If it's an object with table names
+          if (dataSource.config.sampleData[tableName]) {
+            console.log('Found file data in config.sampleData');
+            return dataSource.config.sampleData[tableName];
+          }
+          // If it's a flat array, return it
+          if (Array.isArray(dataSource.config.sampleData)) {
+            console.log('Found array data in config.sampleData');
+            return dataSource.config.sampleData;
+          }
+        }
+      }
+
       // Check if data is stored in the enhanced field (from runtime)
       if ((dataSource as any).sampleData && (dataSource as any).sampleData[tableName]) {
         console.log('Found file data in sampleData field');
         return (dataSource as any).sampleData[tableName];
       }
       
-      // Check if data is stored in config
-      const config = dataSource.config as any;
-      if (config && config.sampleData && config.sampleData[tableName]) {
-        console.log('Found file data in config.sampleData');
-        return config.sampleData[tableName];
-      }
-      
       // Handle AI result data
-      if (dataSource.type === 'ai-result' && config && config.resultData) {
+      if (dataSource.type === 'ai-result' && dataSource.config && dataSource.config.resultData) {
         console.log('Found AI result data');
-        return Array.isArray(config.resultData) ? config.resultData : [config.resultData];
+        return Array.isArray(dataSource.config.resultData) ? dataSource.config.resultData : [dataSource.config.resultData];
       }
-      
-      // Fallback to mock Excel data if no real data found
-      console.log('No Excel data found for table:', tableName, '- returning mock data');
-      const mockExcelData = {
-        'Sales Data': [
-          { OrderID: 'ORD001', CustomerName: 'Tech Solutions Inc', ProductName: 'Software License', Quantity: 5, UnitPrice: 299.99, TotalAmount: 1499.95, OrderDate: '2024-01-15' },
-          { OrderID: 'ORD002', CustomerName: 'Global Manufacturing', ProductName: 'Consulting Services', Quantity: 1, UnitPrice: 2500.00, TotalAmount: 2500.00, OrderDate: '2024-01-16' },
-          { OrderID: 'ORD003', CustomerName: 'Retail Corp', ProductName: 'Software License', Quantity: 10, UnitPrice: 299.99, TotalAmount: 2999.90, OrderDate: '2024-01-17' }
-        ],
-        'Sheet1': [
-          { Name: 'Product A', Category: 'Electronics', Price: 299.99, Stock: 50, Supplier: 'Supplier 1' },
-          { Name: 'Product B', Category: 'Clothing', Price: 49.99, Stock: 100, Supplier: 'Supplier 2' },
-          { Name: 'Product C', Category: 'Books', Price: 19.99, Stock: 200, Supplier: 'Supplier 3' }
-        ]
-      };
-      return (mockExcelData as any)[tableName] || [];
-    }
 
-    // Return authentic sample data based on provided specifications
+      console.warn(`No data found for table ${tableName} in data source ${dataSourceId}`);
+      return [];
+    } catch (error) {
+      console.error('Error getting table data:', error);
+      return [];
+    }
+  }
+
+  // Fallback method for legacy data 
+  private async getLegacyTableData(dataSourceId: string, tableName: string): Promise<any[]> {
     const mockData: Record<string, Record<string, any[]>> = {
       'sap-erp': {
         'customers': [
