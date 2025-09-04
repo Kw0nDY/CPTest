@@ -1832,12 +1832,33 @@ export function AiChatInterface() {
                     <div className="space-y-3">
                       <h3 className="font-medium text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5" />
-                        업로드된 파일 ({selectedConfigForKnowledge ? (knowledgeBaseItems[selectedConfigForKnowledge.id] || []).length : 0})
+                        업로드된 파일 ({selectedConfigForKnowledge ? (knowledgeBaseItems[selectedConfigForKnowledge.id] || []).filter(item => {
+                          const isAISourceFile = item.name.endsWith('.py') || 
+                                                item.name.endsWith('.js') || 
+                                                item.name.endsWith('.ts') || 
+                                                (item as any).type === 'source_code' ||
+                                                (item as any).language === 'py' ||
+                                                (item as any).language === 'js' ||
+                                                (item as any).language === 'ts';
+                          return !isAISourceFile;
+                        }).length : 0})
                       </h3>
                       
                       {selectedConfigForKnowledge && (knowledgeBaseItems[selectedConfigForKnowledge.id] || []).length > 0 ? (
                         <div className="space-y-2">
-                          {(knowledgeBaseItems[selectedConfigForKnowledge.id] || []).map((item) => (
+                          {(knowledgeBaseItems[selectedConfigForKnowledge.id] || [])
+                            .filter(item => {
+                              // 🚨 AI 소스 파일은 Knowledge Base 관리에서 숨김
+                              const isAISourceFile = item.name.endsWith('.py') || 
+                                                    item.name.endsWith('.js') || 
+                                                    item.name.endsWith('.ts') || 
+                                                    (item as any).type === 'source_code' ||
+                                                    (item as any).language === 'py' ||
+                                                    (item as any).language === 'js' ||
+                                                    (item as any).language === 'ts';
+                              return !isAISourceFile; // AI 소스 파일 제외
+                            })
+                            .map((item) => (
                             <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex items-center gap-3">
                                 <FileText className="w-5 h-5 text-gray-400" />

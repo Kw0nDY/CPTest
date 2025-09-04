@@ -39,12 +39,26 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       
       // 🎯 실제 데이터 수집: Knowledge Base + Data Integration
       
-      // 1. Knowledge Base 파일 데이터 로드
+      // 1. Knowledge Base 파일 데이터 로드 (AI 소스 파일 제외)
       if (config?.uploadedFiles) {
         for (const file of config.uploadedFiles) {
+          // 🚨 AI 소스 파일은 데이터 분석에서 완전 제외
+          const isAISourceFile = file.name.endsWith('.py') || 
+                                file.name.endsWith('.js') || 
+                                file.name.endsWith('.ts') || 
+                                file.type === 'source_code' ||
+                                file.language === 'py' ||
+                                file.language === 'js' ||
+                                file.language === 'ts';
+          
+          if (isAISourceFile) {
+            console.log(`⚠️ AI 소스 파일 제외: ${file.name} (${file.type || file.language})`);
+            continue; // AI 소스 파일은 건너뛰기
+          }
+
           if (file.content && file.content.length > 0) {
             try {
-              // CSV/JSON 파일 파싱
+              // CSV/JSON/TXT 데이터 파일만 파싱
               if (file.name.endsWith('.csv')) {
                 const rows = file.content.split('\n').slice(1); // 헤더 제외
                 const parsedData = rows.map(row => {
@@ -52,12 +66,16 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   return { file: file.name, data: values.join(' ') };
                 });
                 allUploadedData.push(...parsedData);
+                console.log(`✅ 데이터 파일 로드: ${file.name} → ${parsedData.length}개 레코드`);
               } else if (file.name.endsWith('.json')) {
                 const parsed = JSON.parse(file.content);
-                allUploadedData.push(...(Array.isArray(parsed) ? parsed : [parsed]));
-              } else {
-                // 텍스트 파일
+                const dataArray = Array.isArray(parsed) ? parsed : [parsed];
+                allUploadedData.push(...dataArray);
+                console.log(`✅ 데이터 파일 로드: ${file.name} → ${dataArray.length}개 레코드`);
+              } else if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+                // 텍스트 데이터 파일
                 allUploadedData.push({ file: file.name, content: file.content });
+                console.log(`✅ 텍스트 파일 로드: ${file.name}`);
               }
             } catch (parseError) {
               console.warn(`파일 파싱 오류 ${file.name}:`, parseError);
@@ -122,7 +140,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           const flowiseUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
           
           console.log(`🎯 AI 모델에 실제 요청 전송: ${flowiseUrl}`);
-          console.log(`📊 전송할 데이터 개수: ${allUploadedData.length}개`);
+          console.log(`📊 전송할 실제 데이터 개수: ${allUploadedData.length}개 (AI 소스 파일 제외됨)`);
           
           // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
           const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
