@@ -46,10 +46,14 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [chatSize, setChatSize] = useState({ width: 450, height: 600 });
+  const [isResizing, setIsResizing] = useState(false);
   const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
   const [selectedConfig, setSelectedConfig] = useState<ChatConfiguration | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -216,11 +220,50 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     }
   };
 
+  // 마우스로 크기 조정 핸들러
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !chatContainerRef.current) return;
+      
+      const rect = chatContainerRef.current.getBoundingClientRect();
+      const newWidth = Math.max(300, Math.min(800, e.clientX - rect.left + 20));
+      const newHeight = Math.max(400, Math.min(800, e.clientY - rect.top + 20));
+      
+      setChatSize({ width: newWidth, height: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <Card className={`w-80 shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : 'h-[800px]'} transition-all duration-300 flex flex-col overflow-hidden`}>
+      <Card 
+        ref={chatContainerRef}
+        className={`shadow-2xl border-gray-200 ${isMinimized ? 'h-14' : ''} transition-all duration-300 flex flex-col overflow-hidden relative`}
+        style={!isMinimized ? { 
+          width: `${chatSize.width}px`, 
+          height: `${chatSize.height}px`,
+        } : { width: '320px' }}
+      >
         {/* Header */}
         <CardHeader className={`${isMinimized ? 'pb-0 py-3' : 'pb-2'} bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg flex-shrink-0`}>
           <div className="flex items-center justify-between gap-2 h-full">
@@ -371,7 +414,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
                       <div className="flex items-start gap-2">
                         {message.type === 'bot' && <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />}
                         {message.type === 'user' && <User className="w-4 h-4 mt-0.5 flex-shrink-0" />}
-                        <div className="text-sm whitespace-pre-line">{message.message}</div>
+                        <div className="text-sm whitespace-pre-line max-h-96 overflow-y-auto">{message.message}</div>
                       </div>
                       <div className={`text-xs mt-1 ${
                         message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
@@ -440,6 +483,21 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
               </div>
             </div>
           </CardContent>
+        )}
+        
+        {/* 크기 조정 핸들 (최소화되지 않았을 때만 표시) */}
+        {!isMinimized && (
+          <div 
+            ref={resizeRef}
+            className={`absolute bottom-0 right-0 w-4 h-4 bg-blue-600 cursor-se-resize ${
+              isResizing ? 'bg-blue-700' : 'hover:bg-blue-700'
+            } transition-colors duration-200`}
+            onMouseDown={handleMouseDown}
+            style={{
+              clipPath: 'polygon(100% 0%, 0% 100%, 100% 100%)'
+            }}
+            title="크기 조정"
+          />
         )}
       </Card>
     </div>

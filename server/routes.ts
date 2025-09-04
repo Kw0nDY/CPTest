@@ -28,7 +28,6 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { sessionId } = req.params;
       const { message, configId } = req.body;
 
-      console.log(`🔒 데이터 격리 모드: 외부 API 없음, 업로드된 데이터만 사용`);
 
       // 사용자 메시지 저장
       const userMessage = await storage.createChatMessage({
@@ -43,20 +42,17 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
       const config = configId ? await storage.getChatConfiguration(configId) : null;
 
-      console.log(`📂 ${connectedDataSources.length}개 연결된 데이터 소스 로딩 중...`);
 
       // 1단계: 연결된 데이터 소스에서 데이터 수집
       for (const integration of connectedDataSources) {
         try {
           const dataSource = await storage.getDataSource(integration.dataSourceId);
           if (dataSource?.config?.sampleData) {
-            console.log(`✅ ${dataSource.name} 데이터 로딩`);
             
             if (typeof dataSource.config.sampleData === 'object') {
               for (const [tableName, records] of Object.entries(dataSource.config.sampleData)) {
                 if (Array.isArray(records)) {
                   allUploadedData.push(...records);
-                  console.log(`   → ${tableName}: ${records.length}개 레코드`);
                 }
               }
             }
@@ -68,7 +64,6 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
 
       // 2단계: Knowledge Base 파일에서 데이터 수집
       if (config?.uploadedFiles?.length > 0) {
-        console.log(`📋 ${config.uploadedFiles.length}개 Knowledge Base 파일 로딩 중...`);
         
         for (const file of config.uploadedFiles) {
           if (file.type === 'csv' || file.type === 'excel' || file.type === 'data') {
@@ -97,12 +92,10 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               if (fileData) {
                 if (Array.isArray(fileData)) {
                   allUploadedData.push(...fileData);
-                  console.log(`✅ ${file.name}: ${fileData.length}개 레코드`);
                 } else if (typeof fileData === 'object') {
                   for (const [tableName, records] of Object.entries(fileData)) {
                     if (Array.isArray(records)) {
                       allUploadedData.push(...records);
-                      console.log(`✅ ${file.name} - ${tableName}: ${records.length}개 레코드`);
                     }
                   }
                 }
@@ -114,51 +107,60 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      console.log(`📊 총 로딩된 데이터: ${allUploadedData.length}개 레코드`);
 
-      // 3단계: AI 모델에게 사용자 메시지와 업로드된 데이터를 그대로 전달
       if (allUploadedData.length > 0) {
-        // 업로드된 실제 데이터를 AI 모델에게 전달
-        const dataForAI = {
-          userMessage: message,
-          uploadedData: allUploadedData,
-          totalRecords: allUploadedData.length,
-          systemPrompt: config?.systemPrompt || "업로드된 데이터를 기반으로 사용자의 질문에 답변하세요."
-        };
 
-        // AI 모델 호출 준비 (실제 AI 모델 API 호출)
-        // 현재는 데이터를 그대로 전달하는 형태로 구현
-        let aiResponse = `사용자 요청: "${message}"\n\n`;
-        aiResponse += `전체 업로드된 데이터 (${allUploadedData.length}개 레코드):\n\n`;
-        
-        // 처음 5개 레코드만 표시 (AI 모델이 전체 데이터를 받아서 처리)
-        allUploadedData.slice(0, 5).forEach((record, index) => {
-          aiResponse += `레코드 ${index + 1}:\n`;
-          Object.entries(record).forEach(([key, value]) => {
-            if (value !== null && value !== undefined && value !== '') {
-              aiResponse += `  ${key}: ${value}\n`;
-            }
+        try {
+          const response = await fetch(`http://220.118.23.185:3000/api/v1/prediction/${config?.chatflowId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              question: message,
+              overrideConfig: {
+                chatData: allUploadedData
+              }
+            })
           });
-          aiResponse += '\n';
-        });
-
-        if (allUploadedData.length > 5) {
-          aiResponse += `... 및 ${allUploadedData.length - 5}개의 추가 레코드\n`;
+          
+          const aiResult = await response.json();
+          const aiResponse = aiResult.text || '응답을 생성할 수 없습니다.';
+        
+          const botMessage = await storage.createChatMessage({
+            sessionId,
+            type: 'bot', 
+            message: aiResponse,
+            createdAt: new Date().toISOString()
+          });
+          
+          return res.json({
+            userMessage: userMessage,
+            botMessage: botMessage
+          });
+        } catch (error) {
+          const searchResults = allUploadedData.filter(record => 
+            JSON.stringify(record).toLowerCase().includes(message.toLowerCase())
+          ).slice(0, 3);
+          
+          const aiResponse = searchResults.length > 0 
+            ? `업로드된 데이터에서 '${message}'에 대한 검색 결과:\n\n${searchResults.map((record, i) => 
+                `레코드 ${i+1}:\n${Object.entries(record).map(([k,v]) => `  ${k}: ${v}`).join('\n')}`
+              ).join('\n\n')}`
+            : `'${message}'에 대한 정보를 업로드된 데이터에서 찾을 수 없습니다.`;
+          
+          const botMessage = await storage.createChatMessage({
+            sessionId,
+            type: 'bot', 
+            message: aiResponse,
+            createdAt: new Date().toISOString()
+          });
+          
+          return res.json({
+            userMessage: userMessage,
+            botMessage: botMessage
+          });
         }
-
-        console.log(`✅ AI 모델에게 원본 데이터 전달 완료 (${allUploadedData.length}개 레코드)`);
-        
-        const botMessage = await storage.createChatMessage({
-          sessionId,
-          type: 'bot', 
-          message: aiResponse,
-          createdAt: new Date().toISOString()
-        });
-        
-        return res.json({
-          userMessage: userMessage,
-          botMessage: botMessage
-        });
       } else {
         const noDataMessage = "현재 이 AI 모델에는 연결된 데이터가 없습니다.\n\n" +
           "Assistant 모듈의 Knowledge Base에서 파일을 업로드하거나 Data Integration을 연동해주세요.";
