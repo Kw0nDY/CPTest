@@ -40,8 +40,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       // 🎯 실제 데이터 수집: Knowledge Base + Data Integration
       
       // 1. Knowledge Base 파일 데이터 로드 (AI 소스 파일 제외)
+      console.log(`🔍 AI 모델 "${config?.name}"의 uploadedFiles 확인: ${config?.uploadedFiles?.length || 0}개`);
+      
       if (config?.uploadedFiles) {
         for (const file of config.uploadedFiles) {
+          console.log(`📄 파일 체크: ${file.name}, type: ${file.type}, content 길이: ${file.content?.length || 0}`);
+          
           // 🚨 AI 소스 파일은 데이터 분석에서 완전 제외
           const isAISourceFile = file.name.endsWith('.py') || 
                                 file.name.endsWith('.js') || 
@@ -56,9 +60,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             continue; // AI 소스 파일은 건너뛰기
           }
 
+          // 🎯 데이터 파일 처리 - content가 없어도 metadata에서 찾기
+          let fileProcessed = false;
+          
+          // 1) content가 있는 경우
           if (file.content && file.content.length > 0) {
             try {
-              // CSV/JSON/TXT 데이터 파일만 파싱
               if (file.name.endsWith('.csv')) {
                 const rows = file.content.split('\n').slice(1); // 헤더 제외
                 const parsedData = rows.map(row => {
@@ -66,20 +73,45 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   return { file: file.name, data: values.join(' ') };
                 });
                 allUploadedData.push(...parsedData);
-                console.log(`✅ 데이터 파일 로드: ${file.name} → ${parsedData.length}개 레코드`);
+                console.log(`✅ Content에서 데이터 파일 로드: ${file.name} → ${parsedData.length}개 레코드`);
+                fileProcessed = true;
               } else if (file.name.endsWith('.json')) {
                 const parsed = JSON.parse(file.content);
                 const dataArray = Array.isArray(parsed) ? parsed : [parsed];
                 allUploadedData.push(...dataArray);
-                console.log(`✅ 데이터 파일 로드: ${file.name} → ${dataArray.length}개 레코드`);
+                console.log(`✅ Content에서 데이터 파일 로드: ${file.name} → ${dataArray.length}개 레코드`);
+                fileProcessed = true;
               } else if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-                // 텍스트 데이터 파일
                 allUploadedData.push({ file: file.name, content: file.content });
-                console.log(`✅ 텍스트 파일 로드: ${file.name}`);
+                console.log(`✅ Content에서 텍스트 파일 로드: ${file.name}`);
+                fileProcessed = true;
               }
             } catch (parseError) {
               console.warn(`파일 파싱 오류 ${file.name}:`, parseError);
             }
+          }
+          
+          // 2) content가 없지만 metadata에 데이터가 있는 경우  
+          if (!fileProcessed && file.metadata?.processedData) {
+            try {
+              const processedData = file.metadata.processedData;
+              if (processedData.sampleData && Array.isArray(processedData.sampleData)) {
+                allUploadedData.push(...processedData.sampleData);
+                console.log(`✅ Metadata에서 데이터 파일 로드: ${file.name} → ${processedData.sampleData.length}개 레코드`);
+                fileProcessed = true;
+              } else if (processedData.rawContent) {
+                allUploadedData.push({ file: file.name, content: processedData.rawContent });
+                console.log(`✅ Metadata에서 원시 데이터 로드: ${file.name}`);
+                fileProcessed = true;
+              }
+            } catch (metadataError) {
+              console.warn(`메타데이터 파싱 오류 ${file.name}:`, metadataError);
+            }
+          }
+          
+          // 3) 처리되지 않은 데이터 파일 경고
+          if (!fileProcessed && !isAISourceFile) {
+            console.warn(`⚠️ 데이터 파일을 처리할 수 없음: ${file.name} (content: ${file.content ? '있음' : '없음'}, metadata: ${file.metadata ? '있음' : '없음'})`);
           }
         }
       }
@@ -141,6 +173,10 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           
           console.log(`🎯 AI 모델에 실제 요청 전송: ${flowiseUrl}`);
           console.log(`📊 전송할 실제 데이터 개수: ${allUploadedData.length}개 (AI 소스 파일 제외됨)`);
+          
+          if (allUploadedData.length > 0) {
+            console.log(`📋 데이터 샘플:`, JSON.stringify(allUploadedData.slice(0, 2), null, 2));
+          }
           
           // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
           const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
