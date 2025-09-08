@@ -361,6 +361,86 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 🚨 Model Upload 기능을 위한 AI 모델 API 엔드포인트 추가
+  app.get("/api/ai-models", async (req, res) => {
+    try {
+      const models = await storage.getAiModels();
+      console.log(`📋 AI 모델 목록 조회: ${models.length}개`);
+      res.json(models);
+    } catch (error) {
+      console.error('AI 모델 목록 조회 실패:', error);
+      res.status(500).json({ error: 'Failed to fetch AI models' });
+    }
+  });
+
+  app.get("/api/ai-models/:id", async (req, res) => {
+    try {
+      const model = await storage.getAiModel(req.params.id);
+      if (model) {
+        res.json(model);
+      } else {
+        res.status(404).json({ error: 'AI model not found' });
+      }
+    } catch (error) {
+      console.error('AI 모델 조회 실패:', error);
+      res.status(500).json({ error: 'Failed to fetch AI model' });
+    }
+  });
+
+  app.post("/api/ai-models", async (req, res) => {
+    try {
+      console.log('🆕 새 AI 모델 생성:', req.body.name);
+      const model = await storage.createAiModel(req.body);
+      res.json(model);
+    } catch (error) {
+      console.error('AI 모델 생성 실패:', error);
+      res.status(500).json({ error: 'Failed to create AI model' });
+    }
+  });
+
+  app.put("/api/ai-models/:id", async (req, res) => {
+    try {
+      console.log('🔄 AI 모델 업데이트:', req.params.id);
+      const model = await storage.updateAiModel(req.params.id, req.body);
+      res.json(model);
+    } catch (error) {
+      console.error('AI 모델 업데이트 실패:', error);
+      res.status(500).json({ error: 'Failed to update AI model' });
+    }
+  });
+
+  app.delete("/api/ai-models/:id", async (req, res) => {
+    try {
+      console.log('🗑️ AI 모델 삭제:', req.params.id);
+      await storage.deleteAiModel(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('AI 모델 삭제 실패:', error);
+      res.status(500).json({ error: 'Failed to delete AI model' });
+    }
+  });
+
+  // AI 모델 폴더 API
+  app.get("/api/ai-model-folders", async (req, res) => {
+    try {
+      const folders = await storage.getAiModelFolders();
+      res.json(folders);
+    } catch (error) {
+      console.error('AI 모델 폴더 목록 조회 실패:', error);
+      res.status(500).json({ error: 'Failed to fetch AI model folders' });
+    }
+  });
+
+  app.post("/api/ai-model-folders", async (req, res) => {
+    try {
+      const folder = await storage.createAiModelFolder(req.body);
+      res.json(folder);
+    } catch (error) {
+      console.error('AI 모델 폴더 생성 실패:', error);
+      res.status(500).json({ error: 'Failed to create AI model folder' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

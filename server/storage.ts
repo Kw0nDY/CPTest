@@ -1229,6 +1229,115 @@ export async function initializeSampleData() {
     // Check if sample data already exists
     const existingConfigs = await storage.getChatConfigurations();
     const existingDataSources = await storage.getDataSources();
+    const existingAiModels = await storage.getAiModels();
+    const existingAiModelFolders = await storage.getAiModelFolders();
+
+    // 🎯 AI 모델 폴더 초기화 (Model Upload 기능용)
+    if (existingAiModelFolders.length === 0) {
+      const sampleFolders = [
+        {
+          name: 'Data Analysis',
+          description: '데이터 분석 및 처리 모델',
+          color: '#3B82F6',
+          icon: '📊',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          name: 'Natural Language',
+          description: '자연어 처리 모델',
+          color: '#10B981',
+          icon: '💬',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          name: 'Computer Vision',
+          description: '컴퓨터 비전 모델',
+          color: '#F59E0B',
+          icon: '👁️',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
+      
+      for (const folder of sampleFolders) {
+        await storage.createAiModelFolder(folder);
+      }
+      console.log('✅ 샘플 AI 모델 폴더 생성 완료');
+    }
+
+    // 🎯 AI 모델 초기화 (Model Upload 기능용)
+    if (existingAiModels.length === 0) {
+      const folders = await storage.getAiModelFolders();
+      const dataAnalysisFolder = folders.find(f => f.name === 'Data Analysis');
+      const nlpFolder = folders.find(f => f.name === 'Natural Language');
+      const visionFolder = folders.find(f => f.name === 'Computer Vision');
+
+      const sampleModels = [
+        {
+          name: 'Bio-Manufacturing Predictor',
+          description: '바이오 제조업 생산량 예측 모델',
+          version: '1.0.0',
+          type: 'supervised_learning',
+          status: 'trained',
+          language: 'python',
+          framework: 'tensorflow',
+          folderId: dataAnalysisFolder?.id || null,
+          metrics: { accuracy: 0.92, f1_score: 0.89 },
+          configPath: '/models/bio_manufacturing_predictor.json',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          name: 'Equipment Anomaly Detector',
+          description: '장비 이상 감지 모델',
+          version: '2.1.0',
+          type: 'anomaly_detection',
+          status: 'trained',
+          language: 'python',
+          framework: 'scikit-learn',
+          folderId: dataAnalysisFolder?.id || null,
+          metrics: { precision: 0.94, recall: 0.87 },
+          configPath: '/models/anomaly_detector.json',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          name: 'Document Classifier',
+          description: '문서 분류 및 태깅 모델',
+          version: '1.5.0',
+          type: 'text_classification',
+          status: 'trained',
+          language: 'python',
+          framework: 'transformers',
+          folderId: nlpFolder?.id || null,
+          metrics: { accuracy: 0.96, macro_f1: 0.93 },
+          configPath: '/models/document_classifier.json',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          name: 'Quality Vision Inspector',
+          description: '제품 품질 검사 비전 모델',
+          version: '3.0.0',
+          type: 'object_detection',
+          status: 'trained',
+          language: 'python',
+          framework: 'pytorch',
+          folderId: visionFolder?.id || null,
+          metrics: { map_50: 0.91, map_75: 0.85 },
+          configPath: '/models/quality_inspector.json',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
+      
+      for (const model of sampleModels) {
+        await storage.createAiModel(model);
+      }
+      console.log('✅ 샘플 AI 모델 생성 완료');
+    }
 
     // Create sample chatbot configuration if none exists
     if (existingConfigs.length === 0) {
