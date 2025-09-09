@@ -133,6 +133,8 @@ export const dataSources = pgTable('data_sources', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// 🔧 DataSource 타입은 하단에 통일된 위치에서 정의
+
 // Excel Files table for storing uploaded files and their data
 export const excelFiles = pgTable('excel_files', {
   id: text('id').primaryKey(),

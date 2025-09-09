@@ -31,36 +31,20 @@ import { GoogleSheetsConnectionDialog } from './google-sheets-connection-dialog'
 import { EnterpriseChunkUploader } from './enterprise-chunk-uploader';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+// 🔧 임시 DataSource 인터페이스 (shared schema와 점진적 통합 예정)
 interface DataSource {
   id: string;
   name: string;
   type: string;
+  category?: string; // 🚀 누락된 필드 추가
+  vendor?: string;   // 🚀 누락된 필드 추가
   status: 'connected' | 'disconnected' | 'error';
   lastSync?: string;
   recordCount?: number;
-  config: {
-    host?: string;
-    port?: string;
-    database?: string;
-    username?: string;
-  };
-  connectionDetails: {
-    server?: string;
-    database?: string;
-    port?: number;
-    protocol?: string;
-  };
-  dataSchema: Array<{
-    table: string;
-    fields: Array<{
-      name: string;
-      type: string;
-      description: string;
-    }>;
-    recordCount: number;
-    lastUpdated: string;
-  }>;
-  sampleData: Record<string, any[]>;
+  config?: any;
+  connectionDetails?: any;
+  dataSchema?: any;
+  sampleData?: any;
 }
 
 interface AvailableDataSource {

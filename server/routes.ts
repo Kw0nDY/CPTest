@@ -476,7 +476,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.get("/api/ai-models/:modelId/chat-configurations", async (req, res) => {
     try {
       const { modelId } = req.params;
-      const configurations = await storage.getAIModelChatConfigurations(modelId);
+      const configurations = await storage.getAiModelChatConfigurations(modelId);
       res.json(configurations);
     } catch (error) {
       console.error('AI 모델 챗봇 구성 조회 오류:', error);
@@ -489,7 +489,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { modelId } = req.params;
       const { chatbotConfigId, priority, isActive } = req.body;
       
-      const configuration = await storage.createAIModelChatConfiguration({
+      const configuration = await storage.createAiModelChatConfiguration({
         modelId,
         chatbotConfigId,
         priority: priority || 1,
@@ -507,7 +507,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.delete("/api/ai-models/:modelId/chat-configurations/:configId", async (req, res) => {
     try {
       const { modelId, configId } = req.params;
-      await storage.deleteAIModelChatConfiguration(modelId, configId);
+      await storage.deleteAiModelChatConfiguration(modelId, configId);
       console.log(`🗑️ AI 모델-챗봇 연결 삭제: ${modelId} → ${configId}`);
       res.json({ success: true });
     } catch (error) {
@@ -520,7 +520,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.get("/api/ai-models/:modelId/data-sources", async (req, res) => {
     try {
       const { modelId } = req.params;
-      const dataSources = await storage.getAIModelDataSources(modelId);
+      const dataSources = await storage.getAiModelDataSources(modelId);
       res.json(dataSources);
     } catch (error) {
       console.error('AI 모델 데이터 소스 조회 오류:', error);
@@ -533,7 +533,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { modelId } = req.params;
       const { dataSourceId, accessType, filterRules } = req.body;
       
-      const mapping = await storage.createAIModelDataSource({
+      const mapping = await storage.createAiModelDataSource({
         modelId,
         dataSourceId,
         accessType: accessType || 'READ',
@@ -553,7 +553,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { modelId, dataSourceId } = req.params;
       const { accessType, filterRules } = req.body;
       
-      const updatedMapping = await storage.updateAIModelDataSource(modelId, dataSourceId, {
+      const updatedMapping = await storage.updateAiModelDataSource(modelId, dataSourceId, {
         accessType,
         filterRules
       });
@@ -569,7 +569,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.delete("/api/ai-models/:modelId/data-sources/:dataSourceId", async (req, res) => {
     try {
       const { modelId, dataSourceId } = req.params;
-      await storage.deleteAIModelDataSource(modelId, dataSourceId);
+      await storage.deleteAiModelDataSource(modelId, dataSourceId);
       console.log(`🗑️ AI 모델-데이터 소스 매핑 삭제: ${modelId} → ${dataSourceId}`);
       res.json({ success: true });
     } catch (error) {
@@ -585,7 +585,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { limit = 1000 } = req.query;
       
       // 1. AI 모델에 매핑된 데이터 소스 조회
-      const mappedDataSources = await storage.getAIModelDataSources(modelId);
+      const mappedDataSources = await storage.getAiModelDataSources(modelId);
       console.log(`🔍 AI 모델 ${modelId}에 매핑된 데이터 소스: ${mappedDataSources.length}개`);
       
       const accessibleData = [];

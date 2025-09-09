@@ -59,6 +59,17 @@ export interface IStorage {
   updateAiModel(id: string, updates: Partial<AiModel>): Promise<AiModel>;
   deleteAiModel(id: string): Promise<void>;
   
+  // 🔧 AI Model Chat Configuration methods (누락된 메서드 추가)
+  getAiModelChatConfigurations(modelId: string): Promise<AiModelChatConfiguration[]>;
+  createAiModelChatConfiguration(config: InsertAiModelChatConfiguration): Promise<AiModelChatConfiguration>;
+  deleteAiModelChatConfiguration(modelId: string, configId: string): Promise<void>;
+  
+  // 🔧 AI Model Data Source methods (누락된 메서드 추가)
+  getAiModelDataSources(modelId: string): Promise<AiModelDataSource[]>;
+  createAiModelDataSource(mapping: InsertAiModelDataSource): Promise<AiModelDataSource>;
+  updateAiModelDataSource(modelId: string, dataSourceId: string, updates: Partial<AiModelDataSource>): Promise<AiModelDataSource>;
+  deleteAiModelDataSource(modelId: string, dataSourceId: string): Promise<void>;
+  
   // AI Model File methods
   getAiModelFiles(modelId: string): Promise<AiModelFile[]>;
   getAiModelFile(id: string): Promise<AiModelFile | undefined>;
