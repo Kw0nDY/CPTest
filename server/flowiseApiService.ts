@@ -65,11 +65,18 @@ export class FlowiseApiService {
     const startTime = Date.now();
     
     try {
+      console.log(`🔥 Flowise API 호출 시작:`);
+      console.log(`  📝 메시지: "${message}"`);
+      console.log(`  🆔 SessionId: ${sessionId || 'undefined'}`);
+      console.log(`  🌐 API URL: ${this.config.apiUrl}/prediction/${this.config.chatflowId}`);
+      
       const payload = {
         question: message,
         history: [],
         ...(sessionId && { sessionId }),
       };
+
+      console.log(`  📦 Payload:`, JSON.stringify(payload, null, 2));
 
       const response = await axios.post(
         `${this.config.apiUrl}/prediction/${this.config.chatflowId}`,
@@ -81,6 +88,8 @@ export class FlowiseApiService {
           timeout: 30000,
         }
       );
+
+      console.log(`  ✅ Flowise 응답 성공:`, response.data);
 
       const processingTime = Date.now() - startTime;
 

@@ -178,6 +178,11 @@ export class LocalAIEngine {
       }
       
       // Flowise API 호출
+      console.log(`🚀 Flowise API 호출 준비:`);
+      console.log(`  📝 Enhanced Message 길이: ${enhancedMessage.length} 문자`);
+      console.log(`  🆔 Model ID: ${modelId || 'undefined'}`);
+      console.log(`  📊 Upload Data 개수: ${uploadedData.length}개`);
+      
       const result = await this.flowiseService.sendMessage(enhancedMessage, modelId);
       
       if (result.success) {

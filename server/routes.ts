@@ -474,6 +474,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         try {
           console.log(`🦙 Flowise Llama AI 엔진 호출: "${message}"`);
           console.log(`📊 분석할 데이터 개수: ${allUploadedData.length}개`);
+          console.log(`🔧 Config ID: ${configId}`);
+          console.log(`📋 AI Options:`, JSON.stringify(aiOptions, null, 2));
           
           const { localAI } = await import('./localAiEngine');
           
