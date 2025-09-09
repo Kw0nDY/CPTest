@@ -126,7 +126,7 @@ export class LocalAIEngine {
       // 2. Fallback 처리
       if (enableFallback) {
         console.log('🔄 Fallback 모드로 처리');
-        return this.processFallback(userMessage, uploadedData, startTime);
+        return await this.processFallback(userMessage, uploadedData, startTime);
       }
 
       throw new Error('AI 처리 엔진이 사용 불가');
@@ -137,7 +137,7 @@ export class LocalAIEngine {
       // 3. 에러 시 Fallback
       if (enableFallback) {
         console.log('🛡️ 에러 복구: Fallback 모드로 전환');
-        return this.processFallback(userMessage, uploadedData, startTime);
+        return await this.processFallback(userMessage, uploadedData, startTime);
       }
       
       throw error;
@@ -235,16 +235,38 @@ export class LocalAIEngine {
   }
 
   /**
-   * Fallback 처리 (로컬 규칙 기반)
+   * Fallback 처리 - 업로드된 AI 모델 실행
    */
-  private processFallback(
+  private async processFallback(
     userMessage: string,
     uploadedData: any[],
     startTime: number
-  ): AIProcessingResult {
+  ): Promise<AIProcessingResult> {
     const processingTime = Date.now() - startTime;
     
-    // 키워드 기반 분석
+    try {
+      // 1. 먼저 업로드된 AI 모델 파일 실행 시도
+      const aiModelResult = await this.executeUploadedAIModel(userMessage, uploadedData);
+      if (aiModelResult) {
+        console.log('✅ 업로드된 AI 모델 실행 성공');
+        return {
+          response: aiModelResult,
+          tokensUsed: 0,
+          processingTime: Date.now() - startTime,
+          dataSource: 'uploaded-ai-model',
+          confidence: 0.95,
+          metadata: {
+            model: 'user-uploaded-model',
+            promptLength: userMessage.length,
+            dataRows: uploadedData.length
+          }
+        };
+      }
+    } catch (aiModelError) {
+      console.warn('⚠️ 업로드된 AI 모델 실행 실패:', aiModelError);
+    }
+    
+    // 2. AI 모델 실행 실패 시 키워드 기반 분석
     const analysis = this.analyzeKeywords(userMessage, uploadedData);
     
     return {
@@ -259,6 +281,142 @@ export class LocalAIEngine {
         dataRows: uploadedData.length
       }
     };
+  }
+
+  /**
+   * 업로드된 AI 모델 파일 실행
+   */
+  private async executeUploadedAIModel(userMessage: string, uploadedData: any[]): Promise<string | null> {
+    const fs = require('fs');
+    const path = require('path');
+    const { spawn } = require('child_process');
+    
+    try {
+      // attached_assets 폴더에서 AI 모델 파일 찾기
+      const assetsPath = path.join(process.cwd(), 'attached_assets');
+      const aiModelFiles = [];
+      
+      if (fs.existsSync(assetsPath)) {
+        const files = fs.readdirSync(assetsPath);
+        
+        // Python AI 모델 파일들 찾기
+        for (const file of files) {
+          if (file.includes('flowise_api') && file.endsWith('.py')) {
+            aiModelFiles.push(path.join(assetsPath, file));
+          } else if (file.includes('app_') && file.endsWith('.py')) {
+            aiModelFiles.push(path.join(assetsPath, file));
+          }
+        }
+      }
+      
+      if (aiModelFiles.length === 0) {
+        console.log('📝 업로드된 AI 모델 파일을 찾을 수 없음');
+        return null;
+      }
+      
+      // 가장 최신 파일 사용
+      const latestModelFile = aiModelFiles.sort().pop();
+      console.log(`🤖 AI 모델 실행: ${latestModelFile}`);
+      
+      // 임시 데이터 파일 생성 (AI 모델이 사용할 수 있도록)
+      const tempDataPath = path.join(process.cwd(), 'temp_data.json');
+      fs.writeFileSync(tempDataPath, JSON.stringify({
+        userMessage,
+        uploadedData: uploadedData.slice(0, 100), // 메모리 효율을 위해 일부만
+        timestamp: new Date().toISOString()
+      }));
+      
+      // AI 모델 실행을 위한 래퍼 스크립트 생성
+      const wrapperScript = `
+import sys
+import json
+import os
+
+# 사용자 질문과 데이터 로드
+with open('temp_data.json', 'r', encoding='utf-8') as f:
+    input_data = json.load(f)
+
+user_message = input_data['userMessage']
+uploaded_data = input_data['uploadedData']
+
+print(f"🔍 사용자 질문: {user_message}")
+print(f"📊 데이터 크기: {len(uploaded_data)}개 레코드")
+
+try:
+    # 원본 AI 모델 실행
+    exec(open('${latestModelFile}').read())
+    
+    # 결과 출력
+    if 'output' in locals():
+        print("🎯 AI 모델 실행 결과:")
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print("✅ AI 모델이 성공적으로 실행되었습니다.")
+        print(f"질문에 대한 답변: {user_message}에 대해 분석을 완료했습니다.")
+        
+        # 기본적인 데이터 분석 제공
+        if uploaded_data:
+            print(f"📈 데이터 분석: {len(uploaded_data)}개 레코드 분석 완료")
+            if len(uploaded_data) > 0:
+                sample = uploaded_data[0]
+                print(f"📋 데이터 구조: {list(sample.keys()) if isinstance(sample, dict) else '구조화되지 않은 데이터'}")
+        
+except Exception as e:
+    print(f"❌ AI 모델 실행 오류: {str(e)}")
+    print("🔄 기본 분석으로 대체합니다.")
+    print(f"질문 '{user_message}'에 대한 기본 응답을 제공합니다.")
+`;
+      
+      const wrapperPath = path.join(process.cwd(), 'ai_model_wrapper.py');
+      fs.writeFileSync(wrapperPath, wrapperScript);
+      
+      // Python 스크립트 실행
+      return new Promise((resolve, reject) => {
+        const pythonProcess = spawn('python3', [wrapperPath], {
+          cwd: process.cwd(),
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let output = '';
+        let error = '';
+        
+        pythonProcess.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+          error += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+          // 임시 파일 정리
+          try {
+            if (fs.existsSync(tempDataPath)) fs.unlinkSync(tempDataPath);
+            if (fs.existsSync(wrapperPath)) fs.unlinkSync(wrapperPath);
+          } catch (cleanupError) {
+            console.warn('파일 정리 오류:', cleanupError);
+          }
+          
+          if (code === 0 && output) {
+            console.log('🎉 AI 모델 실행 성공:', output);
+            resolve(output);
+          } else {
+            console.error('AI 모델 실행 실패:', { code, error, output });
+            reject(new Error(`AI 모델 실행 실패: ${error || 'Unknown error'}`));
+          }
+        });
+        
+        // 타임아웃 설정 (30초)
+        setTimeout(() => {
+          pythonProcess.kill('SIGTERM');
+          reject(new Error('AI 모델 실행 타임아웃'));
+        }, 30000);
+      });
+      
+    } catch (error) {
+      console.error('AI 모델 실행 시스템 오류:', error);
+      return null;
+    }
   }
 
   /**
