@@ -467,39 +467,36 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       prompt += `- 정확한 수치와 구체적인 정보 제공\n`;
       prompt += `- 한국어로 자연스럽게 답변\n\n`;
 
-      // 🚀 로컬 AI 엔진 직접 실행 (실제 계산 수행)
+      // 🦙 Llama 기반 Flowise AI 엔진 실행
       let aiResponse = "";
       
-      if (config && allUploadedData.length > 0) {
+      if (config) {
         try {
-          console.log(`🔥 로컬 AI 실제 계산 엔진 직접 호출: "${message}"`);
-          console.log(`📊 분석할 실제 데이터 개수: ${allUploadedData.length}개`);
+          console.log(`🦙 Flowise Llama AI 엔진 호출: "${message}"`);
+          console.log(`📊 분석할 데이터 개수: ${allUploadedData.length}개`);
           
           const { localAI } = await import('./localAiEngine');
           
-          // 데이터 구조 분석
-          const columns = Object.keys(allUploadedData[0] || {});
-          const dataInfo = `실제 데이터셋: ${allUploadedData.length}개 행, ${columns.length}개 열`;
+          // AI 엔진 초기화
+          await localAI.initialize();
           
-          // 직접 실제 데이터 분석 메서드 호출
-          let analysisResult;
+          // AI 처리 옵션 설정
+          const aiOptions = {
+            maxTokens: config.maxTokens || 2000,
+            temperature: (config.temperature || 700000) / 1000000, // UI에서 받은 값을 0-1 범위로 변환
+            model: 'llama',
+            enableFallback: true
+          };
           
-          // Bioreactor 데이터인지 확인
-          const isBioreactorData = columns.includes('OEE') && columns.includes('Production Rate') && columns.includes('Temperature');
+          // 통합 AI 처리 (Flowise + 로컬 계산)
+          const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);
           
-          if (isBioreactorData) {
-            console.log(`🏭 Bioreactor 데이터 감지 - 전문 분석 수행`);
-            analysisResult = localAI.analyzeBioreactorData(allUploadedData, message, dataInfo);
-          } else {
-            console.log(`📊 일반 데이터 분석 수행`);
-            analysisResult = localAI.analyzeGeneralData(allUploadedData, columns, message, dataInfo);
-          }
-          
-          aiResponse = analysisResult.response;
-          console.log(`✅ 로컬 AI 실제 계산 완료: ${analysisResult.confidence * 100}% 신뢰도`);
+          aiResponse = result.response;
+          console.log(`✅ AI 처리 완료: ${result.confidence * 100}% 신뢰도, 소스: ${result.dataSource}`);
           console.log(`📋 AI 응답 미리보기: ${aiResponse.substring(0, 200)}...`);
-        } catch (localAiError) {
-          console.error('❌ 로컬 AI 처리 실패:', localAiError);
+          
+        } catch (aiError) {
+          console.error('❌ AI 처리 실패:', aiError);
           
           // 🛡️ 최종 Fallback: 간단한 데이터 기반 응답
           if (allUploadedData.length > 0) {
@@ -510,7 +507,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                        `- 총 레코드: ${allUploadedData.length}개\n` +
                        `- 컬럼: ${columns.join(', ')}\n` +
                        `- 샘플 데이터: ${JSON.stringify(firstRow, null, 2)}\n\n` +
-                       `**참고:** 더 정확한 AI 분석을 위해 OpenAI API 키를 설정하시면 고급 분석이 가능합니다.`;
+                       `**참고:** Flowise Llama AI와 로컬 계산 엔진을 통해 고품질 분석을 제공합니다.`;
           } else {
             aiResponse = `질문을 받았습니다: "${message}"\n\n현재 분석할 데이터가 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 연결한 후 다시 시도해주세요.`;
           }
