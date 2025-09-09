@@ -274,58 +274,124 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 2. Data Integration 연결된 데이터 로드 (개선된 버전)
-      console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
-      const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
-      console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+      // 2. 🎯 AI 모델별 격리된 데이터 로드 (데이터 격리 보장)
+      console.log(`🔒 AI 모델별 격리된 데이터 확인 중... configId: ${configId}`);
       
-      for (const integration of connectedDataSources) {
+      if (configId && config) {
         try {
-          console.log(`📊 데이터 소스 로드 중: ${integration.dataSourceId}`);
-          const dataSource = await storage.getDataSource(integration.dataSourceId);
+          // 1단계: configId → aiModelId 매핑 찾기
+          const aiModelConfigs = await storage.getAiModelChatConfigurations(configId);
+          console.log(`🔍 Chat Config ${configId}에 연결된 AI 모델: ${aiModelConfigs.length}개`);
           
-          if (!dataSource) {
-            console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${integration.dataSourceId}`);
-            continue;
-          }
-          
-          console.log(`📋 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}) 처리 중`);
-          
-          // 1) config.sampleData에서 데이터 로드
-          if (dataSource?.config?.sampleData) {
-            console.log(`📊 sampleData에서 데이터 로드 중...`);
-            for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
-              if (Array.isArray(tableData) && tableData.length > 0) {
-                allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
-                console.log(`✅ Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
+          for (const aiModelConfig of aiModelConfigs) {
+            const aiModelId = aiModelConfig.aiModelId;
+            console.log(`🤖 AI 모델 ${aiModelId}의 격리된 데이터 소스 확인 중...`);
+            
+            // 2단계: aiModelId → 격리된 데이터 소스 매핑
+            const modelDataSources = await storage.getAiModelDataSources(aiModelId);
+            console.log(`🔒 AI 모델 ${aiModelId}에 격리된 데이터 소스: ${modelDataSources.length}개`);
+            
+            for (const mapping of modelDataSources) {
+              try {
+                console.log(`📊 격리된 데이터 소스 로드 중: ${mapping.dataSourceId} (권한: ${mapping.accessLevel})`);
+                const dataSource = await storage.getDataSource(mapping.dataSourceId);
+                
+                if (!dataSource) {
+                  console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${mapping.dataSourceId}`);
+                  continue;
+                }
+                
+                // READ 권한 확인
+                if (mapping.accessLevel !== 'read' && mapping.accessLevel !== 'full') {
+                  console.warn(`⚠️ 읽기 권한 없음: ${dataSource.name} (권한: ${mapping.accessLevel})`);
+                  continue;
+                }
+                
+                console.log(`🔐 격리된 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}, model: ${aiModelId}) 처리 중`);
+                
+                // 1) config.sampleData에서 데이터 로드
+                if (dataSource?.config?.sampleData) {
+                  console.log(`📊 격리된 sampleData 로드 중... (AI 모델: ${aiModelId})`);
+                  for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
+                    if (Array.isArray(tableData) && tableData.length > 0) {
+                      allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
+                      console.log(`✅ 격리된 Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드 (AI모델: ${aiModelId})`);
+                    }
+                  }
+                }
+                
+                // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용)
+                try {
+                  if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
+                    const tables = await storage.getDataSourceTables(mapping.dataSourceId);
+                    console.log(`🔍 격리된 데이터 소스 테이블: ${tables.length}개 발견 (AI모델: ${aiModelId})`);
+                    
+                    for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
+                      try {
+                        const tableData = await storage.getTableData(mapping.dataSourceId, table.name);
+                        if (tableData && tableData.length > 0) {
+                          allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
+                          console.log(`✅ 격리된 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드 (AI모델: ${aiModelId})`);
+                        }
+                      } catch (tableError) {
+                        console.warn(`테이블 데이터 로드 실패: ${table.name}`, tableError);
+                      }
+                    }
+                  }
+                } catch (tablesError) {
+                  console.warn('테이블 데이터 로드 시도 실패:', tablesError);
+                }
+                
+              } catch (dataError) {
+                console.error(`AI 모델 ${aiModelId} 데이터 소스 로드 오류:`, dataError);
               }
             }
           }
           
-          // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용)
-          try {
-            if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
-              const tables = await storage.getDataSourceTables(integration.dataSourceId);
-              console.log(`🔍 데이터 소스 테이블: ${tables.length}개 발견`);
-              
-              for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
-                try {
-                  const tableData = await storage.getTableData(integration.dataSourceId, table.name);
-                  if (tableData && tableData.length > 0) {
-                    allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
-                    console.log(`✅ 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드`);
+          // 3단계: 기존 chatbotDataIntegrations 폴백 (마이그레이션 중)
+          if (aiModelConfigs.length === 0) {
+            console.log(`⚠️ AI 모델 매핑이 없음 - 기존 방식으로 폴백 (configId: ${configId})`);
+            const connectedDataSources = await storage.getChatbotDataIntegrations(configId);
+            console.log(`🔗 폴백 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+            
+            for (const integration of connectedDataSources) {
+              try {
+                console.log(`📊 폴백 데이터 소스 로드 중: ${integration.dataSourceId}`);
+                const dataSource = await storage.getDataSource(integration.dataSourceId);
+                
+                if (dataSource?.config?.sampleData) {
+                  for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
+                    if (Array.isArray(tableData) && tableData.length > 0) {
+                      allUploadedData.push(...tableData.slice(0, 1000));
+                      console.log(`✅ 폴백 Data Integration: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
+                    }
                   }
-                } catch (tableError) {
-                  console.warn(`테이블 데이터 로드 실패: ${table.name}`, tableError);
+                }
+              } catch (dataError) {
+                console.error('폴백 데이터 소스 로드 오류:', dataError);
+              }
+            }
+          }
+          
+        } catch (aiModelError) {
+          console.error('AI 모델별 데이터 격리 실패:', aiModelError);
+          console.log('🔄 기존 방식으로 폴백');
+          
+          const connectedDataSources = await storage.getChatbotDataIntegrations(configId);
+          for (const integration of connectedDataSources) {
+            try {
+              const dataSource = await storage.getDataSource(integration.dataSourceId);
+              if (dataSource?.config?.sampleData) {
+                for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
+                  if (Array.isArray(tableData) && tableData.length > 0) {
+                    allUploadedData.push(...tableData.slice(0, 1000));
+                  }
                 }
               }
+            } catch (err) {
+              console.error('폴백 데이터 로드 오류:', err);
             }
-          } catch (tablesError) {
-            console.warn('테이블 데이터 로드 시도 실패:', tablesError);
           }
-          
-        } catch (dataError) {
-          console.error('데이터 소스 로드 오류:', dataError);
         }
       }
 
