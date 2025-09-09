@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ExcelUploadDialog } from './excel-upload-dialog';
 import { GoogleSheetsConnectionDialog } from './google-sheets-connection-dialog';
+import { EnterpriseChunkUploader } from './enterprise-chunk-uploader';
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DataSource {
@@ -164,6 +165,15 @@ const availableDataSources: AvailableDataSource[] = [
     features: ['OAuth 2.0 authentication', 'OneDrive integration', 'SharePoint access', 'Real-time data sync', 'Multiple worksheets']
   },
   {
+    id: 'enterprise-file-upload',
+    name: '엔터프라이즈 대용량 업로드',
+    type: 'Chunked Upload',
+    category: 'file',
+    description: '1GB+ 대용량 파일을 위한 청크 기반 업로드 시스템',
+    vendor: 'DXT Enterprise',
+    features: ['청크 분할 업로드', '메모리 효율 처리', 'RAG 인덱싱', '진행상태 추적', '장애 복구']
+  },
+  {
     id: 'google-sheets',
     name: 'Google Sheets',
     type: 'Google Sheets API',
@@ -202,6 +212,7 @@ export default function DataIntegrationTab() {
   const [selectedDetailSource, setSelectedDetailSource] = useState<DataSource | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
   const [showExcelUploadDialog, setShowExcelUploadDialog] = useState(false);
+  const [showEnterpriseUploadDialog, setShowEnterpriseUploadDialog] = useState(false);
   const [googleSheetsDialogRef, setGoogleSheetsDialogRef] = useState<{ openDialog: () => void } | null>(null);
 
   const { toast } = useToast();
@@ -505,6 +516,10 @@ export default function DataIntegrationTab() {
       // Show Excel upload dialog
       setSelectedDataSource(dataSource);
       setShowExcelUploadDialog(true);
+    } else if (dataSource.id === 'enterprise-file-upload') {
+      // Show Enterprise chunk upload dialog
+      setSelectedDataSource(dataSource);
+      setShowEnterpriseUploadDialog(true);
     } else if (dataSource.id === 'google-sheets') {
       // Click the hidden trigger for Google Sheets dialog
       const trigger = document.getElementById('hidden-google-sheets-trigger');
@@ -1182,6 +1197,20 @@ export default function DataIntegrationTab() {
         open={showExcelUploadDialog}
         onOpenChange={setShowExcelUploadDialog}
         onSuccess={handleExcelUploadSuccess}
+      />
+
+      {/* Enterprise Chunk Uploader Dialog */}
+      <EnterpriseChunkUploader
+        open={showEnterpriseUploadDialog}
+        onOpenChange={setShowEnterpriseUploadDialog}
+        onSuccess={(result) => {
+          console.log('엔터프라이즈 업로드 성공:', result);
+          toast({
+            title: "대용량 파일 처리 완료",
+            description: `${result?.parseResult?.totalRows || '다수'}개 행이 성공적으로 처리되었습니다.`,
+          });
+          setShowEnterpriseUploadDialog(false);
+        }}
       />
       
       {/* Google Sheets Dialog - Controlled visibility */}

@@ -283,16 +283,32 @@ export class LocalAIEngine {
 
     // 전체 데이터 청크 처리 (대용량 파일 지원)
     const chunkItems = data.filter(item => item.type === 'full_data_chunks');
+    const enterpriseChunkItems = data.filter(item => item.type === 'enterprise_chunked_data');
     const metadataItems = data.filter(item => item.type === 'large_file_metadata');
-    const actualData = data.filter(item => !item.type || (item.type !== 'large_file_metadata' && item.type !== 'full_data_chunks'));
+    const actualData = data.filter(item => !item.type || 
+      !['large_file_metadata', 'full_data_chunks', 'enterprise_chunked_data'].includes(item.type));
     
     let summary = '';
     let columns: string[] = [];
     let rowCount = actualData.length;
     let sampleData: any[] = [];
     
-    if (chunkItems.length > 0) {
-      // 전체 데이터 청크 처리된 경우
+    if (enterpriseChunkItems.length > 0) {
+      // 🚀 엔터프라이즈 청크 데이터 처리 (최신 RAG 시스템)
+      const enterpriseData = enterpriseChunkItems[0];
+      columns = enterpriseData.headers || [];
+      rowCount = enterpriseData.totalRows;
+      
+      // RAG 기반 스마트 청크 검색
+      const relevantBatches = this.selectRelevantBatches(enterpriseData.batches, message || '');
+      
+      // 선택된 배치에서 대표 데이터 추출
+      sampleData = this.extractRepresentativeDataFromBatches(relevantBatches, 75);
+      
+      summary = `🚀 엔터프라이즈 데이터셋: ${rowCount.toLocaleString()}개 행 (${enterpriseData.totalBatches}개 배치), ${columns.length}개 열. RAG 검색으로 ${relevantBatches.length}개 관련 배치에서 ${sampleData.length}개 데이터 분석`;
+      
+    } else if (chunkItems.length > 0) {
+      // 기존 청크 데이터 처리
       const chunkData = chunkItems[0];
       columns = chunkData.columns || [];
       rowCount = chunkData.totalRows;
@@ -343,7 +359,9 @@ export class LocalAIEngine {
       rowCount,
       columns,
       sampleData,
-      metadata: metadataItems.length > 0 ? metadataItems[0] : (chunkItems.length > 0 ? chunkItems[0] : null)
+      metadata: enterpriseChunkItems.length > 0 ? enterpriseChunkItems[0] : 
+                (metadataItems.length > 0 ? metadataItems[0] : 
+                (chunkItems.length > 0 ? chunkItems[0] : null))
     };
   }
 
@@ -426,6 +444,110 @@ export class LocalAIEngine {
         ).slice(0, samplesPerChunk);
         
         allData.push(...chunkSamples);
+      }
+    });
+    
+    return allData.slice(0, maxSamples);
+  }
+
+  /**
+   * 🚀 엔터프라이즈 배치에서 관련 배치 선택 (RAG 기반)
+   */
+  private selectRelevantBatches(batches: any[], message: string): any[] {
+    if (!message || !batches || batches.length === 0) {
+      // 질문이 없으면 모든 배치에서 균등하게 선택
+      return batches.slice(0, Math.min(8, batches.length));
+    }
+    
+    const messageWords = message.toLowerCase().split(/\s+/);
+    const scoredBatches = batches.map(batch => {
+      let score = 0;
+      const keywords = batch.summary?.keywords || [];
+      
+      // 키워드 매칭 스코어링
+      messageWords.forEach(word => {
+        // 배치 키워드와 직접 매칭
+        if (keywords.includes(word.toLowerCase())) {
+          score += 15;
+        }
+        
+        // 부분 매칭
+        keywords.forEach(keyword => {
+          if (keyword.includes(word.toLowerCase()) || word.toLowerCase().includes(keyword)) {
+            score += 5;
+          }
+        });
+        
+        // 숫자 범위 매칭 (ID, 배치 번호 등)
+        const numberMatch = word.match(/\d+/);
+        if (numberMatch && batch.summary?.numericStats) {
+          const num = parseInt(numberMatch[0]);
+          Object.values(batch.summary.numericStats).forEach((stats: any) => {
+            if (stats.min <= num && num <= stats.max) {
+              score += 20;
+            }
+          });
+        }
+        
+        // 날짜 관련 매칭
+        if (word.includes('날짜') || word.includes('date') || word.includes('time')) {
+          if (batch.summary?.dateRanges && Object.keys(batch.summary.dateRanges).length > 0) {
+            score += 10;
+          }
+        }
+      });
+      
+      // 배치 크기에 따른 가중치 (더 많은 데이터가 있는 배치 선호)
+      score += Math.min(5, batch.data?.length / 1000);
+      
+      return { batch, score };
+    });
+    
+    // 스코어 순으로 정렬하고 상위 배치 선택
+    const sortedBatches = scoredBatches.sort((a, b) => b.score - a.score);
+    const selectedBatches = sortedBatches.slice(0, Math.min(10, batches.length)).map(item => item.batch);
+    
+    // 스코어가 모두 낮으면 균등 분포로 선택
+    if (selectedBatches.every(batch => scoredBatches.find(sb => sb.batch === batch)?.score === 0)) {
+      const interval = Math.max(1, Math.floor(batches.length / 6));
+      return batches.filter((_, index) => index % interval === 0).slice(0, 6);
+    }
+    
+    return selectedBatches;
+  }
+
+  /**
+   * 엔터프라이즈 배치에서 대표 데이터 추출
+   */
+  private extractRepresentativeDataFromBatches(batches: any[], maxSamples: number): any[] {
+    if (!batches || batches.length === 0) return [];
+    
+    const allData: any[] = [];
+    const samplesPerBatch = Math.max(1, Math.floor(maxSamples / batches.length));
+    
+    batches.forEach(batch => {
+      if (batch.data && Array.isArray(batch.data)) {
+        // 각 배치에서 다양성을 고려한 샘플 추출
+        const batchSize = batch.data.length;
+        const interval = Math.max(1, Math.floor(batchSize / samplesPerBatch));
+        
+        const batchSamples = [];
+        for (let i = 0; i < batchSize && batchSamples.length < samplesPerBatch; i += interval) {
+          batchSamples.push(batch.data[i]);
+        }
+        
+        // 배치별로 처음, 중간, 끝에서 추가 샘플
+        if (batchSize > 3 && batchSamples.length < samplesPerBatch) {
+          const additionalSamples = [
+            batch.data[0], // 첫 번째
+            batch.data[Math.floor(batchSize / 2)], // 중간
+            batch.data[batchSize - 1] // 마지막
+          ].filter(item => !batchSamples.includes(item));
+          
+          batchSamples.push(...additionalSamples.slice(0, samplesPerBatch - batchSamples.length));
+        }
+        
+        allData.push(...batchSamples);
       }
     });
     
