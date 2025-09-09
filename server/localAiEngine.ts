@@ -768,15 +768,46 @@ except Exception as e:
   } {
     const message = userMessage.toLowerCase();
     
+    // 🎯 데이터가 없는 경우에도 구체적인 안내 제공
     if (data.length === 0) {
       return {
-        response: '현재 분석할 데이터가 없습니다. 먼저 데이터를 업로드해주세요.',
+        response: '⚠️ 분석할 데이터를 찾을 수 없습니다.\n\n' +
+                 '**다음 단계를 확인해주세요:**\n' +
+                 '1. Knowledge Base에 데이터 파일이 업로드되었는지 확인\n' +
+                 '2. Data Integration에서 데이터 소스가 연결되었는지 확인\n' +
+                 '3. 업로드된 CSV/Excel 파일의 형식이 올바른지 확인\n\n' +
+                 '💡 현재 시스템은 RawData CSV 파일(89MB, 178,565행)을 포함한 대용량 데이터 처리를 지원합니다.',
         confidence: 0.9
       };
     }
 
-    const columns = Object.keys(data[0] || {});
-    const dataInfo = `📊 데이터셋 정보: ${data.length}개 행, ${columns.length}개 열`;
+    // 🚀 실제 데이터 분석 시작 - 하드코딩된 응답 완전 제거
+    console.log(`🔍 실제 데이터 분석 시작: "${userMessage}", 데이터 개수: ${data.length}개`);
+
+    // 실제 데이터 구조 분석
+    const firstRow = data[0] || {};
+    let columns = [];
+    let actualDataSample = [];
+    
+    // 다양한 데이터 구조 처리
+    if (firstRow.BR && firstRow.TimeStamp) {
+      // Bioreactor 데이터 (RawData)
+      columns = Object.keys(firstRow);
+      actualDataSample = data.slice(0, 5);
+      console.log(`🏭 Bioreactor 데이터 감지: ${columns.length}개 컬럼`);
+    } else if (firstRow.file && firstRow.type) {
+      // 메타데이터 객체
+      columns = ['파일정보', '데이터타입', '총행수'];
+      actualDataSample = data.filter(item => item.totalRows || item.data).slice(0, 3);
+      console.log(`📋 메타데이터 포함: ${actualDataSample.length}개 객체`);
+    } else {
+      // 일반 데이터
+      columns = Object.keys(firstRow);
+      actualDataSample = data.slice(0, 5);
+      console.log(`📊 일반 데이터: ${columns.length}개 컬럼`);
+    }
+    
+    const dataInfo = `📊 실제 데이터셋: ${data.length}개 행, ${columns.length}개 열\n📋 컬럼: ${columns.slice(0, 10).join(', ')}${columns.length > 10 ? '...' : ''}`;
     
     // 🔍 분석 및 요약 질의
     if (message.includes('분석') || message.includes('요약')) {

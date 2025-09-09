@@ -339,13 +339,20 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           if (fs.existsSync(assetsPath)) {
             const assetFiles = fs.readdirSync(assetsPath);
             console.log(`🔍 attached_assets 폴더 검색: ${assetFiles.length}개 파일 발견`);
+            console.log(`📂 발견된 파일들:`, assetFiles.filter(f => f.endsWith('.csv')).map(f => f.substring(0, 50)));
             
-            // 대용량 CSV 파일들 우선 처리
+            // 대용량 CSV 파일들 우선 처리 (RawData 우선)
             const csvFiles = assetFiles.filter(file => file.endsWith('.csv')).sort((a, b) => {
+              // RawData 파일을 최우선으로
+              if (a.includes('RawData') && !b.includes('RawData')) return -1;
+              if (!a.includes('RawData') && b.includes('RawData')) return 1;
+              
               const statA = fs.statSync(path.join(assetsPath, a));
               const statB = fs.statSync(path.join(assetsPath, b));
               return statB.size - statA.size; // 큰 파일부터
             });
+            
+            console.log(`📊 우선순위 CSV 파일들:`, csvFiles.slice(0, 3));
             
             for (const csvFile of csvFiles.slice(0, 2)) { // 최대 2개 큰 파일
               const fullPath = path.join(assetsPath, csvFile);
@@ -386,6 +393,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                     
                     allUploadedData.push(...sampleRows);
                     console.log(`✅ 대용량 CSV 샘플링 완료: ${csvFile} → ${sampleRows.length}개 레코드 (전체 ${totalRows}개 중)`);
+                    console.log(`📋 샘플 데이터 미리보기:`, JSON.stringify(sampleRows.slice(0, 2), null, 2));
                     
                     // 메타데이터도 추가
                     allUploadedData.push({
