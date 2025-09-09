@@ -1,0 +1,87 @@
+📌 시스템 진단 및 자동화 리팩터링 지시 프롬프트 예시
+[컨텍스트]
+현재 프로젝트: 대용량 Knowledge Base와 AI 챗봇 통합 시스템
+
+코드베이스: Node.js/TypeScript + PostgreSQL + 외부 Flowise API
+
+발견된 심각 결함: 외부 API 장애, 대용량 데이터 파싱 실패, 모델-챗봇-데이터 통합 구조 부재
+
+[Actionable Analysis & Refactor Instructions for AI Copilot]
+1. 외부 Flowise API 의존성 문제 및 장애 처리
+진단: AI 분석 핵심 로직이 외부 API (220.118.23.185:3000)에 100% 의존하는 단일 장애점 구조로, 네트워크 이슈, 방화벽, 서버 다운 발생 시 전체 AI 기능이 즉시 마비된다.
+
+요구 작업:
+
+외부 API 호출 실패시의 자동 Fallback 및 대체 로컬 AI 엔진(예: OpenAI local inference, llama.cpp 등) 미들웨어 삽입
+
+API dependency 리던던시 설계 및 장애 발생시 유저 알림, 자동 로깅, 번갈아 시도(Round-robin Fallback) 메커니즘 구현
+
+예시 코드 프래그먼트:
+
+typescript
+async function analyzeWithAI(input) {
+  try {
+    return await callFlowiseAPI(input);
+  } catch (e) {
+    logError(e);
+    // Fallback to local AI inference
+    return await localAIInference(input);
+  }
+}
+2. 대용량 데이터 파일(89MB+) 파싱 시 스택 오버플로우/메모리 초과 문제
+진단: 89MB 이상의 CSV 파싱 과정에서 재귀 파서가 콜스택 한계로 RangeError를 유발, 실서비스 중 대량 데이터 ingestion 시 시스템이 다운된다.
+
+요구 작업:
+
+csv-parser, PapaParse와 같은 스트리밍 기반 파서로 대용량 파일을 청크 단위로 읽으며 라인별 가공 처리
+
+파싱 진행률 로깅 및 에러 발생 시 중단 후 알림
+
+예시 코드 프래그먼트:
+
+typescript
+import csvParser from 'csv-parser';
+import fs from 'fs';
+
+fs.createReadStream(filePath)
+  .pipe(csvParser())
+  .on('data', processRow)
+  .on('error', handleError)
+  .on('end', finalize);
+3. AI 모델-챗봇-데이터 연결 및 데이터 격리 구조 미흡 (DB 설계)
+진단: ai_models, chat_configurations, data_integrations 테이블 간 직접 연동구조 부재, 모델별 데이터 격리·자동매칭 로직 미구현.
+
+요구 작업:
+
+ai_model_chat_configurations 중간 테이블을 신설해 각 챗봇 config이 어떤 AI 모델/데이터 소스와 연결되는지 자동 매핑 구조 설계·코드 생성(ERD 반영)
+
+매핑 validation unit 테스트와, 쿼리 최적화 자동 스크립트 제작
+
+예시 코드 프래그먼트(DB 스키마):
+
+typescript
+export const aiModelChatConfigurations = pgTable('ai_model_chat_configurations', {
+  id: text('id').primaryKey(),
+  aiModelId: text('ai_model_id').references(() => aiModels.id).notNull(),
+  chatConfigId: text('chat_config_id').references(() => chatConfigurations.id).notNull(),
+});
+// 매핑 쿼리 예시
+// AI 모델별 데이터/챗봇 접근 제한 쿼리 생성
+4. 환경별 장애 차이점 및 장애 재현
+진단: 테스트 환경은 소규모 샘플, 수동 매핑, 네트워크 안정 조건에서만 정상 동작. 실운영 환경(네트워크 단절, 대용량 데이터, 자동화 매핑 결핍)에서는 지속 크래시 발생.
+
+요구 작업:
+
+환경 감지(Env detection) 및 자동 테스트 케이스 분기 처리
+
+대용량 데이터 및 네트워크 상태 기반 장애 재현 시나리오 자동화 스크립트 추가
+
+5. 유지/확장성을 위한 장기 구조 개선
+아키텍처를 마이크로서비스(챗봇·AI엔진·데이터 통합 분리)로 전환하고, 데이터 레이크(확장형 저장소), API Gateway에 장애 모니터링/자동 failover 기능 삽입
+
+[최종 AI 리팩터 지침 및 Rule Set]
+모든 작업은 최소한의 다운타임, 중복 데이터 방지, 장애 재현 가능한 테스트 포함으로 수행할 것
+
+장애 발생시 에러 원인(네트워크, 파싱, 인증 등)을 단계별 로깅·객체화하여 재사용 가능한 Recovery 패턴 확보
+
+DB, API, 파일 I/O 모든 계층에서 시나리오 기반 에러 핸들링 및 롤백 시나리오 적용

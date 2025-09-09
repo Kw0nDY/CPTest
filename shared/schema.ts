@@ -596,6 +596,34 @@ export const chatbotDataIntegrations = pgTable('chatbot_data_integrations', {
   updatedAt: text('updated_at').notNull()
 });
 
+// 🎯 AI 모델과 챗봇 구성 간 직접 연결을 위한 새 테이블
+export const aiModelChatConfigurations = pgTable('ai_model_chat_configurations', {
+  id: text('id').primaryKey(),
+  aiModelId: text('ai_model_id').references(() => aiModels.id).notNull(),
+  chatConfigId: text('chat_config_id').references(() => chatConfigurations.id).notNull(),
+  priority: integer('priority').default(1), // 우선순위 (복수 모델 연결 시)
+  isActive: integer('is_active').default(1), // 1 = 활성, 0 = 비활성
+  modelRole: text('model_role').default('primary'), // 'primary', 'fallback', 'specialized'
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+});
+
+// 🎯 AI 모델별 데이터 소스 직접 매핑
+export const aiModelDataSources = pgTable('ai_model_data_sources', {
+  id: text('id').primaryKey(),
+  aiModelId: text('ai_model_id').references(() => aiModels.id).notNull(),
+  dataSourceId: text('data_source_id').references(() => dataSources.id).notNull(),
+  accessLevel: text('access_level').default('read'), // 'read', 'write', 'full'
+  dataFilter: json('data_filter').$type<{
+    tableNames?: string[];
+    columnFilters?: Record<string, any>;
+    rowLimit?: number;
+  }>(),
+  isActive: integer('is_active').default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+});
+
 // Insert schemas
 export const insertDataSourceSchema = createInsertSchema(dataSources);
 export const insertDataTableSchema = createInsertSchema(dataTables);
@@ -661,6 +689,19 @@ export const insertChatbotDataIntegrationSchema = createInsertSchema(chatbotData
   updatedAt: true
 });
 
+// 🎯 새로운 연결 테이블 Insert 스키마들
+export const insertAiModelChatConfigurationSchema = createInsertSchema(aiModelChatConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertAiModelDataSourceSchema = createInsertSchema(aiModelDataSources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -696,3 +737,9 @@ export type ChatConfiguration = typeof chatConfigurations.$inferSelect;
 export type InsertChatConfiguration = z.infer<typeof insertChatConfigurationSchema>;
 export type ChatbotDataIntegration = typeof chatbotDataIntegrations.$inferSelect;
 export type InsertChatbotDataIntegration = z.infer<typeof insertChatbotDataIntegrationSchema>;
+
+// 🎯 새로운 연결 테이블 타입들
+export type AiModelChatConfiguration = typeof aiModelChatConfigurations.$inferSelect;
+export type InsertAiModelChatConfiguration = z.infer<typeof insertAiModelChatConfigurationSchema>;
+export type AiModelDataSource = typeof aiModelDataSources.$inferSelect;
+export type InsertAiModelDataSource = z.infer<typeof insertAiModelDataSourceSchema>;

@@ -3,6 +3,7 @@ import {
   salesforceAccounts, salesforceOpportunities, piAssetHierarchy, piDrillingOperations, googleApiConfigs,
   aiModels, aiModelFiles, modelConfigurations, aiModelResults, aiModelFolders, modelConfigurationFolders,
   chatSessions, chatMessages, uploadedData, chatConfigurations, chatbotDataIntegrations,
+  aiModelChatConfigurations, aiModelDataSources,
   type User, type InsertUser, type View, type InsertView, type DataSource, type InsertDataSource, 
   type ExcelFile, type InsertExcelFile, type GoogleApiConfig, type InsertGoogleApiConfig,
   type AiModel, type InsertAiModel, type AiModelFile, type InsertAiModelFile, type ModelConfiguration, type InsertModelConfiguration,
@@ -10,7 +11,9 @@ import {
   type ModelConfigurationFolder, type InsertModelConfigurationFolder,
   type ChatSession, type InsertChatSession, type ChatMessage, type InsertChatMessage,
   type UploadedData, type InsertUploadedData, type ChatConfiguration, type InsertChatConfiguration,
-  type ChatbotDataIntegration, type InsertChatbotDataIntegration
+  type ChatbotDataIntegration, type InsertChatbotDataIntegration,
+  type AiModelChatConfiguration, type InsertAiModelChatConfiguration,
+  type AiModelDataSource, type InsertAiModelDataSource
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -1216,6 +1219,130 @@ export class DatabaseStorage implements IStorage {
       return await db.select().from(chatbotDataIntegrations).where(eq(chatbotDataIntegrations.dataSourceId, dataSourceId));
     } catch (error) {
       console.error('Error getting chatbot data integrations by data source:', error);
+      throw error;
+    }
+  }
+
+  // 🎯 AI 모델-챗봇 구성 연결 관리 메소드들
+  async getAiModelChatConfigurations(chatConfigId: string): Promise<AiModelChatConfiguration[]> {
+    try {
+      return await db.select().from(aiModelChatConfigurations).where(eq(aiModelChatConfigurations.chatConfigId, chatConfigId));
+    } catch (error) {
+      console.error('Error getting AI model chat configurations:', error);
+      throw error;
+    }
+  }
+
+  async createAiModelChatConfiguration(config: InsertAiModelChatConfiguration): Promise<AiModelChatConfiguration> {
+    try {
+      const newId = `aicc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
+      const [created] = await db
+        .insert(aiModelChatConfigurations)
+        .values({
+          id: newId,
+          ...config,
+          createdAt: now,
+          updatedAt: now
+        })
+        .returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating AI model chat configuration:', error);
+      throw error;
+    }
+  }
+
+  async deleteAiModelChatConfiguration(chatConfigId: string, aiModelId: string): Promise<void> {
+    try {
+      await db.delete(aiModelChatConfigurations)
+        .where(
+          and(
+            eq(aiModelChatConfigurations.chatConfigId, chatConfigId),
+            eq(aiModelChatConfigurations.aiModelId, aiModelId)
+          )
+        );
+    } catch (error) {
+      console.error('Error deleting AI model chat configuration:', error);
+      throw error;
+    }
+  }
+
+  // 🎯 AI 모델-데이터소스 직접 매핑 메소드들
+  async getAiModelDataSources(aiModelId: string): Promise<AiModelDataSource[]> {
+    try {
+      return await db.select().from(aiModelDataSources).where(eq(aiModelDataSources.aiModelId, aiModelId));
+    } catch (error) {
+      console.error('Error getting AI model data sources:', error);
+      throw error;
+    }
+  }
+
+  async createAiModelDataSource(mapping: InsertAiModelDataSource): Promise<AiModelDataSource> {
+    try {
+      const newId = `amds-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
+      const [created] = await db
+        .insert(aiModelDataSources)
+        .values({
+          id: newId,
+          ...mapping,
+          createdAt: now,
+          updatedAt: now
+        })
+        .returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating AI model data source mapping:', error);
+      throw error;
+    }
+  }
+
+  async deleteAiModelDataSource(aiModelId: string, dataSourceId: string): Promise<void> {
+    try {
+      await db.delete(aiModelDataSources)
+        .where(
+          and(
+            eq(aiModelDataSources.aiModelId, aiModelId),
+            eq(aiModelDataSources.dataSourceId, dataSourceId)
+          )
+        );
+    } catch (error) {
+      console.error('Error deleting AI model data source mapping:', error);
+      throw error;
+    }
+  }
+
+  // 🎯 통합 쿼리: 챗봇 구성에 연결된 모든 AI 모델과 데이터소스 조회
+  async getChatbotAiModelsAndData(chatConfigId: string): Promise<{
+    aiModels: AiModel[];
+    dataSources: DataSource[];
+  }> {
+    try {
+      // 1. 챗봇에 연결된 AI 모델들 조회
+      const aiModelConfigs = await this.getAiModelChatConfigurations(chatConfigId);
+      const aiModels = [];
+      for (const config of aiModelConfigs) {
+        const model = await this.getAiModel(config.aiModelId);
+        if (model) aiModels.push(model);
+      }
+
+      // 2. AI 모델들에 연결된 데이터소스들 조회
+      const dataSourceIds = new Set<string>();
+      for (const model of aiModels) {
+        const modelDataSources = await this.getAiModelDataSources(model.id);
+        modelDataSources.forEach(mds => dataSourceIds.add(mds.dataSourceId));
+      }
+
+      const dataSources = [];
+      for (const dataSourceId of dataSourceIds) {
+        const dataSource = await this.getDataSource(dataSourceId);
+        if (dataSource) dataSources.push(dataSource);
+      }
+
+      return { aiModels, dataSources };
+    } catch (error) {
+      console.error('Error getting chatbot AI models and data:', error);
       throw error;
     }
   }
