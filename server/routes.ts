@@ -8,6 +8,8 @@ import { aiModels, type AiModel, insertAiModelSchema } from "@shared/schema";
 import fs from "fs";
 import { createServer, type Server } from "http";
 import { join } from "path";
+import { chunkedUploadManager } from './chunkedUploader';
+import { StreamingFileParser } from './streamingParser';
 
 // Multer configuration for handling file uploads
 const upload = multer({ 
@@ -825,6 +827,113 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     } catch (error) {
       console.error('AI 모델 폴더 생성 실패:', error);
       res.status(500).json({ error: 'Failed to create AI model folder' });
+    }
+  });
+
+  // 🚀 엔터프라이즈급 청크 업로드 API 엔드포인트
+
+  // 청크 업로드 세션 초기화
+  app.post("/api/upload/chunked/initialize", async (req, res) => {
+    try {
+      const { fileName, fileSize, chunkSize } = req.body;
+      
+      if (!fileName || !fileSize) {
+        return res.status(400).json({ error: "fileName and fileSize are required" });
+      }
+      
+      const result = await chunkedUploadManager.initializeUploadSession(
+        fileName, 
+        fileSize, 
+        chunkSize
+      );
+      
+      console.log(`🚀 청크 업로드 세션 초기화: ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+      res.json(result);
+      
+    } catch (error: any) {
+      console.error("청크 업로드 초기화 실패:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 개별 청크 업로드
+  app.post("/api/upload/chunked/:sessionId/chunk/:chunkIndex", upload.single('chunk'), async (req, res) => {
+    try {
+      const { sessionId, chunkIndex } = req.params;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "Chunk file is required" });
+      }
+      
+      const progress = await chunkedUploadManager.uploadChunk(
+        sessionId,
+        parseInt(chunkIndex),
+        req.file.buffer
+      );
+      
+      res.json(progress);
+      
+    } catch (error: any) {
+      console.error("청크 업로드 실패:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 업로드 완료 및 파일 재조립
+  app.post("/api/upload/chunked/:sessionId/finalize", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      
+      // 파일 재조립
+      const { filePath, fileSize } = await chunkedUploadManager.finalizeUpload(sessionId);
+      
+      // 스트리밍 파서로 처리
+      console.log(`🌊 스트리밍 파싱 시작: ${filePath}`);
+      const parser = new StreamingFileParser({
+        batchSize: 2000,
+        enableIndexing: true
+      });
+      
+      const parseResult = await parser.parseFile(
+        filePath,
+        (batch) => {
+          console.log(`📦 배치 처리: ${batch.batchId} (${batch.data.length}개 행)`);
+        },
+        (progress) => {
+          if (progress.currentLine % 5000 === 0) {
+            console.log(`📈 파싱 진행: ${progress.currentLine}개 행 처리`);
+          }
+        }
+      );
+      
+      console.log(`✅ 엔터프라이즈 파일 처리 완료: ${parseResult.totalRows}개 행, ${parseResult.totalBatches}개 배치`);
+      
+      res.json({
+        success: true,
+        parseResult: {
+          sessionId: parseResult.sessionId,
+          totalRows: parseResult.totalRows,
+          totalBatches: parseResult.totalBatches,
+          headers: parseResult.headers,
+          processingTime: parseResult.globalSummary.processingTime,
+          sampleData: parseResult.batches.slice(0, 2).flatMap(b => b.data.slice(0, 5))
+        }
+      });
+      
+    } catch (error: any) {
+      console.error("청크 업로드 완료 처리 실패:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 업로드 진행상태 조회
+  app.get("/api/upload/chunked/:sessionId/progress", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const progress = chunkedUploadManager.getUploadProgress(sessionId);
+      res.json(progress);
+    } catch (error: any) {
+      res.status(404).json({ error: error.message });
     }
   });
 
