@@ -24,11 +24,7 @@ interface DataSource {
   recordCount?: number;
 }
 
-interface KnowledgeBaseProps {
-  selectedConfigId?: string; // Chat Configuration ID
-}
-
-export function KnowledgeBase({ selectedConfigId }: KnowledgeBaseProps = {}) {
+export function KnowledgeBase() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,109 +102,11 @@ export function KnowledgeBase({ selectedConfigId }: KnowledgeBaseProps = {}) {
     }
   };
 
-  const deleteFile = async (fileId: string, chatConfigId?: string) => {
-    // 로컬 state에서 파일 제거
+  const deleteFile = (fileId: string) => {
     setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
-    
-    // 📝 Chat Configuration에서도 파일 제거 (백엔드 업데이트) - 강화된 로직
-    if (chatConfigId) {
-      try {
-        // 🔥 강화된 삭제 로직: 직접 DELETE API 호출 후 백엔드 업데이트
-        console.log(`🗑️ 파일 삭제 시작: ${fileId} from ${chatConfigId}`);
-        
-        // 현재 Chat Configuration 가져오기
-        const configResponse = await fetch(`/api/chat-configurations/${chatConfigId}`, {
-          credentials: 'same-origin'
-        });
-        
-        if (!configResponse.ok) {
-          throw new Error(`Failed to fetch configuration: ${configResponse.status}`);
-        }
-        
-        const currentConfig = await configResponse.json();
-        console.log(`📋 현재 파일 개수: ${(currentConfig.uploadedFiles || []).length}`);
-        
-        // uploadedFiles 배열에서 해당 파일 제거
-        const originalFiles = currentConfig.uploadedFiles || [];
-        const updatedFiles = originalFiles.filter((file: any) => file.id !== fileId);
-        
-        console.log(`📋 삭제 후 파일 개수: ${updatedFiles.length} (삭제된 파일: ${originalFiles.length - updatedFiles.length}개)`);
-        
-        // Chat Configuration 업데이트 - 즉시 저장
-        const updateResponse = await fetch(`/api/chat-configurations/${chatConfigId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            ...currentConfig,
-            uploadedFiles: updatedFiles,
-            updatedAt: new Date().toISOString() // 강제 업데이트 타임스탬프
-          }),
-        });
-        
-        if (!updateResponse.ok) {
-          const errorText = await updateResponse.text();
-          throw new Error(`Failed to update configuration: ${updateResponse.status} - ${errorText}`);
-        }
-        
-        const updatedConfig = await updateResponse.json();
-        console.log(`✅ 백엔드 파일 삭제 완료: ${fileId}, 현재 파일 수: ${(updatedConfig.uploadedFiles || []).length}`);
-        
-        // 🔄 즉시 UI 동기화 - Configuration state도 업데이트  
-        console.log(`🔄 UI 동기화 완료: ${updatedConfig.name}, 파일 수: ${(updatedConfig.uploadedFiles || []).length}`);
-        
-      } catch (error) {
-        console.error('🚨 Chat Configuration 업데이트 실패:', error);
-        toast({
-          title: '파일 삭제 실패',
-          description: `백엔드에서 파일을 삭제하지 못했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-    
-    // 🧹 브라우저 캐시 완전 정리
-    try {
-      // 모든 캐시 키 정리
-      const keysToRemove = [
-        'chat-configurations-cache',
-        'chat-configurations-cache-time',
-        `ai-chat-interface_${chatConfigId}`,
-        `knowledgeBase_${chatConfigId}`,
-        `uploadedFiles_${chatConfigId}`
-      ];
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      });
-      
-      // 파일 ID가 포함된 모든 캐시 정리
-      Object.keys(localStorage).forEach(key => {
-        if (key.includes(fileId) || key.includes('uploadedFiles') || key.includes('knowledgeBase')) {
-          localStorage.removeItem(key);
-          console.log(`🧹 localStorage 정리: ${key}`);
-        }
-      });
-      
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.includes(fileId) || key.includes('uploadedFiles') || key.includes('knowledgeBase')) {
-          sessionStorage.removeItem(key);
-          console.log(`🧹 sessionStorage 정리: ${key}`);
-        }
-      });
-      
-    } catch (cacheError) {
-      console.warn('캐시 정리 중 오류 발생:', cacheError);
-    }
-    
     toast({
-      title: '파일 삭제 완료',
-      description: '파일이 Knowledge Base에서 완전히 삭제되어 새로고침 후에도 유지됩니다.',
+      title: '파일 삭제',
+      description: '파일이 삭제되었습니다.',
     });
   };
 
@@ -322,7 +220,7 @@ export function KnowledgeBase({ selectedConfigId }: KnowledgeBaseProps = {}) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteFile(file.id, selectedConfigId)}
+                        onClick={() => deleteFile(file.id)}
                         data-testid={`button-delete-${file.id}`}
                       >
                         <Trash2 className="w-4 h-4" />

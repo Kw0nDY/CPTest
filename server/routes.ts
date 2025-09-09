@@ -274,124 +274,58 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 2. 🎯 AI 모델별 격리된 데이터 로드 (데이터 격리 보장)
-      console.log(`🔒 AI 모델별 격리된 데이터 확인 중... configId: ${configId}`);
+      // 2. Data Integration 연결된 데이터 로드 (개선된 버전)
+      console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
+      const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
+      console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
       
-      if (configId && config) {
+      for (const integration of connectedDataSources) {
         try {
-          // 1단계: configId → aiModelId 매핑 찾기
-          const aiModelConfigs = await storage.getAiModelChatConfigurations(configId);
-          console.log(`🔍 Chat Config ${configId}에 연결된 AI 모델: ${aiModelConfigs.length}개`);
+          console.log(`📊 데이터 소스 로드 중: ${integration.dataSourceId}`);
+          const dataSource = await storage.getDataSource(integration.dataSourceId);
           
-          for (const aiModelConfig of aiModelConfigs) {
-            const aiModelId = aiModelConfig.aiModelId;
-            console.log(`🤖 AI 모델 ${aiModelId}의 격리된 데이터 소스 확인 중...`);
-            
-            // 2단계: aiModelId → 격리된 데이터 소스 매핑
-            const modelDataSources = await storage.getAiModelDataSources(aiModelId);
-            console.log(`🔒 AI 모델 ${aiModelId}에 격리된 데이터 소스: ${modelDataSources.length}개`);
-            
-            for (const mapping of modelDataSources) {
-              try {
-                console.log(`📊 격리된 데이터 소스 로드 중: ${mapping.dataSourceId} (권한: ${mapping.accessLevel})`);
-                const dataSource = await storage.getDataSource(mapping.dataSourceId);
-                
-                if (!dataSource) {
-                  console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${mapping.dataSourceId}`);
-                  continue;
-                }
-                
-                // READ 권한 확인
-                if (mapping.accessLevel !== 'read' && mapping.accessLevel !== 'full') {
-                  console.warn(`⚠️ 읽기 권한 없음: ${dataSource.name} (권한: ${mapping.accessLevel})`);
-                  continue;
-                }
-                
-                console.log(`🔐 격리된 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}, model: ${aiModelId}) 처리 중`);
-                
-                // 1) config.sampleData에서 데이터 로드
-                if (dataSource?.config?.sampleData) {
-                  console.log(`📊 격리된 sampleData 로드 중... (AI 모델: ${aiModelId})`);
-                  for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
-                    if (Array.isArray(tableData) && tableData.length > 0) {
-                      allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
-                      console.log(`✅ 격리된 Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드 (AI모델: ${aiModelId})`);
-                    }
-                  }
-                }
-                
-                // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용)
+          if (!dataSource) {
+            console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${integration.dataSourceId}`);
+            continue;
+          }
+          
+          console.log(`📋 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}) 처리 중`);
+          
+          // 1) config.sampleData에서 데이터 로드
+          if (dataSource?.config?.sampleData) {
+            console.log(`📊 sampleData에서 데이터 로드 중...`);
+            for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
+              if (Array.isArray(tableData) && tableData.length > 0) {
+                allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
+                console.log(`✅ Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
+              }
+            }
+          }
+          
+          // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용)
+          try {
+            if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
+              const tables = await storage.getDataSourceTables(integration.dataSourceId);
+              console.log(`🔍 데이터 소스 테이블: ${tables.length}개 발견`);
+              
+              for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
                 try {
-                  if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
-                    const tables = await storage.getDataSourceTables(mapping.dataSourceId);
-                    console.log(`🔍 격리된 데이터 소스 테이블: ${tables.length}개 발견 (AI모델: ${aiModelId})`);
-                    
-                    for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
-                      try {
-                        const tableData = await storage.getTableData(mapping.dataSourceId, table.name);
-                        if (tableData && tableData.length > 0) {
-                          allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
-                          console.log(`✅ 격리된 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드 (AI모델: ${aiModelId})`);
-                        }
-                      } catch (tableError) {
-                        console.warn(`테이블 데이터 로드 실패: ${table.name}`, tableError);
-                      }
-                    }
+                  const tableData = await storage.getTableData(integration.dataSourceId, table.name);
+                  if (tableData && tableData.length > 0) {
+                    allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
+                    console.log(`✅ 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드`);
                   }
-                } catch (tablesError) {
-                  console.warn('테이블 데이터 로드 시도 실패:', tablesError);
-                }
-                
-              } catch (dataError) {
-                console.error(`AI 모델 ${aiModelId} 데이터 소스 로드 오류:`, dataError);
-              }
-            }
-          }
-          
-          // 3단계: 기존 chatbotDataIntegrations 폴백 (마이그레이션 중)
-          if (aiModelConfigs.length === 0) {
-            console.log(`⚠️ AI 모델 매핑이 없음 - 기존 방식으로 폴백 (configId: ${configId})`);
-            const connectedDataSources = await storage.getChatbotDataIntegrations(configId);
-            console.log(`🔗 폴백 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
-            
-            for (const integration of connectedDataSources) {
-              try {
-                console.log(`📊 폴백 데이터 소스 로드 중: ${integration.dataSourceId}`);
-                const dataSource = await storage.getDataSource(integration.dataSourceId);
-                
-                if (dataSource?.config?.sampleData) {
-                  for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
-                    if (Array.isArray(tableData) && tableData.length > 0) {
-                      allUploadedData.push(...tableData.slice(0, 1000));
-                      console.log(`✅ 폴백 Data Integration: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
-                    }
-                  }
-                }
-              } catch (dataError) {
-                console.error('폴백 데이터 소스 로드 오류:', dataError);
-              }
-            }
-          }
-          
-        } catch (aiModelError) {
-          console.error('AI 모델별 데이터 격리 실패:', aiModelError);
-          console.log('🔄 기존 방식으로 폴백');
-          
-          const connectedDataSources = await storage.getChatbotDataIntegrations(configId);
-          for (const integration of connectedDataSources) {
-            try {
-              const dataSource = await storage.getDataSource(integration.dataSourceId);
-              if (dataSource?.config?.sampleData) {
-                for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
-                  if (Array.isArray(tableData) && tableData.length > 0) {
-                    allUploadedData.push(...tableData.slice(0, 1000));
-                  }
+                } catch (tableError) {
+                  console.warn(`테이블 데이터 로드 실패: ${table.name}`, tableError);
                 }
               }
-            } catch (err) {
-              console.error('폴백 데이터 로드 오류:', err);
             }
+          } catch (tablesError) {
+            console.warn('테이블 데이터 로드 시도 실패:', tablesError);
           }
+          
+        } catch (dataError) {
+          console.error('데이터 소스 로드 오류:', dataError);
         }
       }
 
@@ -660,8 +594,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const mapping = await storage.createAiModelDataSource({
         aiModelId: modelId,
         dataSourceId,
-        accessLevel: accessType || 'read',
-        dataFilter: filterRules || {}
+        accessType: accessType || 'READ',
+        filterRules: filterRules || {}
       });
       
       console.log(`🔗 AI 모델-데이터 소스 매핑 생성: ${modelId} → ${dataSourceId}`);
@@ -721,10 +655,10 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           const dataSource = await storage.getDataSource(mapping.dataSourceId);
           if (!dataSource) continue;
           
-          console.log(`📊 데이터 소스 처리: ${dataSource.name} (${mapping.accessLevel} 권한)`);
+          console.log(`📊 데이터 소스 처리: ${dataSource.name} (${mapping.accessType} 권한)`);
           
           // READ 권한만 허용
-          if (mapping.accessLevel !== 'read' && mapping.accessLevel !== 'full') {
+          if (mapping.accessType !== 'READ') {
             console.warn(`⚠️ 읽기 전용 접근 거부: ${dataSource.name}`);
             continue;
           }
@@ -738,9 +672,9 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             if (tableData && tableData.length > 0) {
               // 필터 규칙 적용 (기본 구현)
               let filteredData = tableData;
-              if (mapping.dataFilter && typeof mapping.dataFilter === 'object') {
+              if (mapping.filterRules && typeof mapping.filterRules === 'object') {
                 // 추후 확장 가능한 필터링 로직
-                console.log(`🔍 필터 규칙 적용: ${JSON.stringify(mapping.dataFilter)}`);
+                console.log(`🔍 필터 규칙 적용: ${JSON.stringify(mapping.filterRules)}`);
               }
               
               const remainingCapacity = parseInt(limit as string) - totalRecords;
@@ -752,7 +686,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                 tableName: table.name,
                 records: dataToAdd,
                 totalRecords: filteredData.length,
-                accessType: mapping.accessLevel
+                accessType: mapping.accessType
               });
               
               totalRecords += dataToAdd.length;
@@ -888,11 +822,13 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         } else {
           integration = await storage.createChatbotDataIntegration({
             configId,
-            dataSourceId
+            dataSourceId,
+            accessLevel: accessLevel || 'READ',
+            dataFilter: dataFilter || null
           });
         }
-      } catch (createError: any) {
-        console.warn(`⚠️ 생성 실패, 기존 연결 조회 시도:`, createError?.message || createError);
+      } catch (createError) {
+        console.warn(`⚠️ 생성 실패, 기존 연결 조회 시도:`, createError.message);
         const existingIntegrations = await storage.getChatbotDataIntegrations(configId);
         integration = existingIntegrations.find(i => i.dataSourceId === dataSourceId);
         if (!integration) {
@@ -921,38 +857,6 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
-  // 챗봇 데이터 연동 해제 API
-  app.delete("/api/chatbot-data-integrations/:configId/:dataSourceId", async (req, res) => {
-    try {
-      const { configId, dataSourceId } = req.params;
-      console.log(`🗑️ 챗봇 데이터 연동 해제: ${configId} → ${dataSourceId}`);
-      
-      // 챗봇-데이터소스 연동 삭제
-      await storage.deleteChatbotDataIntegration(configId, dataSourceId);
-      
-      // 🎯 AI 모델별 데이터 소스 매핑도 함께 삭제 (완전 격리 보장)
-      try {
-        const aiModelConfigs = await storage.getAiModelChatConfigurations(configId);
-        for (const mapping of aiModelConfigs) {
-          try {
-            await storage.deleteAiModelDataSource(mapping.aiModelId, dataSourceId);
-            console.log(`🗑️ AI 모델 데이터 매핑 삭제: ${mapping.aiModelId} → ${dataSourceId}`);
-          } catch (deleteError) {
-            console.warn(`AI 모델 데이터 매핑 삭제 실패 ${mapping.aiModelId}:`, deleteError);
-          }
-        }
-      } catch (aiMappingError) {
-        console.warn('AI 모델 매핑 조회 실패 (테이블 미존재 가능성):', aiMappingError);
-      }
-      
-      console.log(`✅ 챗봇 데이터 연동 해제 완료: ${configId} → ${dataSourceId}`);
-      res.json({ success: true });
-    } catch (error) {
-      console.error('챗봇 데이터 연동 해제 실패:', error);
-      res.status(500).json({ error: 'Failed to disconnect data integration' });
-    }
-  });
-
   // AI 모델 상태 토글 API 추가
   // 🎯 Knowledge Base 파일 저장을 위한 PUT 엔드포인트 추가
   app.put("/api/chat-configurations/:id", async (req, res) => {
@@ -965,182 +869,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       // 데이터베이스에 업데이트된 구성 저장
       const result = await storage.updateChatConfiguration(configId, updatedConfig);
       
-      // 🎯 AI 모델별 데이터 격리를 위한 자동 매핑 생성
-      try {
-        // 1. 기존 AI 모델 매핑 확인
-        const existingMappings = await storage.getAiModelChatConfigurations(configId);
-        console.log(`🔍 기존 AI 모델 매핑: ${existingMappings.length}개`);
-        
-        // 2. 매핑이 없으면 자동으로 생성 (가상 AI 모델 생성)
-        if (existingMappings.length === 0) {
-          console.log(`🎯 AI 모델 매핑이 없음 - 가상 AI 모델 생성: ${configId}`);
-          
-          // 가상 AI 모델 생성 (Chat Configuration마다 독립적인 가상 AI 모델)
-          const virtualAIModelId = `ai-model-${configId}`;
-          const virtualAIModel = {
-            name: `Virtual AI Model for ${updatedConfig.name}`,
-            fileName: `virtual-model-${configId}.py`,
-            modelType: 'virtual_chat_model',
-            metadata: {
-              description: `자동 생성된 가상 AI 모델 (Chat Config: ${configId})`,
-              framework: 'virtual',
-              version: '1.0.0',
-              chatConfigId: configId,
-              isVirtual: true,
-              isolatedData: true
-            },
-            status: 'deployed',
-            accuracy: 95
-          };
-          
-          try {
-            // 가상 AI 모델 생성
-            await storage.createAiModel(virtualAIModel);
-            console.log(`✅ 가상 AI 모델 생성 완료: ${virtualAIModelId}`);
-            
-            // AI 모델과 Chat Configuration 매핑 생성
-            await storage.createAiModelChatConfiguration({
-              aiModelId: virtualAIModelId,
-              chatConfigId: configId,
-              priority: 1,
-              isActive: 1,
-              modelRole: 'primary'
-            });
-            console.log(`✅ AI 모델-챗봇 매핑 생성 완료: ${virtualAIModelId} ↔ ${configId}`);
-            
-            // 🎯 Knowledge Base 파일들을 AI 모델별 데이터 소스로 변환
-            if (updatedConfig.uploadedFiles && updatedConfig.uploadedFiles.length > 0) {
-              console.log(`📁 Knowledge Base 파일 ${updatedConfig.uploadedFiles.length}개를 AI 모델별 데이터 소스로 변환 중...`);
-              
-              for (const file of updatedConfig.uploadedFiles) {
-                try {
-                  // 파일별 데이터 소스 생성
-                  const fileDataSourceId = `ds-knowledge-${configId}-${file.id}`;
-                  const fileDataSource = {
-                    id: fileDataSourceId,
-                    name: `Knowledge Base: ${file.name}`,
-                    type: 'Knowledge Base',
-                    category: 'AI Model Data',
-                    status: 'connected',
-                    config: {
-                      apiEndpoint: 'virtual',
-                      knowledgeBaseData: {
-                        fileName: file.name,
-                        fileSize: file.size,
-                        fileType: file.type,
-                        language: file.language,
-                        content: file.content,
-                        metadata: file.metadata,
-                        isKnowledgeBase: true,
-                        aiModelId: virtualAIModelId,
-                        chatConfigId: configId
-                      }
-                    },
-                    recordCount: 1
-                  };
-                  
-                  // 데이터 소스 생성
-                  await storage.createDataSource(fileDataSource);
-                  console.log(`✅ Knowledge Base 데이터 소스 생성: ${file.name} → ${fileDataSourceId}`);
-                  
-                  // AI 모델과 데이터 소스 매핑 생성 (완전 격리)
-                  await storage.createAiModelDataSource({
-                    aiModelId: virtualAIModelId,
-                    dataSourceId: fileDataSourceId,
-                    accessLevel: 'read',
-                    dataFilter: {
-                      tableNames: [file.name],
-                      columnFilters: { isKnowledgeBase: true },
-                      rowLimit: 1000
-                    },
-                    isActive: 1
-                  });
-                  console.log(`🔒 AI 모델별 격리된 데이터 소스 매핑 생성: ${virtualAIModelId} → ${fileDataSourceId}`);
-                  
-                } catch (fileError) {
-                  console.error(`Knowledge Base 파일 처리 오류 ${file.name}:`, fileError);
-                }
-              }
-            }
-            
-          } catch (aiModelError) {
-            console.error('가상 AI 모델 생성 실패:', aiModelError);
-          }
-        } else {
-          console.log(`✅ 기존 AI 모델 매핑 사용: ${existingMappings.map(m => m.aiModelId).join(', ')}`);
-          
-          // 기존 매핑이 있는 경우, Knowledge Base 파일들을 해당 AI 모델에 연결
-          for (const mapping of existingMappings) {
-            if (updatedConfig.uploadedFiles && updatedConfig.uploadedFiles.length > 0) {
-              console.log(`📁 기존 AI 모델 ${mapping.aiModelId}에 Knowledge Base 파일 ${updatedConfig.uploadedFiles.length}개 연결 중...`);
-              
-              for (const file of updatedConfig.uploadedFiles) {
-                try {
-                  const fileDataSourceId = `ds-knowledge-${configId}-${file.id}`;
-                  
-                  // 이미 존재하는 데이터 소스인지 확인
-                  const existingDataSource = await storage.getDataSource(fileDataSourceId);
-                  if (!existingDataSource) {
-                    // 새 데이터 소스 생성
-                    const fileDataSource = {
-                      id: fileDataSourceId,
-                      name: `Knowledge Base: ${file.name}`,
-                      type: 'Knowledge Base',
-                      category: 'AI Model Data',
-                      status: 'connected',
-                      config: {
-                        apiEndpoint: 'virtual',
-                        knowledgeBaseData: {
-                          fileName: file.name,
-                          fileSize: file.size,
-                          fileType: file.type,
-                          language: file.language,
-                          content: file.content,
-                          metadata: file.metadata,
-                          isKnowledgeBase: true,
-                          aiModelId: mapping.aiModelId,
-                          chatConfigId: configId
-                        }
-                      },
-                      recordCount: 1
-                    };
-                    
-                    await storage.createDataSource(fileDataSource);
-                    console.log(`✅ 새 Knowledge Base 데이터 소스 생성: ${file.name} → ${fileDataSourceId}`);
-                  }
-                  
-                  // AI 모델과 데이터 소스 매핑 확인/생성
-                  const existingMapping = await storage.getAiModelDataSources(mapping.aiModelId);
-                  const hasMapping = existingMapping.some(m => m.dataSourceId === fileDataSourceId);
-                  
-                  if (!hasMapping) {
-                    await storage.createAiModelDataSource({
-                      aiModelId: mapping.aiModelId,
-                      dataSourceId: fileDataSourceId,
-                      accessLevel: 'read',
-                      dataFilter: {
-                        tableNames: [file.name],
-                        columnFilters: { isKnowledgeBase: true },
-                        rowLimit: 1000
-                      },
-                      isActive: 1
-                    });
-                    console.log(`🔒 기존 AI 모델에 격리된 데이터 소스 매핑 생성: ${mapping.aiModelId} → ${fileDataSourceId}`);
-                  }
-                  
-                } catch (fileError) {
-                  console.error(`기존 AI 모델 Knowledge Base 파일 처리 오류 ${file.name}:`, fileError);
-                }
-              }
-            }
-          }
-        }
-        
-      } catch (mappingError) {
-        console.error('AI 모델 매핑 자동 생성 실패:', mappingError);
-      }
-      
-      console.log(`✅ AI 모델 구성 업데이트 및 격리 설정 완료: ${configId}`);
+      console.log(`✅ AI 모델 구성 업데이트 완료: ${configId}`);
       res.json(result);
     } catch (error) {
       console.error('구성 업데이트 실패:', error);

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet, X, Trash2, FileText, Edit3, Eye, Download, Database, TestTube2, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,7 +72,6 @@ interface KnowledgeBaseItem {
 
 export function AiChatInterface() {
   // Main states
-  const queryClient = useQueryClient();
   const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
   
   // Tab management
@@ -876,56 +874,13 @@ export function AiChatInterface() {
     }
   };
 
-  const removeFileFromConfig = async (fileId: string) => {
+  const removeFileFromConfig = (fileId: string) => {
     if (!editingConfig) return;
     
-    try {
-      // 로컬 state에서 파일 제거
-      const updatedFiles = editingConfig.uploadedFiles.filter(file => file.id !== fileId);
-      
-      setEditingConfig(prev => prev ? {
-        ...prev,
-        uploadedFiles: updatedFiles
-      } : null);
-      
-      // 🎯 백엔드에 업데이트된 Configuration 저장
-      const updateResponse = await fetch(`/api/chat-configurations/${editingConfig.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...editingConfig,
-          uploadedFiles: updatedFiles
-        }),
-      });
-      
-      if (updateResponse.ok) {
-        console.log(`✅ Chat Configuration에서 파일 삭제 완료: ${fileId}`);
-        toast({
-          title: '파일 삭제 완료',
-          description: 'Knowledge Base에서 파일이 완전히 삭제되었습니다.',
-        });
-        
-        // 캐시 무효화
-        queryClient.invalidateQueries({ queryKey: ['/api/chat-configurations'] });
-      } else {
-        throw new Error('Failed to update chat configuration');
-      }
-    } catch (error) {
-      console.error('Chat Configuration 업데이트 실패:', error);
-      toast({
-        title: '파일 삭제 실패',
-        description: 'Knowledge Base에서 파일을 완전히 삭제하지 못했습니다.',
-        variant: 'destructive',
-      });
-      
-      // 실패 시 로컬 state 원복
-      setEditingConfig(prev => prev ? {
-        ...prev,
-        uploadedFiles: editingConfig.uploadedFiles
-      } : null);
-    }
+    setEditingConfig(prev => prev ? {
+      ...prev,
+      uploadedFiles: prev.uploadedFiles.filter(file => file.id !== fileId)
+    } : null);
   };
 
   const handleSave = async () => {
@@ -1402,28 +1357,6 @@ export function AiChatInterface() {
             (integration.dataSourceId || integration.id) !== dataSourceId
           )
         }));
-        
-        // 전체 캐시 무효화로 확실한 동기화
-        queryClient.invalidateQueries({ queryKey: ['/api/chatbot-data-integrations'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-        
-        // 🧹 localStorage와 sessionStorage 완전 정리
-        const configCacheKey = `dataIntegrations_${selectedConfigForKnowledge.id}`;
-        localStorage.removeItem(configCacheKey);
-        sessionStorage.removeItem(configCacheKey);
-        
-        // Data Integration 캐시도 제거
-        Object.keys(localStorage).forEach(key => {
-          if (key.includes(dataSourceId) || key.includes('dataIntegrations')) {
-            localStorage.removeItem(key);
-          }
-        });
-        
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.includes(dataSourceId) || key.includes('dataIntegrations')) {
-            sessionStorage.removeItem(key);
-          }
-        });
 
         const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
         toast({
@@ -2055,52 +1988,11 @@ export function AiChatInterface() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={async () => {
+                              onClick={() => {
                                 if (confirm('모든 데이터 연동을 해제하시겠습니까?')) {
-                                  try {
-                                    // 모든 연동 해제
-                                    for (const integration of connectedDataIntegrations) {
-                                      await disconnectDataIntegration(integration.dataSourceId || integration.id);
-                                    }
-                                    
-                                    // 🧹 전체 캐시 완전 정리
-                                    if (selectedConfigForKnowledge) {
-                                      Object.keys(localStorage).forEach(key => {
-                                        if (key.includes(selectedConfigForKnowledge.id) || 
-                                            key.includes('dataIntegrations') || 
-                                            key.includes('chatbot-data-integrations')) {
-                                          localStorage.removeItem(key);
-                                          console.log(`🧹 전체 해제 localStorage 정리: ${key}`);
-                                        }
-                                      });
-                                      
-                                      Object.keys(sessionStorage).forEach(key => {
-                                        if (key.includes(selectedConfigForKnowledge.id) || 
-                                            key.includes('dataIntegrations') || 
-                                            key.includes('chatbot-data-integrations')) {
-                                          sessionStorage.removeItem(key);
-                                          console.log(`🧹 전체 해제 sessionStorage 정리: ${key}`);
-                                        }
-                                      });
-                                    }
-                                    
-                                    // 전체 캐시 무효화
-                                    queryClient.invalidateQueries({ queryKey: ['/api/chatbot-data-integrations'] });
-                                    queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
-                                    
-                                    toast({
-                                      title: '전체 해제 완료',
-                                      description: '모든 Data Integration이 해제되고 캐시가 정리되었습니다.',
-                                    });
-                                    
-                                  } catch (error) {
-                                    console.error('전체 해제 중 오류:', error);
-                                    toast({
-                                      title: '전체 해제 실패',
-                                      description: '일부 연동 해제 중 오류가 발생했습니다.',
-                                      variant: 'destructive',
-                                    });
-                                  }
+                                  connectedDataIntegrations.forEach(integration => {
+                                    disconnectDataIntegration(integration.dataSourceId || integration.id);
+                                  });
                                 }
                               }}
                               className="flex items-center gap-2"
