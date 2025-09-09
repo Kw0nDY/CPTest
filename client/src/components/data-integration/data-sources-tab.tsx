@@ -82,10 +82,42 @@ export default function DataSourcesTab({ onNext }: DataSourcesTabProps) {
   const deleteDataSourceMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest('DELETE', `/api/data-sources/${id}`, {});
+      
+      // 🧹 관련된 모든 캐시와 연동 정리
+      try {
+        // localStorage 정리
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes(id) || key.includes('dataSource') || key.includes('dataIntegrations')) {
+            localStorage.removeItem(key);
+            console.log(`🧹 데이터 소스 관련 localStorage 정리: ${key}`);
+          }
+        });
+        
+        // sessionStorage 정리
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.includes(id) || key.includes('dataSource') || key.includes('dataIntegrations')) {
+            sessionStorage.removeItem(key);
+            console.log(`🧹 데이터 소스 관련 sessionStorage 정리: ${key}`);
+          }
+        });
+        
+        // 모든 Chat Configuration의 Data Integration 캐시 정리
+        const chatConfigs = JSON.parse(localStorage.getItem('ai-chat-configurations') || '[]');
+        chatConfigs.forEach((config: any) => {
+          const cacheKey = `dataIntegrations_${config.id}`;
+          localStorage.removeItem(cacheKey);
+          sessionStorage.removeItem(cacheKey);
+        });
+        
+      } catch (cacheError) {
+        console.warn('데이터 소스 삭제 시 캐시 정리 오류:', cacheError);
+      }
+      
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/chatbot-data-integrations'] });
       toast({ title: "데이터 소스 삭제됨", description: "Data source has been successfully deleted" });
     },
     onError: (error) => {

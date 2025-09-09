@@ -150,6 +150,37 @@ export function KnowledgeBase({ selectedConfigId }: KnowledgeBaseProps = {}) {
       }
     }
     
+    // 🧹 브라우저 캐시 완전 정리
+    try {
+      // localStorage 정리
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes(fileId) || key.includes('uploadedFiles') || key.includes('knowledgeBase')) {
+          localStorage.removeItem(key);
+          console.log(`🧹 localStorage 정리: ${key}`);
+        }
+      });
+      
+      // sessionStorage 정리
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.includes(fileId) || key.includes('uploadedFiles') || key.includes('knowledgeBase')) {
+          sessionStorage.removeItem(key);
+          console.log(`🧹 sessionStorage 정리: ${key}`);
+        }
+      });
+      
+      // AI 모델별 캐시 정리
+      if (chatConfigId) {
+        const aiModelKeys = [`ai-chat-interface_${chatConfigId}`, `knowledgeBase_${chatConfigId}`];
+        aiModelKeys.forEach(key => {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+        });
+      }
+      
+    } catch (cacheError) {
+      console.warn('캐시 정리 중 오류 발생:', cacheError);
+    }
+    
     toast({
       title: '파일 삭제 완료',
       description: '파일이 Knowledge Base에서 완전히 삭제되었습니다.',

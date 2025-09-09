@@ -934,11 +934,15 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       try {
         const aiModelConfigs = await storage.getAiModelChatConfigurations(configId);
         for (const mapping of aiModelConfigs) {
-          await storage.deleteAiModelDataSource(mapping.aiModelId, dataSourceId);
-          console.log(`🗑️ AI 모델 데이터 매핑 삭제: ${mapping.aiModelId} → ${dataSourceId}`);
+          try {
+            await storage.deleteAiModelDataSource(mapping.aiModelId, dataSourceId);
+            console.log(`🗑️ AI 모델 데이터 매핑 삭제: ${mapping.aiModelId} → ${dataSourceId}`);
+          } catch (deleteError) {
+            console.warn(`AI 모델 데이터 매핑 삭제 실패 ${mapping.aiModelId}:`, deleteError);
+          }
         }
       } catch (aiMappingError) {
-        console.warn('AI 모델 매핑 삭제 실패:', aiMappingError);
+        console.warn('AI 모델 매핑 조회 실패 (테이블 미존재 가능성):', aiMappingError);
       }
       
       console.log(`✅ 챗봇 데이터 연동 해제 완료: ${configId} → ${dataSourceId}`);
