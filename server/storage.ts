@@ -195,7 +195,11 @@ export class DatabaseStorage implements IStorage {
     return dataSource || undefined;
   }
 
-  async createDataSource(dataSource: any, dataSchema?: any, sampleData?: any): Promise<DataSource> {
+  async createDataSource(
+    dataSource: Partial<DataSource>, 
+    dataSchema?: Record<string, unknown>, 
+    sampleData?: Record<string, unknown[]>
+  ): Promise<DataSource> {
     const newId = `ds-${Date.now()}`;
     
     // Extract dataSchema and sampleData from config for Excel and Google Sheets sources

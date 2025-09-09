@@ -41,10 +41,19 @@ interface DataSource {
   status: 'connected' | 'disconnected' | 'error';
   lastSync?: string;
   recordCount?: number;
-  config?: any;
-  connectionDetails?: any;
-  dataSchema?: any;
-  sampleData?: any;
+  config?: Record<string, unknown>;
+  connectionDetails?: Record<string, unknown>;
+  dataSchema?: Array<{
+    table: string;
+    fields: Array<{
+      name: string;
+      type: string;
+      description: string;
+    }>;
+    recordCount: number;
+    lastUpdated: string;
+  }>;
+  sampleData?: Record<string, unknown[]>;
 }
 
 interface AvailableDataSource {

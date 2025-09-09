@@ -52,7 +52,11 @@ interface DataSource {
   name: string;
   type: string;
   status: string;
-  fields?: any[];
+  fields?: Array<{
+    name: string;
+    type: string;
+    description: string;
+  }>;
 }
 
 export default function ModelConfigurationTab() {
