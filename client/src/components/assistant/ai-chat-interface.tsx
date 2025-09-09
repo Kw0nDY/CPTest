@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Settings, MessageCircle, Play, Save, RotateCcw, AlertCircle, CheckCircle, Upload, FileSpreadsheet, X, Trash2, FileText, Edit3, Eye, Download, Database, TestTube2, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,7 @@ interface KnowledgeBaseItem {
 
 export function AiChatInterface() {
   // Main states
+  const queryClient = useQueryClient();
   const [configurations, setConfigurations] = useState<ChatConfiguration[]>([]);
   
   // Tab management
@@ -874,13 +876,56 @@ export function AiChatInterface() {
     }
   };
 
-  const removeFileFromConfig = (fileId: string) => {
+  const removeFileFromConfig = async (fileId: string) => {
     if (!editingConfig) return;
     
-    setEditingConfig(prev => prev ? {
-      ...prev,
-      uploadedFiles: prev.uploadedFiles.filter(file => file.id !== fileId)
-    } : null);
+    try {
+      // 로컬 state에서 파일 제거
+      const updatedFiles = editingConfig.uploadedFiles.filter(file => file.id !== fileId);
+      
+      setEditingConfig(prev => prev ? {
+        ...prev,
+        uploadedFiles: updatedFiles
+      } : null);
+      
+      // 🎯 백엔드에 업데이트된 Configuration 저장
+      const updateResponse = await fetch(`/api/chat-configurations/${editingConfig.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...editingConfig,
+          uploadedFiles: updatedFiles
+        }),
+      });
+      
+      if (updateResponse.ok) {
+        console.log(`✅ Chat Configuration에서 파일 삭제 완료: ${fileId}`);
+        toast({
+          title: '파일 삭제 완료',
+          description: 'Knowledge Base에서 파일이 완전히 삭제되었습니다.',
+        });
+        
+        // 캐시 무효화
+        queryClient.invalidateQueries({ queryKey: ['/api/chat-configurations'] });
+      } else {
+        throw new Error('Failed to update chat configuration');
+      }
+    } catch (error) {
+      console.error('Chat Configuration 업데이트 실패:', error);
+      toast({
+        title: '파일 삭제 실패',
+        description: 'Knowledge Base에서 파일을 완전히 삭제하지 못했습니다.',
+        variant: 'destructive',
+      });
+      
+      // 실패 시 로컬 state 원복
+      setEditingConfig(prev => prev ? {
+        ...prev,
+        uploadedFiles: editingConfig.uploadedFiles
+      } : null);
+    }
   };
 
   const handleSave = async () => {
@@ -1357,6 +1402,10 @@ export function AiChatInterface() {
             (integration.dataSourceId || integration.id) !== dataSourceId
           )
         }));
+        
+        // 전체 캐시 무효화로 확실한 동기화
+        queryClient.invalidateQueries({ queryKey: ['/api/chatbot-data-integrations'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
 
         const dataSource = dataIntegrations.find(ds => ds.id === dataSourceId);
         toast({

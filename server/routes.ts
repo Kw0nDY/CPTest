@@ -921,6 +921,34 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 챗봇 데이터 연동 해제 API
+  app.delete("/api/chatbot-data-integrations/:configId/:dataSourceId", async (req, res) => {
+    try {
+      const { configId, dataSourceId } = req.params;
+      console.log(`🗑️ 챗봇 데이터 연동 해제: ${configId} → ${dataSourceId}`);
+      
+      // 챗봇-데이터소스 연동 삭제
+      await storage.deleteChatbotDataIntegration(configId, dataSourceId);
+      
+      // 🎯 AI 모델별 데이터 소스 매핑도 함께 삭제 (완전 격리 보장)
+      try {
+        const aiModelConfigs = await storage.getAiModelChatConfigurations(configId);
+        for (const mapping of aiModelConfigs) {
+          await storage.deleteAiModelDataSource(mapping.aiModelId, dataSourceId);
+          console.log(`🗑️ AI 모델 데이터 매핑 삭제: ${mapping.aiModelId} → ${dataSourceId}`);
+        }
+      } catch (aiMappingError) {
+        console.warn('AI 모델 매핑 삭제 실패:', aiMappingError);
+      }
+      
+      console.log(`✅ 챗봇 데이터 연동 해제 완료: ${configId} → ${dataSourceId}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('챗봇 데이터 연동 해제 실패:', error);
+      res.status(500).json({ error: 'Failed to disconnect data integration' });
+    }
+  });
+
   // AI 모델 상태 토글 API 추가
   // 🎯 Knowledge Base 파일 저장을 위한 PUT 엔드포인트 추가
   app.put("/api/chat-configurations/:id", async (req, res) => {

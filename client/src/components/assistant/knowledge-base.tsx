@@ -24,7 +24,11 @@ interface DataSource {
   recordCount?: number;
 }
 
-export function KnowledgeBase() {
+interface KnowledgeBaseProps {
+  selectedConfigId?: string; // Chat Configuration ID
+}
+
+export function KnowledgeBase({ selectedConfigId }: KnowledgeBaseProps = {}) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,11 +106,53 @@ export function KnowledgeBase() {
     }
   };
 
-  const deleteFile = (fileId: string) => {
+  const deleteFile = async (fileId: string, chatConfigId?: string) => {
+    // 로컬 state에서 파일 제거
     setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    
+    // 📝 Chat Configuration에서도 파일 제거 (백엔드 업데이트)
+    if (chatConfigId) {
+      try {
+        // 현재 Chat Configuration 가져오기
+        const configResponse = await fetch(`/api/chat-configurations/${chatConfigId}`);
+        if (configResponse.ok) {
+          const currentConfig = await configResponse.json();
+          
+          // uploadedFiles 배열에서 해당 파일 제거
+          const updatedFiles = (currentConfig.uploadedFiles || []).filter((file: any) => file.id !== fileId);
+          
+          // Chat Configuration 업데이트
+          const updateResponse = await fetch(`/api/chat-configurations/${chatConfigId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ...currentConfig,
+              uploadedFiles: updatedFiles
+            }),
+          });
+          
+          if (updateResponse.ok) {
+            console.log(`✅ Chat Configuration에서 파일 삭제 완료: ${fileId}`);
+          } else {
+            throw new Error('Failed to update chat configuration');
+          }
+        }
+      } catch (error) {
+        console.error('Chat Configuration 업데이트 실패:', error);
+        toast({
+          title: '파일 삭제 실패',
+          description: 'Knowledge Base에서 파일을 완전히 삭제하지 못했습니다.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    
     toast({
-      title: '파일 삭제',
-      description: '파일이 삭제되었습니다.',
+      title: '파일 삭제 완료',
+      description: '파일이 Knowledge Base에서 완전히 삭제되었습니다.',
     });
   };
 
@@ -220,7 +266,7 @@ export function KnowledgeBase() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteFile(file.id)}
+                        onClick={() => deleteFile(file.id, selectedConfigId)}
                         data-testid={`button-delete-${file.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
