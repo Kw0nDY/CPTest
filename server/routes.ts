@@ -660,8 +660,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const mapping = await storage.createAiModelDataSource({
         aiModelId: modelId,
         dataSourceId,
-        accessType: accessType || 'READ',
-        filterRules: filterRules || {}
+        accessLevel: accessType || 'read',
+        dataFilter: filterRules || {}
       });
       
       console.log(`🔗 AI 모델-데이터 소스 매핑 생성: ${modelId} → ${dataSourceId}`);
@@ -721,10 +721,10 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           const dataSource = await storage.getDataSource(mapping.dataSourceId);
           if (!dataSource) continue;
           
-          console.log(`📊 데이터 소스 처리: ${dataSource.name} (${mapping.accessType} 권한)`);
+          console.log(`📊 데이터 소스 처리: ${dataSource.name} (${mapping.accessLevel} 권한)`);
           
           // READ 권한만 허용
-          if (mapping.accessType !== 'READ') {
+          if (mapping.accessLevel !== 'read' && mapping.accessLevel !== 'full') {
             console.warn(`⚠️ 읽기 전용 접근 거부: ${dataSource.name}`);
             continue;
           }
@@ -738,9 +738,9 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             if (tableData && tableData.length > 0) {
               // 필터 규칙 적용 (기본 구현)
               let filteredData = tableData;
-              if (mapping.filterRules && typeof mapping.filterRules === 'object') {
+              if (mapping.dataFilter && typeof mapping.dataFilter === 'object') {
                 // 추후 확장 가능한 필터링 로직
-                console.log(`🔍 필터 규칙 적용: ${JSON.stringify(mapping.filterRules)}`);
+                console.log(`🔍 필터 규칙 적용: ${JSON.stringify(mapping.dataFilter)}`);
               }
               
               const remainingCapacity = parseInt(limit as string) - totalRecords;
@@ -752,7 +752,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                 tableName: table.name,
                 records: dataToAdd,
                 totalRecords: filteredData.length,
-                accessType: mapping.accessType
+                accessType: mapping.accessLevel
               });
               
               totalRecords += dataToAdd.length;
@@ -888,13 +888,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         } else {
           integration = await storage.createChatbotDataIntegration({
             configId,
-            dataSourceId,
-            accessLevel: accessLevel || 'READ',
-            dataFilter: dataFilter || null
+            dataSourceId
           });
         }
-      } catch (createError) {
-        console.warn(`⚠️ 생성 실패, 기존 연결 조회 시도:`, createError.message);
+      } catch (createError: any) {
+        console.warn(`⚠️ 생성 실패, 기존 연결 조회 시도:`, createError?.message || createError);
         const existingIntegrations = await storage.getChatbotDataIntegrations(configId);
         integration = existingIntegrations.find(i => i.dataSourceId === dataSourceId);
         if (!integration) {
@@ -948,21 +946,19 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // 가상 AI 모델 생성 (Chat Configuration마다 독립적인 가상 AI 모델)
           const virtualAIModelId = `ai-model-${configId}`;
           const virtualAIModel = {
-            id: virtualAIModelId,
             name: `Virtual AI Model for ${updatedConfig.name}`,
-            description: `자동 생성된 가상 AI 모델 (Chat Config: ${configId})`,
-            type: 'virtual_chat_model',
-            status: 'deployed',
-            accuracy: 95,
-            framework: 'virtual',
-            version: '1.0.0',
-            modelConfig: {
+            fileName: `virtual-model-${configId}.py`,
+            modelType: 'virtual_chat_model',
+            metadata: {
+              description: `자동 생성된 가상 AI 모델 (Chat Config: ${configId})`,
+              framework: 'virtual',
+              version: '1.0.0',
               chatConfigId: configId,
               isVirtual: true,
               isolatedData: true
             },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            status: 'deployed',
+            accuracy: 95
           };
           
           try {
@@ -976,9 +972,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               chatConfigId: configId,
               priority: 1,
               isActive: 1,
-              modelRole: 'primary',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              modelRole: 'primary'
             });
             console.log(`✅ AI 모델-챗봇 매핑 생성 완료: ${virtualAIModelId} ↔ ${configId}`);
             
@@ -997,19 +991,20 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                     category: 'AI Model Data',
                     status: 'connected',
                     config: {
-                      fileName: file.name,
-                      fileSize: file.size,
-                      fileType: file.type,
-                      language: file.language,
-                      content: file.content,
-                      metadata: file.metadata,
-                      isKnowledgeBase: true,
-                      aiModelId: virtualAIModelId,
-                      chatConfigId: configId
+                      apiEndpoint: 'virtual',
+                      knowledgeBaseData: {
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        language: file.language,
+                        content: file.content,
+                        metadata: file.metadata,
+                        isKnowledgeBase: true,
+                        aiModelId: virtualAIModelId,
+                        chatConfigId: configId
+                      }
                     },
-                    recordCount: 1,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
+                    recordCount: 1
                   };
                   
                   // 데이터 소스 생성
@@ -1022,12 +1017,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                     dataSourceId: fileDataSourceId,
                     accessLevel: 'read',
                     dataFilter: {
-                      isolatedKnowledgeBase: true,
-                      fileName: file.name
+                      tableNames: [file.name],
+                      columnFilters: { isKnowledgeBase: true },
+                      rowLimit: 1000
                     },
-                    isActive: 1,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
+                    isActive: 1
                   });
                   console.log(`🔒 AI 모델별 격리된 데이터 소스 매핑 생성: ${virtualAIModelId} → ${fileDataSourceId}`);
                   
@@ -1063,19 +1057,20 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                       category: 'AI Model Data',
                       status: 'connected',
                       config: {
-                        fileName: file.name,
-                        fileSize: file.size,
-                        fileType: file.type,
-                        language: file.language,
-                        content: file.content,
-                        metadata: file.metadata,
-                        isKnowledgeBase: true,
-                        aiModelId: mapping.aiModelId,
-                        chatConfigId: configId
+                        apiEndpoint: 'virtual',
+                        knowledgeBaseData: {
+                          fileName: file.name,
+                          fileSize: file.size,
+                          fileType: file.type,
+                          language: file.language,
+                          content: file.content,
+                          metadata: file.metadata,
+                          isKnowledgeBase: true,
+                          aiModelId: mapping.aiModelId,
+                          chatConfigId: configId
+                        }
                       },
-                      recordCount: 1,
-                      createdAt: new Date(),
-                      updatedAt: new Date()
+                      recordCount: 1
                     };
                     
                     await storage.createDataSource(fileDataSource);
@@ -1092,12 +1087,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                       dataSourceId: fileDataSourceId,
                       accessLevel: 'read',
                       dataFilter: {
-                        isolatedKnowledgeBase: true,
-                        fileName: file.name
+                        tableNames: [file.name],
+                        columnFilters: { isKnowledgeBase: true },
+                        rowLimit: 1000
                       },
-                      isActive: 1,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
+                      isActive: 1
                     });
                     console.log(`🔒 기존 AI 모델에 격리된 데이터 소스 매핑 생성: ${mapping.aiModelId} → ${fileDataSourceId}`);
                   }
