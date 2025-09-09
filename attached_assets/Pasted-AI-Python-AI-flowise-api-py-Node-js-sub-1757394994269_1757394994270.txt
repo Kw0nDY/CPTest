@@ -1,0 +1,86 @@
+AI 모델 및 통합 시스템 개선 요청 프롬프트 예시
+현재 챗봇 시스템은 업로드한 Python AI 모델 소스 파일(flowise_api.py 등)을 Node.js 환경에서 subprocess로 호출해 실행하려고 하나 다음 문제가 발생하고 있습니다:
+
+Python 스크립트가 참조하는 데이터 파일(example.csv 등)을 찾을 수 없어 파일 경로 오류 발생
+
+Node.js에서 Python 프로세스 실행 시 stdout, stderr가 제대로 처리되지 않고 오류 로그가 표시됨
+
+AI 모델 호출 결과가 잘 파싱되지 않고, 실패 시 하드코딩된 기본 응답만 반환됨
+
+따라서 아래 사항을 반드시 점검, 개선해주시기 바랍니다.
+
+Python 스크립트 단독 실행 정상화
+
+직접 서버에서 Python 스크립트를 실행하여 데이터 파일 경로 문제, 권한 문제를 전면 확인 및 해결
+
+경로를 절대경로나 Node.js에서 식별 가능한 방식으로 수정 (환경변수 활용 권장)
+
+Node.js에서 Python subprocess 호출 개선
+
+spawn 또는 exec으로 Python 호출 시 args 및 환경변수를 명확히 전달
+
+Python stdout/stderr 스트림을 수신해 반드시 로그를 기록 및 검사
+
+프로세스 비동기 처리 및 예외 발생시 적절한 에러 메시지 반환 및 디버깅용 로그 조회 기능 강화
+
+Python 결과는 JSON 포맷으로 출력하고, Node.js가 이를 파싱해 챗봇 응답에 반영
+
+파일 경로 및 권한 관리 통합
+
+데이터 파일이 Python 실행 경로 내 정확히 있어야 하며, Node.js와 동일 경로 기준으로 맞출 것
+
+파일 접근 권한(읽기 권한 등)이 충분한지 검증
+
+테스트 및 검증 계획 수립
+
+소규모 샘플 데이터로부터 단계적으로 테스트해서 경로, 권한, 통신 상태 점검
+
+통합 재시작 후 실제 챗봇 질문에 대해 Python AI 모델 결과가 정상 반환되는지 검증
+
+로깅 및 모니터링 강화
+
+Python과 Node.js 간 통신 로그 상세 기록 및 오류 상황 자동 알림 추가
+
+데이터 처리 중 발생할 수 있는 예외 케이스와 처리 결과 추적 대책 마련
+
+덧붙여 Node.js subprocess 호출 기본 코드 샘플 (개선 방향)
+javascript
+const { spawn } = require('child_process');
+
+function runPythonModel(args) {
+  return new Promise((resolve, reject) => {
+    const pyProcess = spawn('python3', ['flowise_api.py', ...args]);
+
+    let output = '';
+    let error = '';
+
+    pyProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    pyProcess.stderr.on('data', (data) => {
+      error += data.toString();
+    });
+
+    pyProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Python exited with code ${code}: ${error}`));
+      } else if (error) {
+        // 경고 수준의 에러 로그도 포함
+        console.warn(`Python stderr: ${error}`);
+      }
+
+      try {
+        const parsed = JSON.parse(output);
+        resolve(parsed);
+      } catch (e) {
+        reject(new Error(`Failed to parse Python output: ${e.message}`));
+      }
+    });
+  });
+}
+요약
+기술팀에 요청할 때는 AI 모델의 데이터 파일 경로 문제, Node.js와 Python 간 프로세스 통신 처리, 오류 처리 로직, 권한 문제를 집중 점검하라고 요청하세요.
+파일 경로 문제는 대부분 데이터가 존재하는 위치와 코드 내 참조 위치가 달라 발생하므로, 이를 절대경로나 환경변수 등으로 명확히 관리해야 합니다.
+특히 Python 코드가 동적으로 데이터를 제대로 읽고 분석해서 JSON 형태로 결과를 stdout에 내보내도록 명확히 코딩, 출력 포맷을 Node.js 쪽에서 안정적으로 받는 구조가 필수입니다.
+이 작업이 완료되어야만 챗봇이 실제 업로드된 AI 모델과 데이터를 활용해 동적으로 응답할 수 있습니다.

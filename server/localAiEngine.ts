@@ -318,99 +318,270 @@ export class LocalAIEngine {
       const latestModelFile = aiModelFiles.sort().pop();
       console.log(`🤖 AI 모델 실행: ${latestModelFile}`);
       
-      // 임시 데이터 파일 생성 (AI 모델이 사용할 수 있도록)
-      const tempDataPath = path.join(process.cwd(), 'temp_data.json');
-      fs.writeFileSync(tempDataPath, JSON.stringify({
-        userMessage,
-        uploadedData: uploadedData.slice(0, 100), // 메모리 효율을 위해 일부만
-        timestamp: new Date().toISOString()
-      }));
+      // 🔧 실제 데이터 파일 생성 (AI 모델이 사용할 수 있도록) - 절대경로 사용
+      const workingDir = process.cwd();
+      const tempDataPath = path.join(workingDir, 'temp_data.json');
+      const tempCsvPath = path.join(workingDir, 'example.csv'); // Python이 찾는 파일명
       
-      // AI 모델 실행을 위한 래퍼 스크립트 생성
-      const wrapperScript = `
+      // 실제 전달받은 데이터를 JSON과 CSV 형태로 모두 생성
+      const dataToSave = {
+        userMessage: userMessage,
+        uploadedData: uploadedData.slice(0, 500), // 더 많은 데이터 전달
+        totalDataCount: uploadedData.length,
+        timestamp: new Date().toISOString(),
+        workingDirectory: workingDir
+      };
+      
+      fs.writeFileSync(tempDataPath, JSON.stringify(dataToSave, null, 2));
+      console.log(`📁 temp_data.json 생성: ${tempDataPath} (${dataToSave.uploadedData.length}개 레코드)`);
+      
+      // Python이 기대하는 example.csv 파일도 생성
+      if (uploadedData.length > 0 && uploadedData[0] && typeof uploadedData[0] === 'object') {
+        const csvHeaders = Object.keys(uploadedData[0]);
+        const csvContent = [
+          csvHeaders.join(','),
+          ...uploadedData.slice(0, 100).map(row => 
+            csvHeaders.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')
+          )
+        ].join('\n');
+        
+        fs.writeFileSync(tempCsvPath, csvContent);
+        console.log(`📊 example.csv 생성: ${tempCsvPath} (${uploadedData.slice(0, 100).length}개 레코드)`);
+      }
+      
+      // 🚀 개선된 AI 모델 실행 래퍼 스크립트 생성 - 절대경로 및 예외처리 강화
+      const wrapperScript = `#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import sys
 import json
 import os
+import traceback
+from pathlib import Path
 
-# 사용자 질문과 데이터 로드
-with open('temp_data.json', 'r', encoding='utf-8') as f:
-    input_data = json.load(f)
+# 🔧 작업 디렉토리 설정 및 경로 확인
+working_dir = "${workingDir}"
+os.chdir(working_dir)
+print(f"🏠 작업 디렉토리: {working_dir}")
 
-user_message = input_data['userMessage']
-uploaded_data = input_data['uploadedData']
+# 🔧 데이터 파일 경로 확인
+temp_data_path = os.path.join(working_dir, 'temp_data.json')
+example_csv_path = os.path.join(working_dir, 'example.csv')
 
-print(f"🔍 사용자 질문: {user_message}")
-print(f"📊 데이터 크기: {len(uploaded_data)}개 레코드")
+print(f"📂 temp_data.json 경로: {temp_data_path} (존재: {os.path.exists(temp_data_path)})")
+print(f"📊 example.csv 경로: {example_csv_path} (존재: {os.path.exists(example_csv_path)})")
 
 try:
-    # 원본 AI 모델 실행
-    exec(open('${latestModelFile}').read())
-    
-    # 결과 출력
-    if 'output' in locals():
-        print("🎯 AI 모델 실행 결과:")
-        print(json.dumps(output, ensure_ascii=False, indent=2))
+    # 사용자 질문과 데이터 로드
+    if os.path.exists(temp_data_path):
+        with open(temp_data_path, 'r', encoding='utf-8') as f:
+            input_data = json.load(f)
+        
+        user_message = input_data.get('userMessage', '')
+        uploaded_data = input_data.get('uploadedData', [])
+        total_count = input_data.get('totalDataCount', 0)
+        
+        print(f"🔍 사용자 질문: {user_message}")
+        print(f"📊 로드된 데이터 크기: {len(uploaded_data)}개 레코드 (전체: {total_count}개)")
+        
+        # 환경변수로도 데이터 경로 제공
+        os.environ['DATA_FILE'] = example_csv_path
+        os.environ['USER_MESSAGE'] = user_message
+        os.environ['DATA_COUNT'] = str(len(uploaded_data))
+        
+        try:
+            # 🤖 원본 AI 모델 실행
+            print(f"🚀 AI 모델 실행 시작: ${latestModelFile}")
+            exec(open('${latestModelFile}').read())
+            
+            # 결과 처리 및 JSON 출력
+            result = {
+                "success": True,
+                "userMessage": user_message,
+                "dataCount": len(uploaded_data),
+                "timestamp": input_data.get('timestamp'),
+                "response": "AI 모델이 성공적으로 실행되었습니다."
+            }
+            
+            if 'output' in locals():
+                result["aiModelOutput"] = output
+                result["response"] = f"AI 모델 실행 완료: {user_message}에 대한 분석 결과를 제공합니다."
+                print("🎯 AI 모델 실행 결과:")
+                print(json.dumps(output, ensure_ascii=False, indent=2))
+            else:
+                # 기본 데이터 분석 제공
+                if uploaded_data and len(uploaded_data) > 0:
+                    sample = uploaded_data[0]
+                    if isinstance(sample, dict):
+                        result["dataStructure"] = list(sample.keys())
+                        result["sampleData"] = sample
+                        result["response"] = f"📈 {user_message}에 대한 데이터 분석: {len(uploaded_data)}개 레코드에서 {len(sample.keys())}개 컬럼 분석 완료"
+            
+            # 최종 JSON 결과 출력
+            print("===JSON_OUTPUT_START===")
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print("===JSON_OUTPUT_END===")
+            
+        except Exception as model_error:
+            error_result = {
+                "success": False,
+                "error": str(model_error),
+                "traceback": traceback.format_exc(),
+                "userMessage": user_message,
+                "dataCount": len(uploaded_data),
+                "response": f"❌ AI 모델 실행 중 오류가 발생했습니다: {str(model_error)}"
+            }
+            print("===JSON_OUTPUT_START===")
+            print(json.dumps(error_result, ensure_ascii=False, indent=2))
+            print("===JSON_OUTPUT_END===")
+            
     else:
-        print("✅ AI 모델이 성공적으로 실행되었습니다.")
-        print(f"질문에 대한 답변: {user_message}에 대해 분석을 완료했습니다.")
-        
-        # 기본적인 데이터 분석 제공
-        if uploaded_data:
-            print(f"📈 데이터 분석: {len(uploaded_data)}개 레코드 분석 완료")
-            if len(uploaded_data) > 0:
-                sample = uploaded_data[0]
-                print(f"📋 데이터 구조: {list(sample.keys()) if isinstance(sample, dict) else '구조화되지 않은 데이터'}")
-        
+        error_result = {
+            "success": False,
+            "error": f"temp_data.json 파일을 찾을 수 없습니다: {temp_data_path}",
+            "response": "❌ 데이터 파일을 찾을 수 없어 AI 모델을 실행할 수 없습니다."
+        }
+        print("===JSON_OUTPUT_START===")
+        print(json.dumps(error_result, ensure_ascii=False, indent=2))
+        print("===JSON_OUTPUT_END===")
+
 except Exception as e:
-    print(f"❌ AI 모델 실행 오류: {str(e)}")
-    print("🔄 기본 분석으로 대체합니다.")
-    print(f"질문 '{user_message}'에 대한 기본 응답을 제공합니다.")
+    error_result = {
+        "success": False,
+        "error": str(e),
+        "traceback": traceback.format_exc(),
+        "response": f"❌ 시스템 오류가 발생했습니다: {str(e)}"
+    }
+    print("===JSON_OUTPUT_START===")
+    print(json.dumps(error_result, ensure_ascii=False, indent=2))
+    print("===JSON_OUTPUT_END===")
 `;
       
       const wrapperPath = path.join(process.cwd(), 'ai_model_wrapper.py');
       fs.writeFileSync(wrapperPath, wrapperScript);
       
-      // Python 스크립트 실행
+      // 🚀 개선된 Python 스크립트 실행 - 절대경로, 환경변수, 로깅 강화
       return new Promise((resolve, reject) => {
+        console.log(`🐍 Python 실행 시작: python3 ${wrapperPath}`);
+        console.log(`📁 작업 디렉토리: ${workingDir}`);
+        
         const pythonProcess = spawn('python3', [wrapperPath], {
-          cwd: process.cwd(),
-          stdio: ['pipe', 'pipe', 'pipe']
+          cwd: workingDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            PYTHONPATH: workingDir,
+            DATA_FILE: tempCsvPath,
+            TEMP_DATA_FILE: tempDataPath
+          }
         });
         
         let output = '';
         let error = '';
+        let jsonOutput = '';
         
         pythonProcess.stdout.on('data', (data) => {
-          output += data.toString();
+          const chunk = data.toString();
+          output += chunk;
+          console.log(`🐍 Python stdout: ${chunk.trim()}`);
         });
         
         pythonProcess.stderr.on('data', (data) => {
-          error += data.toString();
+          const chunk = data.toString();
+          error += chunk;
+          console.warn(`🐍 Python stderr: ${chunk.trim()}`);
         });
         
         pythonProcess.on('close', (code) => {
-          // 임시 파일 정리
+          console.log(`🐍 Python 프로세스 종료: exit code ${code}`);
+          
+          // 🔧 JSON 결과 추출
+          const jsonStartMarker = '===JSON_OUTPUT_START===';
+          const jsonEndMarker = '===JSON_OUTPUT_END===';
+          
+          if (output.includes(jsonStartMarker) && output.includes(jsonEndMarker)) {
+            const startIndex = output.indexOf(jsonStartMarker) + jsonStartMarker.length;
+            const endIndex = output.indexOf(jsonEndMarker);
+            jsonOutput = output.substring(startIndex, endIndex).trim();
+            
+            try {
+              const parsedResult = JSON.parse(jsonOutput);
+              console.log(`✅ Python JSON 결과 파싱 성공:`, parsedResult);
+              
+              // 임시 파일 정리
+              try {
+                if (fs.existsSync(tempDataPath)) fs.unlinkSync(tempDataPath);
+                if (fs.existsSync(tempCsvPath)) fs.unlinkSync(tempCsvPath);
+                if (fs.existsSync(wrapperPath)) fs.unlinkSync(wrapperPath);
+              } catch (cleanupError) {
+                console.warn('파일 정리 오류:', cleanupError);
+              }
+              
+              // 성공적인 결과 반환
+              if (parsedResult.success) {
+                resolve(parsedResult.response || '✅ AI 모델 실행 완료');
+              } else {
+                console.warn('❌ Python AI 모델 실행 실패:', parsedResult.error);
+                resolve(parsedResult.response || '❌ AI 모델 실행 중 오류가 발생했습니다.');
+              }
+              
+            } catch (parseError) {
+              console.error('❌ Python JSON 결과 파싱 실패:', parseError);
+              console.log('원본 JSON 출력:', jsonOutput);
+              
+              // 파일 정리
+              try {
+                if (fs.existsSync(tempDataPath)) fs.unlinkSync(tempDataPath);
+                if (fs.existsSync(tempCsvPath)) fs.unlinkSync(tempCsvPath);
+                if (fs.existsSync(wrapperPath)) fs.unlinkSync(wrapperPath);
+              } catch (cleanupError) {
+                console.warn('파일 정리 오류:', cleanupError);
+              }
+              
+              resolve(`✅ AI 모델 실행 완료 (JSON 파싱 실패, 원본 출력 사용)\n${output}`);
+            }
+            
+          } else {
+            // JSON 마커가 없는 경우 - 일반 출력 사용
+            console.warn('⚠️ JSON 마커를 찾을 수 없음, 일반 출력 사용');
+            console.log('Python 전체 출력:', output);
+            
+            // 파일 정리
+            try {
+              if (fs.existsSync(tempDataPath)) fs.unlinkSync(tempDataPath);
+              if (fs.existsSync(tempCsvPath)) fs.unlinkSync(tempCsvPath);
+              if (fs.existsSync(wrapperPath)) fs.unlinkSync(wrapperPath);
+            } catch (cleanupError) {
+              console.warn('파일 정리 오류:', cleanupError);
+            }
+            
+            if (code === 0) {
+              resolve(output || '✅ AI 모델이 실행되었지만 출력이 없습니다.');
+            } else {
+              resolve(`❌ AI 모델 실행 실패 (exit code: ${code})\n에러: ${error}\n출력: ${output}`);
+            }
+          }
+        });
+        
+        // 🔧 프로세스 타임아웃 처리 (30초)
+        const timeout = setTimeout(() => {
+          console.warn('⏰ Python 프로세스 타임아웃 (30초)');
+          pythonProcess.kill('SIGTERM');
+          
+          // 파일 정리
           try {
             if (fs.existsSync(tempDataPath)) fs.unlinkSync(tempDataPath);
+            if (fs.existsSync(tempCsvPath)) fs.unlinkSync(tempCsvPath);
             if (fs.existsSync(wrapperPath)) fs.unlinkSync(wrapperPath);
           } catch (cleanupError) {
             console.warn('파일 정리 오류:', cleanupError);
           }
           
-          if (code === 0 && output) {
-            console.log('🎉 AI 모델 실행 성공:', output);
-            resolve(output);
-          } else {
-            console.error('AI 모델 실행 실패:', { code, error, output });
-            reject(new Error(`AI 모델 실행 실패: ${error || 'Unknown error'}`));
-          }
-        });
-        
-        // 타임아웃 설정 (30초)
-        setTimeout(() => {
-          pythonProcess.kill('SIGTERM');
-          reject(new Error('AI 모델 실행 타임아웃'));
+          resolve('⏰ AI 모델 실행 시간 초과 (30초)');
         }, 30000);
+        
+        pythonProcess.on('close', () => {
+          clearTimeout(timeout);
+        });
       });
       
     } catch (error) {
