@@ -120,7 +120,7 @@ export interface IStorage {
   getChatConfigurations(): Promise<ChatConfiguration[]>;
   getChatConfiguration(id: string): Promise<ChatConfiguration | undefined>;
   createChatConfiguration(config: InsertChatConfiguration): Promise<ChatConfiguration>;
-  updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration>;
+  updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration | null>;
   deleteChatConfiguration(id: string): Promise<void>;
   toggleChatConfigurationActive(id: string): Promise<ChatConfiguration>;
   
@@ -208,8 +208,8 @@ export class DatabaseStorage implements IStorage {
     let extractedSampleData = sampleData;
     
     if ((dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') && dataSource.config) {
-      if (!extractedDataSchema) extractedDataSchema = dataSource.config.dataSchema;
-      if (!extractedSampleData) extractedSampleData = dataSource.config.sampleData;
+      if (!extractedDataSchema) extractedDataSchema = dataSource.config.dataSchema as Record<string, unknown>;
+      if (!extractedSampleData) extractedSampleData = dataSource.config.sampleData as Record<string, unknown[]>;
       
       // For Google Sheets, keep data in config; for Excel, remove to avoid duplication
       if (dataSource.type === 'Excel') {
@@ -440,7 +440,7 @@ export class DatabaseStorage implements IStorage {
           if (fs.existsSync(dataPath)) {
             const jsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
             console.log(`🎉 실제 bioreactor 데이터 로드 성공: ${jsonData.length}개 레코드`);
-            console.log(`📊 PH=5인 레코드 개수: ${jsonData.filter(r => r.PH === '5').length}개`);
+            console.log(`📊 PH=5인 레코드 개수: ${jsonData.filter((r: any) => r.PH === '5').length}개`);
             return jsonData;
           }
         } catch (fileError) {
@@ -471,9 +471,9 @@ export class DatabaseStorage implements IStorage {
         // 해당 데이터 소스의 업로드된 데이터만 필터링
         const relevantData = uploadedDataResults.filter(record => {
           // uploadedData 레코드가 현재 데이터 소스와 연관되어 있는지 확인
-          return record.metadata?.dataSourceId === dataSourceId || 
-                 record.metadata?.tableName === tableName ||
-                 record.content?.includes(dataSourceId);
+          return record.fileName?.includes(dataSourceId) ||
+                 record.fileName?.includes(tableName) ||
+                 JSON.stringify(record.data).includes(dataSourceId);
         });
         
         if (relevantData.length > 0) {
@@ -481,10 +481,12 @@ export class DatabaseStorage implements IStorage {
           // JSON 형태의 데이터를 파싱해서 반환
           const parsedData = relevantData.flatMap(record => {
             try {
-              if (typeof record.content === 'string') {
-                return JSON.parse(record.content);
-              } else if (record.content && Array.isArray(record.content)) {
-                return record.content;
+              if (typeof record.data === 'string') {
+                return JSON.parse(record.data);
+              } else if (record.data && Array.isArray(record.data)) {
+                return record.data;
+              } else if (record.data) {
+                return [record.data];
               }
               return [];
             } catch (parseError) {
@@ -1047,23 +1049,6 @@ export class DatabaseStorage implements IStorage {
       return created;
     } catch (error) {
       console.error('Error creating chat configuration:', error);
-      throw error;
-    }
-  }
-
-  async updateChatConfiguration(id: string, updates: Partial<ChatConfiguration>): Promise<ChatConfiguration> {
-    try {
-      const [updated] = await db
-        .update(chatConfigurations)
-        .set({
-          ...updates,
-          updatedAt: new Date().toISOString()
-        })
-        .where(eq(chatConfigurations.id, id))
-        .returning();
-      return updated;
-    } catch (error) {
-      console.error('Error updating chat configuration:', error);
       throw error;
     }
   }
