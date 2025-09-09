@@ -263,12 +263,14 @@ export class LocalAIEngine {
 
   /**
    * 데이터 요약 (메모리 및 컨텍스트 제한 대응)
+   * 🎯 대용량 파일 스마트 분석 지원
    */
   private summarizeData(data: any[], maxContext: number): {
     summary: string;
     rowCount: number;
     columns: string[];
     sampleData: any[];
+    metadata?: any;
   } {
     if (!data || data.length === 0) {
       return {
@@ -279,22 +281,48 @@ export class LocalAIEngine {
       };
     }
 
-    // 열 추출
-    const firstRow = data[0];
-    const columns = Object.keys(firstRow);
+    // 메타데이터 추출 (대용량 파일 정보)
+    const metadataItems = data.filter(item => item.type === 'large_file_metadata');
+    const actualData = data.filter(item => !item.type || item.type !== 'large_file_metadata');
     
-    // 샘플 데이터 (메모리 보호)
-    const sampleSize = Math.min(10, data.length);
-    const sampleData = data.slice(0, sampleSize);
+    let summary = '';
+    let columns = [];
+    let rowCount = actualData.length;
     
-    // 통계 정보
-    const summary = `데이터셋: ${data.length}개 행, ${columns.length}개 열 (${columns.join(', ')})`;
+    if (metadataItems.length > 0) {
+      // 대용량 파일 처리된 경우
+      const meta = metadataItems[0];
+      columns = meta.columns || [];
+      summary = `대용량 데이터셋: 원본 ${meta.totalRows}개 행 → 분석용 ${meta.samplesExtracted}개 샘플 추출, ${columns.length}개 열 (${columns.slice(0, 10).join(', ')}${columns.length > 10 ? '...' : ''})`;
+      rowCount = meta.totalRows;
+    } else {
+      // 일반 데이터 처리
+      const firstRow = actualData[0];
+      if (firstRow && typeof firstRow === 'object') {
+        if (firstRow.data && typeof firstRow.data === 'object') {
+          columns = Object.keys(firstRow.data);
+        } else {
+          columns = Object.keys(firstRow);
+        }
+      }
+      summary = `데이터셋: ${actualData.length}개 행, ${columns.length}개 열 (${columns.join(', ')})`;
+    }
+    
+    // 샘플 데이터 (AI 분석용)
+    const sampleSize = Math.min(15, actualData.length);
+    const sampleData = actualData.slice(0, sampleSize).map(item => {
+      if (item.data && typeof item.data === 'object') {
+        return item.data; // 실제 데이터 반환
+      }
+      return item;
+    });
     
     return {
       summary,
-      rowCount: data.length,
+      rowCount,
       columns,
-      sampleData
+      sampleData,
+      metadata: metadataItems.length > 0 ? metadataItems[0] : null
     };
   }
 

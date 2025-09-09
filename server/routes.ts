@@ -102,15 +102,49 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   console.log(`📊 CSV 파일 크기: ${fileSizeMB.toFixed(1)}MB`);
                   
                   if (fileSizeMB > 10) {
-                    // 10MB 이상은 즉시 건너뛰기 (응답 속도 우선)
+                    // 🎯 대용량 파일 스마트 샘플링 (실제 데이터 분석 가능)
+                    console.log(`📊 대용량 파일 스마트 처리 시작: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
+                    
+                    const lines = file.content.split('\n');
+                    const headers = lines[0] ? lines[0].split(',') : [];
+                    
+                    // 전체 데이터에서 대표 샘플 추출 (시작, 중간, 끝에서 균등하게)
+                    const totalRows = lines.length - 1;
+                    const sampleSize = 500; // 500개 샘플
+                    const interval = Math.floor(totalRows / sampleSize);
+                    
+                    const samples = [];
+                    for (let i = 1; i <= totalRows && samples.length < sampleSize; i += interval) {
+                      if (lines[i] && lines[i].trim()) {
+                        const values = lines[i].split(',');
+                        const row = {};
+                        headers.forEach((header, idx) => {
+                          row[header?.trim() || `col_${idx}`] = values[idx]?.trim() || '';
+                        });
+                        samples.push(row);
+                      }
+                    }
+                    
+                    // AI 분석 가능한 형태로 저장
+                    allUploadedData.push(...samples.map((row, index) => ({
+                      file: file.name,
+                      sampleIndex: index,
+                      data: row,
+                      source: `대용량파일_샘플_${index + 1}/${sampleSize}`
+                    })));
+                    
+                    // 파일 메타데이터 추가
                     allUploadedData.push({
                       file: file.name,
-                      type: 'large_file_skipped',
+                      type: 'large_file_metadata',
                       size: `${fileSizeMB.toFixed(1)}MB`,
-                      note: '대용량 파일 - 응답 속도를 위해 건너뜀'
+                      totalRows: totalRows,
+                      columns: headers,
+                      samplesExtracted: samples.length,
+                      note: `전체 ${totalRows}개 행에서 ${samples.length}개 대표 샘플 추출`
                     });
                     
-                    console.log(`⚡ 대용량 파일 건너뛰기: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
+                    console.log(`✅ 대용량 파일 스마트 처리: ${file.name} → ${samples.length}개 대표 샘플 추출 (전체 ${totalRows}개 행)`);
                     fileProcessed = true;
                   } else {
                     // 작은 파일만 실제 처리
