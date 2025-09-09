@@ -136,7 +136,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                       for (let i = startRow; i <= endRow && i < lines.length; i++) {
                         if (lines[i] && lines[i].trim()) {
                           const values = lines[i].split(',');
-                          const row = {};
+                          const row: Record<string, any> = {};
                           headers.forEach((header, idx) => {
                             row[header?.trim() || `col_${idx}`] = values[idx]?.trim() || '';
                           });
@@ -490,8 +490,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { chatbotConfigId, priority, isActive } = req.body;
       
       const configuration = await storage.createAiModelChatConfiguration({
-        modelId,
-        chatbotConfigId,
+        aiModelId: modelId,
+        chatConfigId: chatbotConfigId,
         priority: priority || 1,
         isActive: isActive !== false ? 1 : 0
       });
