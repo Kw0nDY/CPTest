@@ -102,49 +102,100 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   console.log(`📊 CSV 파일 크기: ${fileSizeMB.toFixed(1)}MB`);
                   
                   if (fileSizeMB > 10) {
-                    // 🎯 대용량 파일 스마트 샘플링 (실제 데이터 분석 가능)
-                    console.log(`📊 대용량 파일 스마트 처리 시작: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
+                    // 🎯 대용량 파일 전체 데이터 청크 처리 (모든 데이터 활용)
+                    console.log(`📊 대용량 파일 전체 처리 시작: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
                     
                     const lines = file.content.split('\n');
                     const headers = lines[0] ? lines[0].split(',') : [];
-                    
-                    // 전체 데이터에서 대표 샘플 추출 (시작, 중간, 끝에서 균등하게)
                     const totalRows = lines.length - 1;
-                    const sampleSize = 500; // 500개 샘플
-                    const interval = Math.floor(totalRows / sampleSize);
                     
-                    const samples = [];
-                    for (let i = 1; i <= totalRows && samples.length < sampleSize; i += interval) {
-                      if (lines[i] && lines[i].trim()) {
-                        const values = lines[i].split(',');
-                        const row = {};
-                        headers.forEach((header, idx) => {
-                          row[header?.trim() || `col_${idx}`] = values[idx]?.trim() || '';
-                        });
-                        samples.push(row);
+                    // 전체 데이터를 청크 단위로 나누어 처리 (메모리 효율)
+                    const chunkSize = 2000; // 한 청크당 2000행
+                    const chunks = [];
+                    
+                    for (let chunkIndex = 0; chunkIndex * chunkSize < totalRows; chunkIndex++) {
+                      const startRow = chunkIndex * chunkSize + 1;
+                      const endRow = Math.min((chunkIndex + 1) * chunkSize, totalRows);
+                      
+                      const chunkData = [];
+                      const chunkSummary = {
+                        ids: [],
+                        batchIds: [],
+                        operators: [],
+                        phases: [],
+                        sites: [],
+                        timestamps: [],
+                        oeeValues: [],
+                        productionRates: [],
+                        temperatures: []
+                      };
+                      
+                      // 청크 내 모든 행 처리
+                      for (let i = startRow; i <= endRow && i < lines.length; i++) {
+                        if (lines[i] && lines[i].trim()) {
+                          const values = lines[i].split(',');
+                          const row = {};
+                          headers.forEach((header, idx) => {
+                            row[header?.trim() || `col_${idx}`] = values[idx]?.trim() || '';
+                          });
+                          
+                          chunkData.push(row);
+                          
+                          // 검색용 메타데이터 수집
+                          if (row.Id) chunkSummary.ids.push(row.Id);
+                          if (row.BatchID) chunkSummary.batchIds.push(row.BatchID);
+                          if (row.Operator) chunkSummary.operators.push(row.Operator);
+                          if (row.Phase) chunkSummary.phases.push(row.Phase);
+                          if (row.Site) chunkSummary.sites.push(row.Site);
+                          if (row.TimeStamp) chunkSummary.timestamps.push(row.TimeStamp);
+                          if (row.OEE) chunkSummary.oeeValues.push(parseFloat(row.OEE) || 0);
+                          if (row['Production Rate']) chunkSummary.productionRates.push(parseFloat(row['Production Rate']) || 0);
+                          if (row.Temperature) chunkSummary.temperatures.push(parseFloat(row.Temperature) || 0);
+                        }
                       }
+                      
+                      // 청크 요약 정보 생성
+                      chunks.push({
+                        chunkIndex,
+                        rowRange: `${startRow}-${endRow}`,
+                        rowCount: chunkData.length,
+                        data: chunkData,
+                        summary: {
+                          idRange: chunkSummary.ids.length > 0 ? `${Math.min(...chunkSummary.ids.map(Number))}-${Math.max(...chunkSummary.ids.map(Number))}` : '',
+                          uniqueBatches: [...new Set(chunkSummary.batchIds)],
+                          uniqueOperators: [...new Set(chunkSummary.operators)],
+                          uniquePhases: [...new Set(chunkSummary.phases)],
+                          uniqueSites: [...new Set(chunkSummary.sites)],
+                          oeeRange: chunkSummary.oeeValues.length > 0 ? {
+                            min: Math.min(...chunkSummary.oeeValues),
+                            max: Math.max(...chunkSummary.oeeValues),
+                            avg: chunkSummary.oeeValues.reduce((a, b) => a + b, 0) / chunkSummary.oeeValues.length
+                          } : null,
+                          productionRange: chunkSummary.productionRates.length > 0 ? {
+                            min: Math.min(...chunkSummary.productionRates),
+                            max: Math.max(...chunkSummary.productionRates),
+                            avg: chunkSummary.productionRates.reduce((a, b) => a + b, 0) / chunkSummary.productionRates.length
+                          } : null,
+                          tempRange: chunkSummary.temperatures.length > 0 ? {
+                            min: Math.min(...chunkSummary.temperatures),
+                            max: Math.max(...chunkSummary.temperatures)
+                          } : null
+                        }
+                      });
                     }
                     
-                    // AI 분석 가능한 형태로 저장
-                    allUploadedData.push(...samples.map((row, index) => ({
-                      file: file.name,
-                      sampleIndex: index,
-                      data: row,
-                      source: `대용량파일_샘플_${index + 1}/${sampleSize}`
-                    })));
-                    
-                    // 파일 메타데이터 추가
+                    // 전체 청크 데이터를 AI 분석용으로 저장
                     allUploadedData.push({
                       file: file.name,
-                      type: 'large_file_metadata',
-                      size: `${fileSizeMB.toFixed(1)}MB`,
+                      type: 'full_data_chunks',
                       totalRows: totalRows,
+                      totalChunks: chunks.length,
                       columns: headers,
-                      samplesExtracted: samples.length,
-                      note: `전체 ${totalRows}개 행에서 ${samples.length}개 대표 샘플 추출`
+                      chunks: chunks,
+                      note: `전체 ${totalRows}개 행을 ${chunks.length}개 청크로 완전 처리`
                     });
                     
-                    console.log(`✅ 대용량 파일 스마트 처리: ${file.name} → ${samples.length}개 대표 샘플 추출 (전체 ${totalRows}개 행)`);
+                    console.log(`✅ 대용량 파일 전체 처리: ${file.name} → ${chunks.length}개 청크, 총 ${totalRows}개 행 완전 로드`);
                     fileProcessed = true;
                   } else {
                     // 작은 파일만 실제 처리

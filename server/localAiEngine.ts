@@ -265,7 +265,7 @@ export class LocalAIEngine {
    * 데이터 요약 (메모리 및 컨텍스트 제한 대응)
    * 🎯 대용량 파일 스마트 분석 지원
    */
-  private summarizeData(data: any[], maxContext: number): {
+  private summarizeData(data: any[], maxContext: number, message?: string): {
     summary: string;
     rowCount: number;
     columns: string[];
@@ -281,20 +281,43 @@ export class LocalAIEngine {
       };
     }
 
-    // 메타데이터 추출 (대용량 파일 정보)
+    // 전체 데이터 청크 처리 (대용량 파일 지원)
+    const chunkItems = data.filter(item => item.type === 'full_data_chunks');
     const metadataItems = data.filter(item => item.type === 'large_file_metadata');
-    const actualData = data.filter(item => !item.type || item.type !== 'large_file_metadata');
+    const actualData = data.filter(item => !item.type || (item.type !== 'large_file_metadata' && item.type !== 'full_data_chunks'));
     
     let summary = '';
-    let columns = [];
+    let columns: string[] = [];
     let rowCount = actualData.length;
+    let sampleData: any[] = [];
     
-    if (metadataItems.length > 0) {
-      // 대용량 파일 처리된 경우
+    if (chunkItems.length > 0) {
+      // 전체 데이터 청크 처리된 경우
+      const chunkData = chunkItems[0];
+      columns = chunkData.columns || [];
+      rowCount = chunkData.totalRows;
+      
+      // 사용자 질문과 관련된 청크 선택 (키워드 기반 스마트 검색)
+      const relevantChunks = this.selectRelevantChunks(chunkData.chunks, message || '');
+      
+      // 선택된 청크에서 대표 데이터 추출
+      sampleData = this.extractRepresentativeData(relevantChunks, 50);
+      
+      summary = `전체 데이터셋: ${rowCount}개 행 (${chunkData.totalChunks}개 청크로 완전 처리), ${columns.length}개 열. 질문 관련 ${relevantChunks.length}개 청크에서 ${sampleData.length}개 대표 데이터 분석`;
+      
+    } else if (metadataItems.length > 0) {
+      // 기존 샘플링 방식
       const meta = metadataItems[0];
       columns = meta.columns || [];
       summary = `대용량 데이터셋: 원본 ${meta.totalRows}개 행 → 분석용 ${meta.samplesExtracted}개 샘플 추출, ${columns.length}개 열 (${columns.slice(0, 10).join(', ')}${columns.length > 10 ? '...' : ''})`;
       rowCount = meta.totalRows;
+      
+      sampleData = actualData.slice(0, 15).map(item => {
+        if (item.data && typeof item.data === 'object') {
+          return item.data;
+        }
+        return item;
+      });
     } else {
       // 일반 데이터 처리
       const firstRow = actualData[0];
@@ -306,24 +329,107 @@ export class LocalAIEngine {
         }
       }
       summary = `데이터셋: ${actualData.length}개 행, ${columns.length}개 열 (${columns.join(', ')})`;
+      
+      sampleData = actualData.slice(0, 15).map(item => {
+        if (item.data && typeof item.data === 'object') {
+          return item.data;
+        }
+        return item;
+      });
     }
-    
-    // 샘플 데이터 (AI 분석용)
-    const sampleSize = Math.min(15, actualData.length);
-    const sampleData = actualData.slice(0, sampleSize).map(item => {
-      if (item.data && typeof item.data === 'object') {
-        return item.data; // 실제 데이터 반환
-      }
-      return item;
-    });
     
     return {
       summary,
       rowCount,
       columns,
       sampleData,
-      metadata: metadataItems.length > 0 ? metadataItems[0] : null
+      metadata: metadataItems.length > 0 ? metadataItems[0] : (chunkItems.length > 0 ? chunkItems[0] : null)
     };
+  }
+
+  /**
+   * 사용자 질문과 관련된 청크 선택 (스마트 검색)
+   */
+  private selectRelevantChunks(chunks: any[], message: string): any[] {
+    if (!message || !chunks || chunks.length === 0) {
+      // 질문이 없으면 모든 청크에서 균등하게 선택
+      return chunks.slice(0, Math.min(5, chunks.length));
+    }
+    
+    const messageWords = message.toLowerCase().split(/\s+/);
+    const scoredChunks = chunks.map(chunk => {
+      let score = 0;
+      const summary = chunk.summary;
+      
+      // 키워드 매칭 스코어링
+      messageWords.forEach(word => {
+        // 배치 관련 질문
+        if ((word.includes('배치') || word.includes('batch')) && summary.uniqueBatches?.length > 0) score += 10;
+        
+        // 운영자 관련 질문
+        if ((word.includes('운영자') || word.includes('operator')) && summary.uniqueOperators?.length > 0) score += 10;
+        
+        // OEE 관련 질문
+        if ((word.includes('oee') || word.includes('효율')) && summary.oeeRange) score += 10;
+        
+        // 생산성 관련 질문
+        if ((word.includes('생산') || word.includes('production') || word.includes('rate')) && summary.productionRange) score += 10;
+        
+        // 온도 관련 질문
+        if ((word.includes('온도') || word.includes('temp')) && summary.tempRange) score += 10;
+        
+        // 단계/상태 관련 질문
+        if ((word.includes('단계') || word.includes('phase') || word.includes('상태')) && summary.uniquePhases?.length > 0) score += 10;
+        
+        // 지역 관련 질문
+        if ((word.includes('지역') || word.includes('site') || word.includes('송도') || word.includes('songdo')) && summary.uniqueSites?.length > 0) score += 10;
+        
+        // 숫자 관련 질문 (특정 범위)
+        const numberMatch = word.match(/\d+/);
+        if (numberMatch && summary.idRange) {
+          const num = parseInt(numberMatch[0]);
+          const [min, max] = summary.idRange.split('-').map(Number);
+          if (num >= min && num <= max) score += 15;
+        }
+      });
+      
+      return { chunk, score };
+    });
+    
+    // 스코어 순으로 정렬하고 상위 청크 선택
+    const sortedChunks = scoredChunks.sort((a, b) => b.score - a.score);
+    const selectedChunks = sortedChunks.slice(0, Math.min(8, chunks.length)).map(item => item.chunk);
+    
+    // 스코어가 없으면 균등 분포로 선택
+    if (selectedChunks.every(chunk => scoredChunks.find(sc => sc.chunk === chunk)?.score === 0)) {
+      const interval = Math.max(1, Math.floor(chunks.length / 5));
+      return chunks.filter((_, index) => index % interval === 0).slice(0, 5);
+    }
+    
+    return selectedChunks;
+  }
+
+  /**
+   * 선택된 청크에서 대표 데이터 추출
+   */
+  private extractRepresentativeData(chunks: any[], maxSamples: number): any[] {
+    if (!chunks || chunks.length === 0) return [];
+    
+    const allData = [];
+    const samplesPerChunk = Math.max(1, Math.floor(maxSamples / chunks.length));
+    
+    chunks.forEach(chunk => {
+      if (chunk.data && Array.isArray(chunk.data)) {
+        // 각 청크에서 균등하게 샘플 추출
+        const chunkSamples = chunk.data.filter((_, index) => 
+          index % Math.max(1, Math.floor(chunk.data.length / samplesPerChunk)) === 0
+        ).slice(0, samplesPerChunk);
+        
+        allData.push(...chunkSamples);
+      }
+    });
+    
+    return allData.slice(0, maxSamples);
   }
 
   /**
