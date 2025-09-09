@@ -706,10 +706,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.post("/api/data-sources", async (req, res) => {
     try {
       const dataSource = req.body;
-      // 메모리 스토리지에 직접 추가 (임시 구현)
-      const dataSources = await storage.getDataSources();
-      dataSources.push(dataSource);
-      const createdDataSource = dataSource;
+      const createdDataSource = await storage.createDataSource(dataSource);
       console.log(`📊 데이터 소스 생성: ${dataSource.name} (${dataSource.recordCount}개 행)`);
       res.json(createdDataSource);
     } catch (error) {
@@ -722,10 +719,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   app.delete("/api/data-sources/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      // 메모리 스토리지에서 삭제 (임시 구현)
-      const dataSources = await storage.getDataSources();
-      const index = dataSources.findIndex(ds => ds.id === id);
-      if (index !== -1) dataSources.splice(index, 1);
+      await storage.deleteDataSource(id);
       console.log(`🗑️ 데이터 소스 삭제: ${id}`);
       res.json({ success: true });
     } catch (error) {
