@@ -493,7 +493,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         modelId,
         chatbotConfigId,
         priority: priority || 1,
-        isActive: isActive !== false
+        isActive: isActive !== false ? 1 : 0
       });
       
       console.log(`✅ AI 모델-챗봇 연결 생성: ${modelId} → ${chatbotConfigId}`);
@@ -534,7 +534,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { dataSourceId, accessType, filterRules } = req.body;
       
       const mapping = await storage.createAiModelDataSource({
-        modelId,
+        aiModelId: modelId,
         dataSourceId,
         accessType: accessType || 'READ',
         filterRules: filterRules || {}
@@ -554,8 +554,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       const { accessType, filterRules } = req.body;
       
       const updatedMapping = await storage.updateAiModelDataSource(modelId, dataSourceId, {
-        accessType,
-        filterRules
+        accessLevel: accessType,
+        dataFilter: filterRules
       });
       
       console.log(`📝 AI 모델-데이터 소스 매핑 업데이트: ${modelId} → ${dataSourceId}`);
