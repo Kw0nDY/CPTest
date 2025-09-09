@@ -106,7 +106,7 @@ export function EnterpriseChunkUploader({ open, onOpenChange, onSuccess }: Enter
       // 1단계: 업로드 세션 초기화
       console.log(`🚀 파일 업로드 시작: ${file.name} (${formatFileSize(file.size)})`);
       
-      const initResponse = await apiRequest('/api/upload/chunked/initialize', 'POST', {
+      const initResponse = await apiRequest('POST', '/api/upload/chunked/initialize', {
         fileName: file.name,
         fileSize: file.size,
         chunkSize: CHUNK_SIZE
@@ -172,7 +172,7 @@ export function EnterpriseChunkUploader({ open, onOpenChange, onSuccess }: Enter
       setUploadState(prev => ({ ...prev, phase: 'processing' }));
       console.log(`🔧 파일 재조립 및 파싱 시작...`);
       
-      const finalizeResponse = await apiRequest(`/api/upload/chunked/${sessionId}/finalize`, 'POST', {});
+      const finalizeResponse = await apiRequest('POST', `/api/upload/chunked/${sessionId}/finalize`, {});
       
       setUploadState({
         phase: 'completed',
