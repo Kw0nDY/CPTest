@@ -935,7 +935,186 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       // 데이터베이스에 업데이트된 구성 저장
       const result = await storage.updateChatConfiguration(configId, updatedConfig);
       
-      console.log(`✅ AI 모델 구성 업데이트 완료: ${configId}`);
+      // 🎯 AI 모델별 데이터 격리를 위한 자동 매핑 생성
+      try {
+        // 1. 기존 AI 모델 매핑 확인
+        const existingMappings = await storage.getAiModelChatConfigurations(configId);
+        console.log(`🔍 기존 AI 모델 매핑: ${existingMappings.length}개`);
+        
+        // 2. 매핑이 없으면 자동으로 생성 (가상 AI 모델 생성)
+        if (existingMappings.length === 0) {
+          console.log(`🎯 AI 모델 매핑이 없음 - 가상 AI 모델 생성: ${configId}`);
+          
+          // 가상 AI 모델 생성 (Chat Configuration마다 독립적인 가상 AI 모델)
+          const virtualAIModelId = `ai-model-${configId}`;
+          const virtualAIModel = {
+            id: virtualAIModelId,
+            name: `Virtual AI Model for ${updatedConfig.name}`,
+            description: `자동 생성된 가상 AI 모델 (Chat Config: ${configId})`,
+            type: 'virtual_chat_model',
+            status: 'deployed',
+            accuracy: 95,
+            framework: 'virtual',
+            version: '1.0.0',
+            modelConfig: {
+              chatConfigId: configId,
+              isVirtual: true,
+              isolatedData: true
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          try {
+            // 가상 AI 모델 생성
+            await storage.createAiModel(virtualAIModel);
+            console.log(`✅ 가상 AI 모델 생성 완료: ${virtualAIModelId}`);
+            
+            // AI 모델과 Chat Configuration 매핑 생성
+            await storage.createAiModelChatConfiguration({
+              aiModelId: virtualAIModelId,
+              chatConfigId: configId,
+              priority: 1,
+              isActive: 1,
+              modelRole: 'primary',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            console.log(`✅ AI 모델-챗봇 매핑 생성 완료: ${virtualAIModelId} ↔ ${configId}`);
+            
+            // 🎯 Knowledge Base 파일들을 AI 모델별 데이터 소스로 변환
+            if (updatedConfig.uploadedFiles && updatedConfig.uploadedFiles.length > 0) {
+              console.log(`📁 Knowledge Base 파일 ${updatedConfig.uploadedFiles.length}개를 AI 모델별 데이터 소스로 변환 중...`);
+              
+              for (const file of updatedConfig.uploadedFiles) {
+                try {
+                  // 파일별 데이터 소스 생성
+                  const fileDataSourceId = `ds-knowledge-${configId}-${file.id}`;
+                  const fileDataSource = {
+                    id: fileDataSourceId,
+                    name: `Knowledge Base: ${file.name}`,
+                    type: 'Knowledge Base',
+                    category: 'AI Model Data',
+                    status: 'connected',
+                    config: {
+                      fileName: file.name,
+                      fileSize: file.size,
+                      fileType: file.type,
+                      language: file.language,
+                      content: file.content,
+                      metadata: file.metadata,
+                      isKnowledgeBase: true,
+                      aiModelId: virtualAIModelId,
+                      chatConfigId: configId
+                    },
+                    recordCount: 1,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                  };
+                  
+                  // 데이터 소스 생성
+                  await storage.createDataSource(fileDataSource);
+                  console.log(`✅ Knowledge Base 데이터 소스 생성: ${file.name} → ${fileDataSourceId}`);
+                  
+                  // AI 모델과 데이터 소스 매핑 생성 (완전 격리)
+                  await storage.createAiModelDataSource({
+                    aiModelId: virtualAIModelId,
+                    dataSourceId: fileDataSourceId,
+                    accessLevel: 'read',
+                    dataFilter: {
+                      isolatedKnowledgeBase: true,
+                      fileName: file.name
+                    },
+                    isActive: 1,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
+                  console.log(`🔒 AI 모델별 격리된 데이터 소스 매핑 생성: ${virtualAIModelId} → ${fileDataSourceId}`);
+                  
+                } catch (fileError) {
+                  console.error(`Knowledge Base 파일 처리 오류 ${file.name}:`, fileError);
+                }
+              }
+            }
+            
+          } catch (aiModelError) {
+            console.error('가상 AI 모델 생성 실패:', aiModelError);
+          }
+        } else {
+          console.log(`✅ 기존 AI 모델 매핑 사용: ${existingMappings.map(m => m.aiModelId).join(', ')}`);
+          
+          // 기존 매핑이 있는 경우, Knowledge Base 파일들을 해당 AI 모델에 연결
+          for (const mapping of existingMappings) {
+            if (updatedConfig.uploadedFiles && updatedConfig.uploadedFiles.length > 0) {
+              console.log(`📁 기존 AI 모델 ${mapping.aiModelId}에 Knowledge Base 파일 ${updatedConfig.uploadedFiles.length}개 연결 중...`);
+              
+              for (const file of updatedConfig.uploadedFiles) {
+                try {
+                  const fileDataSourceId = `ds-knowledge-${configId}-${file.id}`;
+                  
+                  // 이미 존재하는 데이터 소스인지 확인
+                  const existingDataSource = await storage.getDataSource(fileDataSourceId);
+                  if (!existingDataSource) {
+                    // 새 데이터 소스 생성
+                    const fileDataSource = {
+                      id: fileDataSourceId,
+                      name: `Knowledge Base: ${file.name}`,
+                      type: 'Knowledge Base',
+                      category: 'AI Model Data',
+                      status: 'connected',
+                      config: {
+                        fileName: file.name,
+                        fileSize: file.size,
+                        fileType: file.type,
+                        language: file.language,
+                        content: file.content,
+                        metadata: file.metadata,
+                        isKnowledgeBase: true,
+                        aiModelId: mapping.aiModelId,
+                        chatConfigId: configId
+                      },
+                      recordCount: 1,
+                      createdAt: new Date(),
+                      updatedAt: new Date()
+                    };
+                    
+                    await storage.createDataSource(fileDataSource);
+                    console.log(`✅ 새 Knowledge Base 데이터 소스 생성: ${file.name} → ${fileDataSourceId}`);
+                  }
+                  
+                  // AI 모델과 데이터 소스 매핑 확인/생성
+                  const existingMapping = await storage.getAiModelDataSources(mapping.aiModelId);
+                  const hasMapping = existingMapping.some(m => m.dataSourceId === fileDataSourceId);
+                  
+                  if (!hasMapping) {
+                    await storage.createAiModelDataSource({
+                      aiModelId: mapping.aiModelId,
+                      dataSourceId: fileDataSourceId,
+                      accessLevel: 'read',
+                      dataFilter: {
+                        isolatedKnowledgeBase: true,
+                        fileName: file.name
+                      },
+                      isActive: 1,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    });
+                    console.log(`🔒 기존 AI 모델에 격리된 데이터 소스 매핑 생성: ${mapping.aiModelId} → ${fileDataSourceId}`);
+                  }
+                  
+                } catch (fileError) {
+                  console.error(`기존 AI 모델 Knowledge Base 파일 처리 오류 ${file.name}:`, fileError);
+                }
+              }
+            }
+          }
+        }
+        
+      } catch (mappingError) {
+        console.error('AI 모델 매핑 자동 생성 실패:', mappingError);
+      }
+      
+      console.log(`✅ AI 모델 구성 업데이트 및 격리 설정 완료: ${configId}`);
       res.json(result);
     } catch (error) {
       console.error('구성 업데이트 실패:', error);
