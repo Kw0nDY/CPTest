@@ -12,6 +12,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/dashboard/:module" component={Dashboard} />
+      <Route path="/assistant" component={Dashboard} />
       <Route path="/settings/data-integration" component={Dashboard} />
       <Route path="/settings/:tab" component={Dashboard} />
       <Route path="/settings" component={Dashboard} />

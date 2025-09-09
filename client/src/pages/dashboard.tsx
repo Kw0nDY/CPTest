@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import Header from "@/components/layout/header";
 import Sidebar from "@/components/layout/sidebar";
 import DataIntegrationTab from "@/components/data-integration/data-integration-tab";
@@ -160,9 +161,37 @@ type ViewType =
   | "member" | "apis" | "view-list" | string;
 
 export default function Dashboard() {
+  const [location] = useLocation();
   const [activeView, setActiveView] = useState<ViewType>("data-integration");
   const [currentUser, setCurrentUser] = useState<User>(availableUsers[0]); // Default to Admin
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // URL에 따라 활성 뷰 설정
+  useEffect(() => {
+    if (location === "/assistant") {
+      setActiveView("ai-chat");
+    } else if (location.startsWith("/dashboard/")) {
+      const module = location.split("/dashboard/")[1];
+      if (module) {
+        setActiveView(module as ViewType);
+      }
+    } else if (location.startsWith("/settings/")) {
+      const tab = location.split("/settings/")[1];
+      if (tab) {
+        setActiveView(tab as ViewType);
+      }
+    } else if (location.startsWith("/management/")) {
+      const tab = location.split("/management/")[1];
+      if (tab) {
+        setActiveView(tab as ViewType);
+      }
+    } else if (location.startsWith("/main-menu/")) {
+      const view = location.split("/main-menu/")[1];
+      if (view) {
+        setActiveView(view as ViewType);
+      }
+    }
+  }, [location]);
 
   const handleViewChange = (view: string) => {
     setActiveView(view as ViewType);
