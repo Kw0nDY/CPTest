@@ -1328,6 +1328,29 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // 🔧 누락된 updateAiModelDataSource 메서드 구현
+  async updateAiModelDataSource(aiModelId: string, dataSourceId: string, updates: Partial<AiModelDataSource>): Promise<AiModelDataSource> {
+    try {
+      const [updated] = await db.update(aiModelDataSources)
+        .set({
+          ...updates,
+          updatedAt: new Date().toISOString()
+        })
+        .where(
+          and(
+            eq(aiModelDataSources.aiModelId, aiModelId),
+            eq(aiModelDataSources.dataSourceId, dataSourceId)
+          )
+        )
+        .returning();
+      
+      return updated;
+    } catch (error) {
+      console.error('Error updating AI model data source mapping:', error);
+      throw error;
+    }
+  }
+
   // 🎯 통합 쿼리: 챗봇 구성에 연결된 모든 AI 모델과 데이터소스 조회
   async getChatbotAiModelsAndData(chatConfigId: string): Promise<{
     aiModels: AiModel[];

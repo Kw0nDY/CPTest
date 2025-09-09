@@ -738,6 +738,39 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   });
 
   // 누락된 API: 챗봇 데이터 통합 연결 조회
+  // 🎯 챗봇 데이터 연동 생성 API (누락된 핵심 엔드포인트)
+  app.post("/api/chatbot-data-integrations", async (req, res) => {
+    try {
+      const { configId, dataSourceId, accessLevel, dataFilter } = req.body;
+      
+      // 유효성 검사
+      if (!configId || !dataSourceId) {
+        return res.status(400).json({ 
+          error: 'configId와 dataSourceId는 필수입니다' 
+        });
+      }
+      
+      console.log(`🔗 챗봇-데이터소스 연결 시도: ${configId} → ${dataSourceId}`);
+      
+      const integration = await storage.createChatbotDataIntegration({
+        configId,
+        dataSourceId,
+        accessLevel: accessLevel || 'READ',
+        dataFilter: dataFilter || null
+      });
+      
+      console.log(`✅ 챗봇 데이터 연동 완료: ${integration.id}`);
+      res.json(integration);
+      
+    } catch (error) {
+      console.error('❌ 챗봇 데이터 연동 실패:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: '데이터 연동이 실패했습니다' 
+      });
+    }
+  });
+
   app.get("/api/chatbot-data-integrations/:configId", async (req, res) => {
     try {
       const connectedSources = await storage.getChatbotDataIntegrations(req.params.configId);
