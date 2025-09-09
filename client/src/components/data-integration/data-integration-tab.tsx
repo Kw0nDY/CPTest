@@ -1203,16 +1203,20 @@ export default function DataIntegrationTab() {
       <EnterpriseChunkUploader
         open={showEnterpriseUploadDialog}
         onOpenChange={setShowEnterpriseUploadDialog}
-        onSuccess={async (result) => {
+        onSuccess={async (result, customTitle) => {
           console.log('엔터프라이즈 업로드 성공:', result);
           
           try {
             const { parseResult } = result;
             
-            // 🚀 자동으로 데이터 소스 목록에 추가
+            // 🚀 자동으로 데이터 소스 목록에 추가 (사용자 제목 적용)
+            const dataSourceName = customTitle 
+              ? customTitle 
+              : `대용량 데이터 (${parseResult.totalRows.toLocaleString()}개 행)`;
+              
             const enterpriseDataSource: DataSource = {
               id: `enterprise-${Date.now()}`,
-              name: `대용량 데이터 (${parseResult.totalRows.toLocaleString()}개 행)`,
+              name: dataSourceName,
               type: 'Enterprise File',
               category: 'file', // 🔥 누락된 필수 필드 추가!
               vendor: 'DXT Enterprise',
@@ -1245,6 +1249,9 @@ export default function DataIntegrationTab() {
 
             // 데이터 소스 추가
             await createDataSourceMutation.mutateAsync(enterpriseDataSource);
+            
+            // 🚀 Connected Data Sources 목록 새로고침 (누락된 핵심 코드!)
+            queryClient.invalidateQueries({ queryKey: ['/api/data-sources'] });
             
             toast({
               title: "🎉 대용량 파일 처리 완료",

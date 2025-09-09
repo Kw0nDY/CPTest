@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { 
@@ -26,7 +28,7 @@ import {
 interface EnterpriseChunkUploaderProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (result: any) => void;
+  onSuccess?: (result: any, customTitle?: string) => void;
 }
 
 interface ChunkUploadSession {
@@ -54,6 +56,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB 최대 파일 크기
 export function EnterpriseChunkUploader({ open, onOpenChange, onSuccess }: EnterpriseChunkUploaderProps) {
   const [uploadState, setUploadState] = useState<UploadState>({ phase: 'idle' });
   const [dragOver, setDragOver] = useState(false);
+  const [customTitle, setCustomTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
@@ -185,7 +188,7 @@ export function EnterpriseChunkUploader({ open, onOpenChange, onSuccess }: Enter
       });
       
       if (onSuccess) {
-        onSuccess(finalizeResponse);
+        onSuccess(finalizeResponse, customTitle.trim());
       }
       
     } catch (error: any) {
@@ -425,6 +428,23 @@ export function EnterpriseChunkUploader({ open, onOpenChange, onSuccess }: Enter
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* 제목 입력 필드 */}
+          <div className="space-y-2">
+            <Label htmlFor="custom-title" className="text-sm font-medium">
+              데이터 소스 제목 (선택사항)
+            </Label>
+            <Input
+              id="custom-title"
+              placeholder="예: 2024년 고객 매출 데이터"
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500">
+              제목을 입력하지 않으면 파일명과 데이터 정보로 자동 생성됩니다.
+            </p>
+          </div>
+          
           {renderUploadArea()}
         </div>
       </DialogContent>
