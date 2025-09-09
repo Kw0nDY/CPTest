@@ -483,7 +483,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // AI 처리 옵션 설정
           const aiOptions = {
             maxTokens: config.maxTokens || 2000,
-            temperature: (config.temperature || 700000) / 1000000, // UI에서 받은 값을 0-1 범위로 변환
+            temperature: Math.min((config.temperature || 70) / 100, 1.0), // UI에서 받은 값을 0-1 범위로 변환, 최대 1.0
             model: 'llama',
             enableFallback: true
           };

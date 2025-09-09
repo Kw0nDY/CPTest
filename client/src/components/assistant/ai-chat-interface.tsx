@@ -437,7 +437,7 @@ export function AiChatInterface() {
             status: 'ready' as const,
             configId: config.id
           }));
-          console.log(`✅ AI 모델 "${config.name}"의 Knowledge Base 파일 ${config.uploadedFiles.length}개 복원 완료`);
+          console.log(`✅ AI 모델 "${config.name}"의 Knowledge Base 파일 ${config.uploadedFiles.length}개 복원 완료 (모델별 격리됨)`);
         }
       });
       
