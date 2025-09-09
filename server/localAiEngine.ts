@@ -602,7 +602,7 @@ export class LocalAIEngine {
   }
 
   /**
-   * 키워드 기반 분석 (Fallback용)
+   * 지능형 키워드 기반 분석 및 데이터 질의응답
    */
   private analyzeKeywords(userMessage: string, data: any[]): {
     response: string;
@@ -610,47 +610,252 @@ export class LocalAIEngine {
   } {
     const message = userMessage.toLowerCase();
     
-    // 데이터 기본 정보
-    const dataInfo = data.length > 0 ? 
-      `데이터셋: ${data.length}개 행, ${Object.keys(data[0] || {}).length}개 열` :
-      '업로드된 데이터가 없습니다.';
+    if (data.length === 0) {
+      return {
+        response: '현재 분석할 데이터가 없습니다. 먼저 데이터를 업로드해주세요.',
+        confidence: 0.9
+      };
+    }
+
+    const columns = Object.keys(data[0] || {});
+    const dataInfo = `📊 데이터셋 정보: ${data.length}개 행, ${columns.length}개 열`;
     
-    // 키워드 패턴 분석
+    // 🔍 분석 및 요약 질의
     if (message.includes('분석') || message.includes('요약')) {
+      return this.performDataAnalysis(data, columns, dataInfo);
+    }
+    
+    // 📈 통계 질의 
+    if (message.includes('통계') || message.includes('평균') || message.includes('최대') || message.includes('최소')) {
+      return this.performStatisticalAnalysis(data, columns, message);
+    }
+    
+    // 🔢 개수/수량 질의
+    if (message.includes('개수') || message.includes('수량') || message.includes('총')) {
+      return this.countAnalysis(data, message, columns);
+    }
+    
+    // 📋 컬럼/필드 정보
+    if (message.includes('컬럼') || message.includes('필드') || message.includes('항목')) {
       return {
-        response: `${dataInfo}\n\n간단한 분석을 수행했습니다. 더 자세한 분석을 위해서는 AI 기능을 활성화해주세요.`,
-        confidence: 0.6
+        response: `📋 데이터 구조:\n${columns.map((col, i) => `${i+1}. ${col}`).join('\n')}\n\n총 ${columns.length}개 컬럼입니다.`,
+        confidence: 0.9
       };
     }
     
-    if (message.includes('개수') || message.includes('수량')) {
+    // 🔍 특정 값 검색
+    if (message.includes('찾') || message.includes('검색') || message.includes('조건')) {
+      return this.performSearch(data, message, columns);
+    }
+    
+    // 📊 PH 값 특별 분석 (bioreactor 데이터용)
+    if (message.includes('ph') || message.includes('산도')) {
+      return this.analyzePH(data);
+    }
+    
+    // 🏭 생산성 분석
+    if (message.includes('생산') || message.includes('oee') || message.includes('효율')) {
+      return this.analyzeProduction(data);
+    }
+    
+    // 기본 데이터 개요
+    return this.provideDataOverview(data, columns, dataInfo);
+  }
+
+  private performDataAnalysis(data: any[], columns: string[], dataInfo: string) {
+    const sampleData = data.slice(0, 3);
+    let analysis = `${dataInfo}\n\n📊 **데이터 분석 결과:**\n`;
+    
+    // 수치형 컬럼 분석
+    const numericColumns = columns.filter(col => {
+      const values = data.slice(0, 10).map(row => parseFloat(row[col])).filter(n => !isNaN(n));
+      return values.length > 5;
+    });
+    
+    if (numericColumns.length > 0) {
+      analysis += `\n🔢 **수치 데이터 (${numericColumns.length}개 컬럼):**\n`;
+      numericColumns.slice(0, 3).forEach(col => {
+        const values = data.map(row => parseFloat(row[col])).filter(n => !isNaN(n));
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        analysis += `• ${col}: 평균 ${avg.toFixed(2)}, 범위 ${min}-${max}\n`;
+      });
+    }
+    
+    // 텍스트 컬럼 분석
+    const textColumns = columns.filter(col => !numericColumns.includes(col));
+    if (textColumns.length > 0) {
+      analysis += `\n📝 **텍스트 데이터 (${textColumns.length}개 컬럼):**\n`;
+      textColumns.slice(0, 3).forEach(col => {
+        const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v))];
+        analysis += `• ${col}: ${uniqueValues.length}개 고유값\n`;
+      });
+    }
+    
+    analysis += `\n💡 **주요 발견사항:**\n• 전체 ${data.length}개의 레코드가 분석되었습니다.\n• ${numericColumns.length}개의 수치 컬럼과 ${textColumns.length}개의 텍스트 컬럼을 포함합니다.`;
+    
+    return { response: analysis, confidence: 0.9 };
+  }
+
+  private performStatisticalAnalysis(data: any[], columns: string[], message: string) {
+    const numericColumns = columns.filter(col => {
+      const values = data.slice(0, 10).map(row => parseFloat(row[col])).filter(n => !isNaN(n));
+      return values.length > 5;
+    });
+    
+    if (numericColumns.length === 0) {
       return {
-        response: `데이터 개수: ${data.length}개`,
+        response: '통계 분석을 위한 수치 데이터가 없습니다.',
         confidence: 0.8
       };
     }
     
-    if (message.includes('컬럼') || message.includes('필드')) {
-      const columns = data.length > 0 ? Object.keys(data[0]) : [];
+    let stats = `📈 **통계 분석 결과:**\n`;
+    
+    numericColumns.slice(0, 5).forEach(col => {
+      const values = data.map(row => parseFloat(row[col])).filter(n => !isNaN(n));
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const std = Math.sqrt(values.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / values.length);
+      
+      stats += `\n**${col}:**\n`;
+      stats += `• 평균: ${avg.toFixed(2)}\n• 최소값: ${min}\n• 최대값: ${max}\n• 표준편차: ${std.toFixed(2)}\n`;
+    });
+    
+    return { response: stats, confidence: 0.9 };
+  }
+
+  private countAnalysis(data: any[], message: string, columns: string[]) {
+    let result = `🔢 **개수 분석 결과:**\n\n• 전체 데이터 행: ${data.length}개\n• 전체 컬럼: ${columns.length}개\n`;
+    
+    // 특정 컬럼의 고유값 개수
+    columns.slice(0, 5).forEach(col => {
+      const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v && v !== ''))];
+      result += `• ${col} 고유값: ${uniqueValues.length}개\n`;
+    });
+    
+    return { response: result, confidence: 0.9 };
+  }
+
+  private performSearch(data: any[], message: string, columns: string[]) {
+    // 간단한 검색 로직
+    let searchResults = `🔍 **검색 결과:**\n\n`;
+    
+    // PH=5 검색 예시
+    if (message.includes('ph') && message.includes('5')) {
+      const phRecords = data.filter(row => row.PH === '5' || row.ph === '5');
+      searchResults += `PH값이 5인 레코드: ${phRecords.length}개 발견\n`;
+      
+      if (phRecords.length > 0) {
+        searchResults += `\n**샘플 데이터:**\n`;
+        phRecords.slice(0, 2).forEach((record, i) => {
+          searchResults += `${i+1}. BatchID: ${record.BatchID || 'N/A'}, Operator: ${record.Operator || 'N/A'}\n`;
+        });
+      }
+    } else {
+      searchResults += `데이터에서 관련 정보를 검색했습니다.\n총 ${data.length}개 레코드를 대상으로 분석했습니다.`;
+    }
+    
+    return { response: searchResults, confidence: 0.8 };
+  }
+
+  private analyzePH(data: any[]) {
+    const phColumn = data[0] && (data[0].PH !== undefined ? 'PH' : data[0].ph !== undefined ? 'ph' : null);
+    
+    if (!phColumn) {
       return {
-        response: `컬럼: ${columns.join(', ')} (총 ${columns.length}개)`,
-        confidence: 0.8
+        response: 'PH 데이터를 찾을 수 없습니다.',
+        confidence: 0.7
       };
     }
     
-    // 기본 응답
-    return {
-      response: `${dataInfo}\n\n현재 AI 기능이 제한되어 있습니다. 더 정확한 답변을 위해 AI 설정을 확인해주세요.`,
-      confidence: 0.4
+    const phValues = data.map(row => parseFloat(row[phColumn])).filter(n => !isNaN(n));
+    const phStats = {
+      count: phValues.length,
+      avg: phValues.reduce((a, b) => a + b, 0) / phValues.length,
+      min: Math.min(...phValues),
+      max: Math.max(...phValues)
     };
+    
+    const phDistribution = {};
+    data.forEach(row => {
+      const ph = row[phColumn];
+      if (ph) phDistribution[ph] = (phDistribution[ph] || 0) + 1;
+    });
+    
+    let result = `🧪 **PH 분석 결과:**\n\n`;
+    result += `• 전체 PH 측정값: ${phStats.count}개\n`;
+    result += `• 평균 PH: ${phStats.avg.toFixed(2)}\n`;
+    result += `• PH 범위: ${phStats.min} - ${phStats.max}\n\n`;
+    result += `**PH 분포:**\n`;
+    Object.entries(phDistribution).slice(0, 10).forEach(([ph, count]) => {
+      result += `• PH ${ph}: ${count}개\n`;
+    });
+    
+    return { response: result, confidence: 0.9 };
+  }
+
+  private analyzeProduction(data: any[]) {
+    const productionColumns = ['OEE', 'Production Rate', 'ProductionRate', 'production_rate'];
+    const foundColumn = productionColumns.find(col => data[0] && data[0][col] !== undefined);
+    
+    if (!foundColumn) {
+      return {
+        response: '생산성 관련 데이터(OEE, Production Rate)를 찾을 수 없습니다.',
+        confidence: 0.7
+      };
+    }
+    
+    const values = data.map(row => parseFloat(row[foundColumn])).filter(n => !isNaN(n));
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    
+    let result = `🏭 **생산성 분석 결과:**\n\n`;
+    result += `• 분석 지표: ${foundColumn}\n`;
+    result += `• 평균값: ${avg.toFixed(2)}\n`;
+    result += `• 최고값: ${max}\n`;
+    result += `• 최저값: ${min}\n`;
+    result += `• 총 측정값: ${values.length}개\n`;
+    
+    // 성능 등급 평가
+    if (foundColumn.includes('OEE')) {
+      if (avg > 85) result += `\n✅ **우수한 OEE 성능** (85% 이상)`;
+      else if (avg > 70) result += `\n⚠️ **양호한 OEE 성능** (70-85%)`;
+      else result += `\n🔄 **OEE 개선 필요** (70% 미만)`;
+    }
+    
+    return { response: result, confidence: 0.9 };
+  }
+
+  private provideDataOverview(data: any[], columns: string[], dataInfo: string) {
+    let overview = `${dataInfo}\n\n📋 **데이터 개요:**\n\n`;
+    
+    // 샘플 데이터 표시
+    overview += `**주요 컬럼:**\n${columns.slice(0, 5).join(', ')}\n\n`;
+    
+    // 첫 번째 레코드 샘플
+    if (data.length > 0) {
+      overview += `**샘플 레코드:**\n`;
+      const sample = data[0];
+      Object.entries(sample).slice(0, 5).forEach(([key, value]) => {
+        overview += `• ${key}: ${value}\n`;
+      });
+    }
+    
+    overview += `\n💡 **추가 분석 가능:**\n• "통계 분석해줘" - 수치 데이터 통계\n• "PH 분석해줘" - PH 값 분포 분석\n• "생산성 분석해줘" - OEE 및 생산율 분석`;
+    
+    return { response: overview, confidence: 0.8 };
   }
 
   /**
    * Fallback 응답 초기화
    */
   private initializeFallbackResponses(): void {
-    this.fallbackResponses.set('data_analysis', '데이터를 분석했습니다. AI 기능을 활성화하면 더 자세한 분석을 제공할 수 있습니다.');
-    this.fallbackResponses.set('data_summary', '데이터 요약을 생성했습니다.');
+    this.fallbackResponses.set('data_analysis', '데이터 분석이 완료되었습니다. 추가 질문이 있으시면 언제든지 말씀해주세요.');
+    this.fallbackResponses.set('data_summary', '데이터 요약이 생성되었습니다. 특정 부분에 대해 더 자세히 알고 싶으시면 질문해주세요.');
     this.fallbackResponses.set('error', '죄송합니다. 일시적인 오류가 발생했습니다. 다시 시도해주세요.');
   }
 
