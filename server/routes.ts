@@ -67,14 +67,43 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           if (file.content && file.content.length > 0) {
             try {
               if (file.name.endsWith('.csv')) {
-                const rows = file.content.split('\n').slice(1); // 헤더 제외
-                const parsedData = rows.map(row => {
-                  const values = row.split(',');
-                  return { file: file.name, data: values.join(' ') };
-                });
-                allUploadedData.push(...parsedData);
-                console.log(`✅ Content에서 데이터 파일 로드: ${file.name} → ${parsedData.length}개 레코드`);
-                fileProcessed = true;
+                try {
+                  // 🎯 대용량 CSV 스트리밍 처리로 스택 오버플로우 방지
+                  const { processLargeCSV } = await import('./csvProcessor');
+                  const result = await processLargeCSV(file.content, {
+                    maxRows: 2000, // 메모리 보호를 위한 제한
+                    batchSize: 100
+                  });
+                  
+                  const parsedData = result.data.map(row => ({
+                    file: file.name,
+                    data: Object.values(row).join(' ')
+                  }));
+                  
+                  allUploadedData.push(...parsedData);
+                  console.log(`✅ 스트리밍 CSV 처리: ${file.name} → ${parsedData.length}개 레코드 (${result.truncated ? '일부만' : '전체'})`);
+                  
+                  if (result.truncated) {
+                    console.warn(`⚠️ 대용량 파일 제한: ${file.name}의 일부만 로드됨 (처리 시간: ${result.processingTime}ms)`);
+                  }
+                  
+                  fileProcessed = true;
+                } catch (streamError) {
+                  console.error(`CSV 스트리밍 처리 실패: ${file.name}`, streamError);
+                  // Fallback: 기존 방식 (소규모 파일만)
+                  try {
+                    const rows = file.content.split('\n').slice(1, 101); // 최대 100행만
+                    const parsedData = rows.map(row => {
+                      const values = row.split(',');
+                      return { file: file.name, data: values.join(' ') };
+                    });
+                    allUploadedData.push(...parsedData);
+                    console.log(`⚠️ Fallback으로 데이터 파일 로드: ${file.name} → ${parsedData.length}개 레코드 (제한적)`);
+                    fileProcessed = true;
+                  } catch (fallbackError) {
+                    console.error(`CSV Fallback 처리도 실패: ${file.name}`, fallbackError);
+                  }
+                }
               } else if (file.name.endsWith('.json')) {
                 const parsed = JSON.parse(file.content);
                 const dataArray = Array.isArray(parsed) ? parsed : [parsed];
