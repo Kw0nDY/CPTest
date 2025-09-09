@@ -430,7 +430,7 @@ export function AiChatInterface() {
       
       configurations.forEach(config => {
         if (config.uploadedFiles && config.uploadedFiles.length > 0) {
-          restoredKnowledgeBase[config.id] = config.uploadedFiles.map(file => ({
+          restoredKnowledgeBase[config.id] = config.uploadedFiles.filter(file => file && file.id).map(file => ({
             id: file.id || `kb-restored-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             name: file.name,
             uploadedAt: file.uploadedAt || new Date().toISOString(),
@@ -904,7 +904,7 @@ export function AiChatInterface() {
         apiEndpoint: editingConfig.apiEndpoint,
         systemPrompt: editingConfig.systemPrompt,
         maxTokens: Math.round(editingConfig.maxTokens || 2000),
-        temperature: Math.round((editingConfig.temperature || 0.7) * 100), // Convert 0.7 to 70
+        temperature: Math.min(Math.round((editingConfig.temperature || 0.7) * 100), 200), // Convert 0.7 to 70, cap at 200
         isActive: editingConfig.isActive ? 1 : 0, // Convert boolean to integer
         uploadedFiles: editingConfig.uploadedFiles || []
       };

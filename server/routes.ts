@@ -760,6 +760,58 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 개별 데이터 소스 조회 API 추가
+  app.get("/api/data-sources/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      if (!dataSource) {
+        return res.status(404).json({ error: 'Data source not found' });
+      }
+      res.json(dataSource);
+    } catch (error) {
+      console.error('데이터 소스 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 데이터 소스 샘플 데이터 조회 API 추가
+  app.get("/api/data-sources/:id/sample-data", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      if (!dataSource) {
+        return res.status(404).json({ error: 'Data source not found' });
+      }
+      
+      // 샘플 데이터가 있으면 반환, 없으면 빈 객체 반환
+      const sampleData = (dataSource as any).sampleData || {};
+      res.json(sampleData);
+    } catch (error) {
+      console.error('샘플 데이터 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 데이터 소스 테이블 데이터 조회 API 추가
+  app.get("/api/data-sources/:id/tables/:table/data", async (req, res) => {
+    try {
+      const { id, table } = req.params;
+      const dataSource = await storage.getDataSource(id);
+      if (!dataSource) {
+        return res.status(404).json({ error: 'Data source not found' });
+      }
+      
+      // 테이블별 데이터 조회 (샘플 데이터에서 해당 테이블 추출)
+      const sampleData = (dataSource as any).sampleData || {};
+      const tableData = sampleData[table] || [];
+      res.json(tableData);
+    } catch (error) {
+      console.error('테이블 데이터 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // 🚀 엔터프라이즈 업로드를 위한 데이터 소스 생성 API
   app.post("/api/data-sources", async (req, res) => {
     try {
