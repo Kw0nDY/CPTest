@@ -467,84 +467,30 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       prompt += `- 정확한 수치와 구체적인 정보 제공\n`;
       prompt += `- 한국어로 자연스럽게 답변\n\n`;
 
-      // 🚨 실제 AI 모델(Flowise)에 데이터 전달하여 응답 생성
+      // 🚀 로컬 AI 엔진으로 실제 계산 수행
       let aiResponse = "";
       
-      if (config && config.chatflowId) {
+      if (config) {
         try {
-          // Flowise API 엔드포인트 구성
-          const flowiseUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
-          
-          console.log(`🎯 AI 모델에 실제 요청 전송: ${flowiseUrl}`);
-          console.log(`📊 전송할 실제 데이터 개수: ${allUploadedData.length}개 (AI 소스 파일 제외됨)`);
+          console.log(`🤖 로컬 AI 엔진으로 직접 처리 시작: "${message}"`);
+          console.log(`📊 분석할 실제 데이터 개수: ${allUploadedData.length}개`);
           
           if (allUploadedData.length > 0) {
-            console.log(`📋 데이터 샘플:`, JSON.stringify(allUploadedData.slice(0, 2), null, 2));
+            console.log(`📋 데이터 샘플:`, JSON.stringify(allUploadedData.slice(0, 1), null, 2));
           }
           
-          // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
-          const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
+          // 로컬 AI 엔진 호출
+          const { localAI } = await import('./localAiEngine');
           
-          // 🎯 소스 파일에서 추출한 API URL 사용 또는 로컬 AI 처리
-          if (extractedApiUrl) {
-            console.log(`🌐 추출된 API URL로 요청 전송: ${extractedApiUrl}`);
-            
-            try {
-              const response = await fetch(extractedApiUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  question: fullPrompt,
-                  overrideConfig: {
-                    systemMessagePrompt: config.systemPrompt || "",
-                  }
-                }),
-                signal: AbortSignal.timeout(30000) // 30초 타임아웃
-              });
-
-              if (response.ok) {
-                const apiResult = await response.json();
-                aiResponse = apiResult.text || apiResult.answer || apiResult.response || "API 응답을 받지 못했습니다.";
-                console.log(`✅ 추출된 API 요청 성공: ${aiResponse.substring(0, 100)}...`);
-              } else {
-                throw new Error(`API 응답 오류: ${response.status}`);
-              }
-            } catch (apiError) {
-              console.error(`❌ 추출된 API 호출 실패:`, apiError);
-              
-              // 🔄 로컬 AI로 폴백
-              console.log('🔄 로컬 AI 엔진으로 폴백 처리');
-              const { localAI } = await import('./localAiEngine');
-              
-              const result = await localAI.processQuery(message, allUploadedData, {
-                maxTokens: config.maxTokens || 1500,
-                temperature: (config.temperature || 70) / 100,
-                enableFallback: true
-              });
-              
-              aiResponse = result.response;
-              console.log(`✅ ${result.dataSource} 폴백 처리 성공`);
-            }
-          } else {
-            // API URL이 없으면 로컬 AI 엔진 사용
-            console.log(`🤖 로컬 AI 엔진으로 처리 (API URL 없음): "${message}"`);
-            
-            const { localAI } = await import('./localAiEngine');
-            
-            const result = await localAI.processQuery(message, allUploadedData, {
-              maxTokens: config.maxTokens || 1500,
-              temperature: (config.temperature || 70) / 100,
-              enableFallback: true
-            });
-            
-            aiResponse = result.response;
-            console.log(`✅ ${result.dataSource} AI 처리 성공: ${result.confidence * 100}% 신뢰도`);
-          }
-
-          // 로컬 AI 처리 완료 (aiResponse 이미 설정됨)
-          console.log(`✅ 로컬 AI 처리 완료: ${aiResponse.substring(0, 100)}...`);
+          const result = await localAI.processQuery(message, allUploadedData, {
+            maxTokens: config.maxTokens || 1500,
+            temperature: (config.temperature || 70) / 100,
+            enableFallback: true
+          });
+          
+          aiResponse = result.response;
+          console.log(`✅ 로컬 AI 처리 성공: ${result.confidence * 100}% 신뢰도, 데이터소스: ${result.dataSource}`);
+          console.log(`📋 AI 응답 미리보기: ${aiResponse.substring(0, 200)}...`);
         } catch (localAiError) {
           console.error('❌ 로컬 AI 처리 실패:', localAiError);
           
