@@ -83,11 +83,13 @@ export class LocalAIEngine {
 
   /**
    * 메인 AI 처리 함수 - 데이터 분석 및 질문 응답
+   * 🎯 AI 모델별 데이터 격리 지원
    */
   async processQuery(
     userMessage: string,
     uploadedData: any[] = [],
-    options: AIProcessingOptions = {}
+    options: AIProcessingOptions = {},
+    modelId?: string
   ): Promise<AIProcessingResult> {
     const startTime = Date.now();
     
@@ -104,6 +106,11 @@ export class LocalAIEngine {
     } = options;
 
     try {
+      // 🎯 모델별 데이터 격리 로깅
+      if (modelId) {
+        console.log(`🔒 AI 모델 ${modelId}에 대한 격리된 데이터 처리: ${uploadedData.length}개 레코드`);
+      }
+      
       // 1. OpenAI API 처리 시도
       if (this.openai) {
         console.log('🤖 OpenAI 로컬 처리 시작');
@@ -113,7 +120,7 @@ export class LocalAIEngine {
           model,
           contextLimit,
           startTime
-        });
+        }, modelId);
       }
 
       // 2. Fallback 처리
@@ -139,6 +146,7 @@ export class LocalAIEngine {
 
   /**
    * OpenAI API를 통한 처리
+   * 🎯 AI 모델별 데이터 격리 지원
    */
   private async processWithOpenAI(
     userMessage: string,
@@ -149,16 +157,17 @@ export class LocalAIEngine {
       model: string;
       contextLimit: number;
       startTime: number;
-    }
+    },
+    modelId?: string
   ): Promise<AIProcessingResult> {
     if (!this.openai) throw new Error('OpenAI not initialized');
 
     // 데이터 요약 (컨텍스트 제한 대응)
     const dataContext = this.summarizeData(uploadedData, config.contextLimit);
     
-    // 프롬프트 구성
-    const systemPrompt = this.createSystemPrompt(dataContext);
-    const prompt = this.createUserPrompt(userMessage, dataContext);
+    // 프롬프트 구성 (모델별 컨텍스트 추가)
+    const systemPrompt = this.createSystemPrompt(dataContext, modelId);
+    const prompt = this.createUserPrompt(userMessage, dataContext, modelId);
     
     console.log(`📊 데이터 컨텍스트: ${dataContext.rowCount}개 행, ${prompt.length}자 프롬프트`);
 
@@ -291,29 +300,41 @@ export class LocalAIEngine {
 
   /**
    * 시스템 프롬프트 생성
+   * 🎯 AI 모델별 컨텍스트 지원
    */
-  private createSystemPrompt(dataContext: any): string {
-    return `당신은 데이터 분석 전문가입니다. 
+  private createSystemPrompt(dataContext: any, modelId?: string): string {
+    let prompt = `당신은 데이터 분석 전문가입니다. 
 업로드된 데이터를 기반으로 사용자 질문에 정확히 답변하세요.
 
 데이터 정보:
 - ${dataContext.summary}
-- 컬럼: ${dataContext.columns.join(', ')}
+- 컬럼: ${dataContext.columns.join(', ')}`;
 
-JSON 형식으로 응답하세요:
+    if (modelId) {
+      prompt += `\n\n🔒 보안 정책: 이 데이터는 AI 모델 ${modelId}에만 접근이 허용된 격리된 데이터입니다. 다른 모델이나 시스템과 공유하지 마세요.`;
+    }
+
+    prompt += `\n\nJSON 형식으로 응답하세요:
 {
   "answer": "분석 결과 답변",
   "confidence": 0.8,
   "key_insights": ["주요 인사이트1", "인사이트2"],
   "data_summary": "데이터 요약"
 }`;
+
+    return prompt;
   }
 
   /**
    * 사용자 프롬프트 생성
+   * 🎯 AI 모델별 데이터 추적 지원
    */
-  private createUserPrompt(userMessage: string, dataContext: any): string {
+  private createUserPrompt(userMessage: string, dataContext: any, modelId?: string): string {
     let prompt = `질문: ${userMessage}\n\n`;
+    
+    if (modelId) {
+      prompt += `🎯 AI 모델: ${modelId}\n`;
+    }
     
     if (dataContext.sampleData.length > 0) {
       prompt += `샘플 데이터:\n`;

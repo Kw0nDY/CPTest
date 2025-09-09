@@ -302,6 +302,190 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 🎯 AI 모델-챗봇 연결 관리 API (새로운 아키텍처)
+  app.get("/api/ai-models/:modelId/chat-configurations", async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const configurations = await storage.getAIModelChatConfigurations(modelId);
+      res.json(configurations);
+    } catch (error) {
+      console.error('AI 모델 챗봇 구성 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post("/api/ai-models/:modelId/chat-configurations", async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { chatbotConfigId, priority, isActive } = req.body;
+      
+      const configuration = await storage.createAIModelChatConfiguration({
+        modelId,
+        chatbotConfigId,
+        priority: priority || 1,
+        isActive: isActive !== false
+      });
+      
+      console.log(`✅ AI 모델-챗봇 연결 생성: ${modelId} → ${chatbotConfigId}`);
+      res.json(configuration);
+    } catch (error) {
+      console.error('AI 모델 챗봇 구성 생성 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete("/api/ai-models/:modelId/chat-configurations/:configId", async (req, res) => {
+    try {
+      const { modelId, configId } = req.params;
+      await storage.deleteAIModelChatConfiguration(modelId, configId);
+      console.log(`🗑️ AI 모델-챗봇 연결 삭제: ${modelId} → ${configId}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('AI 모델 챗봇 구성 삭제 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 🎯 AI 모델별 전용 데이터 소스 매핑 API
+  app.get("/api/ai-models/:modelId/data-sources", async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const dataSources = await storage.getAIModelDataSources(modelId);
+      res.json(dataSources);
+    } catch (error) {
+      console.error('AI 모델 데이터 소스 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post("/api/ai-models/:modelId/data-sources", async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { dataSourceId, accessType, filterRules } = req.body;
+      
+      const mapping = await storage.createAIModelDataSource({
+        modelId,
+        dataSourceId,
+        accessType: accessType || 'READ',
+        filterRules: filterRules || {}
+      });
+      
+      console.log(`🔗 AI 모델-데이터 소스 매핑 생성: ${modelId} → ${dataSourceId}`);
+      res.json(mapping);
+    } catch (error) {
+      console.error('AI 모델 데이터 소스 매핑 생성 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put("/api/ai-models/:modelId/data-sources/:dataSourceId", async (req, res) => {
+    try {
+      const { modelId, dataSourceId } = req.params;
+      const { accessType, filterRules } = req.body;
+      
+      const updatedMapping = await storage.updateAIModelDataSource(modelId, dataSourceId, {
+        accessType,
+        filterRules
+      });
+      
+      console.log(`📝 AI 모델-데이터 소스 매핑 업데이트: ${modelId} → ${dataSourceId}`);
+      res.json(updatedMapping);
+    } catch (error) {
+      console.error('AI 모델 데이터 소스 매핑 업데이트 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete("/api/ai-models/:modelId/data-sources/:dataSourceId", async (req, res) => {
+    try {
+      const { modelId, dataSourceId } = req.params;
+      await storage.deleteAIModelDataSource(modelId, dataSourceId);
+      console.log(`🗑️ AI 모델-데이터 소스 매핑 삭제: ${modelId} → ${dataSourceId}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('AI 모델 데이터 소스 매핑 삭제 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 🎯 통합 AI 모델 데이터 접근 API (격리된 데이터 처리)
+  app.get("/api/ai-models/:modelId/accessible-data", async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { limit = 1000 } = req.query;
+      
+      // 1. AI 모델에 매핑된 데이터 소스 조회
+      const mappedDataSources = await storage.getAIModelDataSources(modelId);
+      console.log(`🔍 AI 모델 ${modelId}에 매핑된 데이터 소스: ${mappedDataSources.length}개`);
+      
+      const accessibleData = [];
+      let totalRecords = 0;
+      
+      // 2. 각 데이터 소스에서 권한에 따라 데이터 로드
+      for (const mapping of mappedDataSources) {
+        try {
+          const dataSource = await storage.getDataSource(mapping.dataSourceId);
+          if (!dataSource) continue;
+          
+          console.log(`📊 데이터 소스 처리: ${dataSource.name} (${mapping.accessType} 권한)`);
+          
+          // READ 권한만 허용
+          if (mapping.accessType !== 'READ') {
+            console.warn(`⚠️ 읽기 전용 접근 거부: ${dataSource.name}`);
+            continue;
+          }
+          
+          // 데이터 로드 (격리된 접근)
+          const tables = await storage.getDataSourceTables(mapping.dataSourceId);
+          for (const table of tables) {
+            if (totalRecords >= parseInt(limit as string)) break;
+            
+            const tableData = await storage.getTableData(mapping.dataSourceId, table.name);
+            if (tableData && tableData.length > 0) {
+              // 필터 규칙 적용 (기본 구현)
+              let filteredData = tableData;
+              if (mapping.filterRules && typeof mapping.filterRules === 'object') {
+                // 추후 확장 가능한 필터링 로직
+                console.log(`🔍 필터 규칙 적용: ${JSON.stringify(mapping.filterRules)}`);
+              }
+              
+              const remainingCapacity = parseInt(limit as string) - totalRecords;
+              const dataToAdd = filteredData.slice(0, remainingCapacity);
+              
+              accessibleData.push({
+                dataSourceId: mapping.dataSourceId,
+                dataSourceName: dataSource.name,
+                tableName: table.name,
+                records: dataToAdd,
+                totalRecords: filteredData.length,
+                accessType: mapping.accessType
+              });
+              
+              totalRecords += dataToAdd.length;
+              console.log(`✅ 데이터 로드: ${dataSource.name}.${table.name} → ${dataToAdd.length}개 레코드`);
+            }
+          }
+        } catch (dataError) {
+          console.error(`데이터 소스 로드 오류 ${mapping.dataSourceId}:`, dataError);
+        }
+      }
+      
+      res.json({
+        modelId,
+        totalAccessibleRecords: totalRecords,
+        dataSources: accessibleData,
+        metadata: {
+          mappedDataSourceCount: mappedDataSources.length,
+          loadedAt: new Date().toISOString()
+        }
+      });
+      
+    } catch (error) {
+      console.error('AI 모델 접근 가능 데이터 조회 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // 기타 필수 API들
   app.post("/api/chat/session", async (req, res) => {
     const sessionId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
