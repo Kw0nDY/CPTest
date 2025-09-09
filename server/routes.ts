@@ -467,29 +467,36 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       prompt += `- 정확한 수치와 구체적인 정보 제공\n`;
       prompt += `- 한국어로 자연스럽게 답변\n\n`;
 
-      // 🚀 로컬 AI 엔진으로 실제 계산 수행
+      // 🚀 로컬 AI 엔진 직접 실행 (실제 계산 수행)
       let aiResponse = "";
       
-      if (config) {
+      if (config && allUploadedData.length > 0) {
         try {
-          console.log(`🤖 로컬 AI 엔진으로 직접 처리 시작: "${message}"`);
+          console.log(`🔥 로컬 AI 실제 계산 엔진 직접 호출: "${message}"`);
           console.log(`📊 분석할 실제 데이터 개수: ${allUploadedData.length}개`);
           
-          if (allUploadedData.length > 0) {
-            console.log(`📋 데이터 샘플:`, JSON.stringify(allUploadedData.slice(0, 1), null, 2));
-          }
-          
-          // 로컬 AI 엔진 호출
           const { localAI } = await import('./localAiEngine');
           
-          const result = await localAI.processQuery(message, allUploadedData, {
-            maxTokens: config.maxTokens || 1500,
-            temperature: (config.temperature || 70) / 100,
-            enableFallback: true
-          });
+          // 데이터 구조 분석
+          const columns = Object.keys(allUploadedData[0] || {});
+          const dataInfo = `실제 데이터셋: ${allUploadedData.length}개 행, ${columns.length}개 열`;
           
-          aiResponse = result.response;
-          console.log(`✅ 로컬 AI 처리 성공: ${result.confidence * 100}% 신뢰도, 데이터소스: ${result.dataSource}`);
+          // 직접 실제 데이터 분석 메서드 호출
+          let analysisResult;
+          
+          // Bioreactor 데이터인지 확인
+          const isBioreactorData = columns.includes('OEE') && columns.includes('Production Rate') && columns.includes('Temperature');
+          
+          if (isBioreactorData) {
+            console.log(`🏭 Bioreactor 데이터 감지 - 전문 분석 수행`);
+            analysisResult = localAI.analyzeBioreactorData(allUploadedData, message, dataInfo);
+          } else {
+            console.log(`📊 일반 데이터 분석 수행`);
+            analysisResult = localAI.analyzeGeneralData(allUploadedData, columns, message, dataInfo);
+          }
+          
+          aiResponse = analysisResult.response;
+          console.log(`✅ 로컬 AI 실제 계산 완료: ${analysisResult.confidence * 100}% 신뢰도`);
           console.log(`📋 AI 응답 미리보기: ${aiResponse.substring(0, 200)}...`);
         } catch (localAiError) {
           console.error('❌ 로컬 AI 처리 실패:', localAiError);

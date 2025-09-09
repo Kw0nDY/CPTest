@@ -244,17 +244,48 @@ export class LocalAIEngine {
   ): Promise<AIProcessingResult> {
     const processingTime = Date.now() - startTime;
     
+    // 🚀 로컬 AI 엔진으로 실제 계산 수행 (우선순위)
     try {
-      // 1. 먼저 업로드된 AI 모델 파일 실행 시도
+      console.log(`🔥 로컬 AI 실제 계산 엔진 호출: "${userMessage}"`);
+      
+      if (uploadedData.length === 0) {
+        throw new Error('No data available for analysis');
+      }
+      
+      const columns = Object.keys(uploadedData[0] || {});
+      const dataInfo = `실제 데이터셋: ${uploadedData.length}개 행, ${columns.length}개 열`;
+      
+      // 직접 실제 데이터 분석 수행
+      const realAnalysis = this.performRealDataAnalysis(uploadedData, columns, dataInfo, userMessage);
+      
+      console.log(`✅ 로컬 AI 실제 계산 완료: ${realAnalysis.confidence * 100}% 신뢰도`);
+      return {
+        response: realAnalysis.response,
+        tokensUsed: 0,
+        processingTime: Date.now() - startTime,
+        dataSource: 'local',
+        confidence: realAnalysis.confidence,
+        metadata: {
+          model: 'local-computation',
+          promptLength: userMessage.length,
+          dataRows: uploadedData.length
+        }
+      };
+    } catch (localError) {
+      console.warn('⚠️ 로컬 AI 실제 계산 실패:', localError.message);
+    }
+
+    try {
+      // 2. 로컬 계산이 불가능한 경우에만 업로드된 AI 모델 실행
       const aiModelResult = await this.executeUploadedAIModel(userMessage, uploadedData);
-      if (aiModelResult) {
-        console.log('✅ 업로드된 AI 모델 실행 성공');
+      if (aiModelResult && !aiModelResult.includes('AI 모델 실행 완료')) {
+        console.log('✅ 업로드된 AI 모델 실행 성공 (로컬 계산 불가능한 경우)');
         return {
           response: aiModelResult,
           tokensUsed: 0,
           processingTime: Date.now() - startTime,
-          dataSource: 'uploaded-ai-model',
-          confidence: 0.95,
+          dataSource: 'local',
+          confidence: 0.85,
           metadata: {
             model: 'user-uploaded-model',
             promptLength: userMessage.length,
@@ -851,7 +882,7 @@ except Exception as e:
   private extractRepresentativeDataFromBatches(batches: any[], maxSamples: number): any[] {
     if (!batches || batches.length === 0) return [];
     
-    const allData: any[] = [];
+    let allData: any[] = [];
     const samplesPerBatch = Math.max(1, Math.floor(maxSamples / batches.length));
     
     batches.forEach(batch => {
@@ -1096,11 +1127,6 @@ except Exception as e:
     const calculations = this.calculateBioreactorMetrics(filteredData);
     
     let response = `📊 **${analysisTitle}**\n\n`;
-    response += `**기본 정보:**\n`;
-    response += `- 분석 데이터: ${filteredData.length}개 레코드 (전체 ${data.length}개 중)\n`;
-    response += `- 시간 범위: ${filteredData[0]?.TimeStamp} ~ ${filteredData[filteredData.length-1]?.TimeStamp}\n\n`;
-    
-    response += `**실제 계산 결과:**\n`;
     response += `🎯 **OEE (Overall Equipment Effectiveness):**\n`;
     response += `- 평균: ${calculations.oee.avg.toFixed(2)}%\n`;
     response += `- 최소값: ${calculations.oee.min.toFixed(2)}%\n`;
@@ -1126,10 +1152,6 @@ except Exception as e:
       response += `- 평균 산소 농도: ${calculations.oxygen.avg.toFixed(2)}\n\n`;
     }
     
-    response += `**운영 현황:**\n`;
-    response += `- 주요 운영자: ${calculations.operators.join(', ')}\n`;
-    response += `- 배치 ID: ${calculations.batches.join(', ')}\n`;
-    response += `- 현재 상태: ${calculations.phases.join(', ')}\n`;
     
     return {
       response: response,
@@ -1287,18 +1309,15 @@ except Exception as e:
    * 📊 일반 데이터 분석
    */
   private analyzeGeneralData(data: any[], columns: string[], message: string, dataInfo: string): {response: string; confidence: number} {
-    let response = `📊 **데이터 분석 결과**\n\n`;
-    response += `${dataInfo}\n\n`;
-    
     // 수치 컬럼들에 대한 통계 계산
     const numericColumns = columns.filter(col => {
       const sampleValue = data[0]?.[col];
       return !isNaN(parseFloat(sampleValue)) && isFinite(parseFloat(sampleValue));
     });
     
+    let response = `📊 **데이터 분석 결과**\n\n`;
+    
     if (numericColumns.length > 0) {
-      response += `**수치 데이터 통계:**\n`;
-      
       numericColumns.slice(0, 5).forEach(col => {
         const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
         if (values.length > 0) {
@@ -1307,24 +1326,17 @@ except Exception as e:
           const min = Math.min(...values);
           const max = Math.max(...values);
           
-          response += `• **${col}**: 평균 ${avg.toFixed(2)}, 범위 ${min}~${max}, 총합 ${sum.toFixed(2)}\n`;
+          response += `**${col}**: 평균 ${avg.toFixed(2)}, 최소값 ${min}, 최대값 ${max}, 총합 ${sum.toFixed(2)}\n\n`;
         }
       });
+    } else {
+      response += `분석 가능한 수치 데이터가 없습니다.\n\n`;
     }
-    
-    response += `\n**샘플 데이터:**\n`;
-    data.slice(0, 3).forEach((row, idx) => {
-      response += `${idx + 1}. ${JSON.stringify(row, null, 2)}\n\n`;
-    });
     
     return {
       response: response,
       confidence: 0.85
     };
-  }
-
-  // 기본 데이터 개요
-    return this.provideDataOverview(data, columns, dataInfo);
   }
 
   private performDataAnalysis(data: any[], columns: string[], dataInfo: string) {
