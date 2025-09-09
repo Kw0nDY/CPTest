@@ -103,7 +103,11 @@ export class StreamingFileParser {
 
       rl.on('line', async (line: string) => {
         try {
-          await this.processLine(line, onBatchProcessed, onProgress);
+          // 🚀 processLine에서 배치가 반환되면 batches에 추가
+          const completedBatch = await this.processLine(line, onBatchProcessed, onProgress);
+          if (completedBatch) {
+            batches.push(completedBatch); // 🔥 핵심 수정: 배치 저장!
+          }
           
           // 메모리 사용량 체크
           const memUsage = process.memoryUsage();
@@ -165,18 +169,18 @@ export class StreamingFileParser {
     line: string,
     onBatchProcessed?: (batch: ParsedBatch) => void,
     onProgress?: (progress: { currentLine: number }) => void
-  ): Promise<void> {
+  ): Promise<ParsedBatch | null> {
     
     this.currentLine++;
     
     if (this.config.skipEmptyLines && !line.trim()) {
-      return;
+      return null;
     }
 
     // 헤더 처리
     if (this.currentLine === 1) {
       this.headers = this.parseLine(line);
-      return;
+      return null;
     }
 
     // 데이터 라인 처리 - 🔧 유연한 파싱으로 전체 데이터 보장
@@ -196,16 +200,19 @@ export class StreamingFileParser {
 
     this.currentBatch.push(row);
 
-    // 배치 크기 도달 시 처리
+    // 배치 크기 도달 시 처리 - 🚀 배치 반환하여 저장!
     if (this.currentBatch.length >= this.config.batchSize) {
       const batch = await this.finalizeBatch();
       if (onBatchProcessed) onBatchProcessed(batch);
+      return batch; // 🔥 배치를 반환하여 외부에서 저장 가능!
     }
 
     // 진행 상황 보고
     if (onProgress && this.currentLine % 1000 === 0) {
       onProgress({ currentLine: this.currentLine });
     }
+
+    return null;
   }
 
   /**

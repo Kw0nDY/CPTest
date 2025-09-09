@@ -702,6 +702,38 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 🚀 엔터프라이즈 업로드를 위한 데이터 소스 생성 API
+  app.post("/api/data-sources", async (req, res) => {
+    try {
+      const dataSource = req.body;
+      // 메모리 스토리지에 직접 추가 (임시 구현)
+      const dataSources = await storage.getDataSources();
+      dataSources.push(dataSource);
+      const createdDataSource = dataSource;
+      console.log(`📊 데이터 소스 생성: ${dataSource.name} (${dataSource.recordCount}개 행)`);
+      res.json(createdDataSource);
+    } catch (error) {
+      console.error('데이터 소스 생성 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 데이터 소스 삭제 API
+  app.delete("/api/data-sources/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // 메모리 스토리지에서 삭제 (임시 구현)
+      const dataSources = await storage.getDataSources();
+      const index = dataSources.findIndex(ds => ds.id === id);
+      if (index !== -1) dataSources.splice(index, 1);
+      console.log(`🗑️ 데이터 소스 삭제: ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('데이터 소스 삭제 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   app.get("/api/views", async (req, res) => {
     try {
       const views = await storage.getViews();
