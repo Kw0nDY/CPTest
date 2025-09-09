@@ -39,14 +39,23 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       
       // 🎯 실제 데이터 수집: Knowledge Base + Data Integration
       
-      // 1. Knowledge Base 파일 데이터 로드 (AI 소스 파일 제외)
+      // 🔍 API URL 자동 구성 (ChatFlow ID 기반)
+      let extractedApiUrl = null;
+      
+      // ChatFlow ID가 있으면 바로 URL 구성
+      if (config?.chatflowId) {
+        extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
+        console.log(`🔧 ChatFlow ID 기반 API URL: ${extractedApiUrl}`);
+      }
+      
+      // 1. Knowledge Base 파일 데이터 로드 (대용량 파일 건너뛰기)
       console.log(`🔍 AI 모델 "${config?.name}"의 uploadedFiles 확인: ${config?.uploadedFiles?.length || 0}개`);
       
       if (config?.uploadedFiles) {
         for (const file of config.uploadedFiles) {
           console.log(`📄 파일 체크: ${file.name}, type: ${file.type}, content 길이: ${file.content?.length || 0}`);
           
-          // 🚨 AI 소스 파일은 데이터 분석에서 완전 제외
+          // 🎯 AI 소스 파일에서 API URL 추출
           const isAISourceFile = file.name.endsWith('.py') || 
                                 file.name.endsWith('.js') || 
                                 file.name.endsWith('.ts') || 
@@ -55,9 +64,29 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                                 file.language === 'js' ||
                                 file.language === 'ts';
           
-          if (isAISourceFile) {
-            console.log(`⚠️ AI 소스 파일 제외: ${file.name} (${file.type || file.language})`);
-            continue; // AI 소스 파일은 건너뛰기
+          if (isAISourceFile && file.content) {
+            console.log(`🔍 소스 파일에서 API URL 추출 시도: ${file.name}`);
+            console.log(`📄 파일 내용 전체: ${file.content}`);
+            
+            // 모든 가능한 URL 패턴 시도
+            const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
+            console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
+            
+            // 첫 번째 HTTP URL이 있으면 그것을 사용
+            if (allUrls.length > 0) {
+              extractedApiUrl = allUrls[0].replace(/['";\s\)\]>]+$/, ''); // 끝의 특수문자 제거
+              console.log(`✅ 첫 번째 URL 사용: ${extractedApiUrl}`);
+            }
+            
+            // config.chatflowId가 있으면 기본 패턴으로 URL 구성
+            if (!extractedApiUrl && config?.chatflowId) {
+              extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
+              console.log(`🔧 ChatFlow ID로 URL 구성: ${extractedApiUrl}`);
+            }
+            
+            // 소스 파일은 데이터 분석에서 제외
+            console.log(`⚠️ 소스 파일 (데이터 분석에서 제외): ${file.name}`);
+            continue;
           }
 
           // 🎯 데이터 파일 처리 - content가 없어도 metadata에서 찾기
@@ -68,26 +97,39 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             try {
               if (file.name.endsWith('.csv')) {
                 try {
-                  // 🎯 대용량 CSV 스트리밍 처리로 스택 오버플로우 방지
-                  const { processLargeCSV } = await import('./csvProcessor');
-                  const result = await processLargeCSV(file.content, {
-                    maxRows: 2000, // 메모리 보호를 위한 제한
-                    batchSize: 100
-                  });
+                  // 🚀 대용량 파일 초고속 처리 (시간 초과 방지)
+                  const fileSizeMB = file.content.length / (1024 * 1024);
+                  console.log(`📊 CSV 파일 크기: ${fileSizeMB.toFixed(1)}MB`);
                   
-                  const parsedData = result.data.map(row => ({
-                    file: file.name,
-                    data: Object.values(row).join(' ')
-                  }));
-                  
-                  allUploadedData.push(...parsedData);
-                  console.log(`✅ 스트리밍 CSV 처리: ${file.name} → ${parsedData.length}개 레코드 (${result.truncated ? '일부만' : '전체'})`);
-                  
-                  if (result.truncated) {
-                    console.warn(`⚠️ 대용량 파일 제한: ${file.name}의 일부만 로드됨 (처리 시간: ${result.processingTime}ms)`);
+                  if (fileSizeMB > 10) {
+                    // 10MB 이상은 즉시 건너뛰기 (응답 속도 우선)
+                    allUploadedData.push({
+                      file: file.name,
+                      type: 'large_file_skipped',
+                      size: `${fileSizeMB.toFixed(1)}MB`,
+                      note: '대용량 파일 - 응답 속도를 위해 건너뜀'
+                    });
+                    
+                    console.log(`⚡ 대용량 파일 건너뛰기: ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
+                    fileProcessed = true;
+                  } else {
+                    // 작은 파일만 실제 처리
+                    const { processLargeCSV } = await import('./csvProcessor');
+                    const result = await processLargeCSV(file.content, {
+                      maxRows: 100,
+                      batchSize: 20
+                    });
+                    
+                    const parsedData = result.data.slice(0, 50).map((row, index) => ({
+                      file: file.name,
+                      index,
+                      data: JSON.stringify(row).substring(0, 200)
+                    }));
+                    
+                    allUploadedData.push(...parsedData);
+                    console.log(`✅ 소용량 CSV 처리: ${file.name} → ${parsedData.length}개 샘플`);
+                    fileProcessed = true;
                   }
-                  
-                  fileProcessed = true;
                 } catch (streamError) {
                   console.error(`CSV 스트리밍 처리 실패: ${file.name}`, streamError);
                   // Fallback: 기존 방식 (소규모 파일만)
@@ -248,22 +290,63 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
           const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
           
-          // 🎯 로컬 AI 엔진을 통한 처리 (외부 Flowise API 의존성 제거)
-          console.log(`🤖 로컬 AI 엔진으로 처리 시작: "${message}"`);
-          
-          const { localAI } = await import('./localAiEngine');
-          
-          const result = await localAI.processQuery(message, allUploadedData, {
-            maxTokens: config.maxTokens || 1500,
-            temperature: (config.temperature || 70) / 100, // 70 -> 0.7 변환
-            enableFallback: true
-          });
-          
-          aiResponse = result.response;
-          console.log(`✅ ${result.dataSource} AI 처리 성공: ${result.confidence * 100}% 신뢰도, ${result.processingTime}ms`);
-          
-          // 로컬 AI 성공 후 바로 메시지 응답 생성으로 이동
-          const response = { ok: true };
+          // 🎯 소스 파일에서 추출한 API URL 사용 또는 로컬 AI 처리
+          if (extractedApiUrl) {
+            console.log(`🌐 추출된 API URL로 요청 전송: ${extractedApiUrl}`);
+            
+            try {
+              const response = await fetch(extractedApiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  question: fullPrompt,
+                  overrideConfig: {
+                    systemMessagePrompt: config.systemPrompt || "",
+                  }
+                }),
+                signal: AbortSignal.timeout(30000) // 30초 타임아웃
+              });
+
+              if (response.ok) {
+                const apiResult = await response.json();
+                aiResponse = apiResult.text || apiResult.answer || apiResult.response || "API 응답을 받지 못했습니다.";
+                console.log(`✅ 추출된 API 요청 성공: ${aiResponse.substring(0, 100)}...`);
+              } else {
+                throw new Error(`API 응답 오류: ${response.status}`);
+              }
+            } catch (apiError) {
+              console.error(`❌ 추출된 API 호출 실패:`, apiError);
+              
+              // 🔄 로컬 AI로 폴백
+              console.log('🔄 로컬 AI 엔진으로 폴백 처리');
+              const { localAI } = await import('./localAiEngine');
+              
+              const result = await localAI.processQuery(message, allUploadedData, {
+                maxTokens: config.maxTokens || 1500,
+                temperature: (config.temperature || 70) / 100,
+                enableFallback: true
+              });
+              
+              aiResponse = result.response;
+              console.log(`✅ ${result.dataSource} 폴백 처리 성공`);
+            }
+          } else {
+            // API URL이 없으면 로컬 AI 엔진 사용
+            console.log(`🤖 로컬 AI 엔진으로 처리 (API URL 없음): "${message}"`);
+            
+            const { localAI } = await import('./localAiEngine');
+            
+            const result = await localAI.processQuery(message, allUploadedData, {
+              maxTokens: config.maxTokens || 1500,
+              temperature: (config.temperature || 70) / 100,
+              enableFallback: true
+            });
+            
+            aiResponse = result.response;
+            console.log(`✅ ${result.dataSource} AI 처리 성공: ${result.confidence * 100}% 신뢰도`);
+          }
 
           // 로컬 AI 처리 완료 (aiResponse 이미 설정됨)
           console.log(`✅ 로컬 AI 처리 완료: ${aiResponse.substring(0, 100)}...`);
