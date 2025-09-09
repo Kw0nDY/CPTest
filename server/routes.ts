@@ -329,8 +329,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 3. 실제 업로드된 파일 직접 읽기 (attached_assets 폴더)
-      if (allUploadedData.length < 1000) { // 충분한 데이터가 없다면
+      // 🔒 데이터 격리: attached_assets 폴더의 공유 데이터 로드 비활성화
+      // 각 AI 모델은 자신의 Knowledge Base와 Data Integration만 사용합니다
+      console.log(`🔒 AI 모델 "${config?.name}" (${config?.id})에 대한 데이터 격리 적용`);
+      console.log(`📊 현재 모델의 격리된 데이터: ${allUploadedData.length}개 레코드`);
+      
+      if (false) { // 공유 데이터 로드 비활성화
         try {
           const fs = await import('fs');
           const path = await import('path');
@@ -436,8 +440,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 4. 백업 데이터 (bioreactor) - 최후의 수단
-      if (allUploadedData.length === 0) {
+      // 🔒 백업 데이터 로드 비활성화 (모델별 데이터 격리를 위해)
+      if (false) { // 백업 데이터 로드 비활성화
         try {
           const fs = await import('fs');
           const path = await import('path');
