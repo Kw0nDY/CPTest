@@ -445,19 +445,50 @@ export function AiChatInterface() {
     }
   }, [configurations]);
 
-  // Optimized data integration loading with caching
+  // 🔧 개선된 Data Integration 상태 관리 및 캐싱
   const [dataIntegrationCache, setDataIntegrationCache] = useState<{[key: string]: any[]}>({});
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
 
+  // 🔧 localStorage에 Data Integration 상태도 저장
+  const saveDataIntegrationState = (configId: string, integrations: any[]) => {
+    try {
+      localStorage.setItem(`dataIntegrations_${configId}`, JSON.stringify(integrations));
+    } catch (error) {
+      console.warn('localStorage 저장 실패:', error);
+    }
+  };
+
+  const loadDataIntegrationState = (configId: string): any[] => {
+    try {
+      const saved = localStorage.getItem(`dataIntegrations_${configId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.warn('localStorage 로드 실패:', error);
+      return [];
+    }
+  };
+
   const loadConnectedDataIntegrationsOptimized = async (configId: string, forceRefresh = false) => {
-    // Always refresh if explicitly requested or no cache exists
-    if (!forceRefresh && dataIntegrationCache[configId] && dataIntegrationCache[configId].length > 0) {
-      setConnectedDataIntegrations(dataIntegrationCache[configId]);
-      return;
+    // 🔧 localStorage에서 복원 시도 (캐시보다 우선)
+    if (!forceRefresh) {
+      const savedState = loadDataIntegrationState(configId);
+      if (savedState.length > 0) {
+        console.log(`💾 localStorage에서 Data Integration 복원: ${savedState.length}개`);
+        setConnectedDataIntegrations(savedState);
+        setDataIntegrationCache(prev => ({ ...prev, [configId]: savedState }));
+        return;
+      }
+      
+      // 메모리 캐시 확인
+      if (dataIntegrationCache[configId]?.length > 0) {
+        setConnectedDataIntegrations(dataIntegrationCache[configId]);
+        return;
+      }
     }
 
     setIsLoadingIntegrations(true);
     try {
+      console.log(`🔄 Data Integration API 호출: ${configId}`);
       const response = await fetch(`/api/chatbot-data-integrations/${configId}`, {
         method: 'GET',
         headers: {
@@ -477,20 +508,47 @@ export function AiChatInterface() {
       }
       
       const connected = await response.json();
-      setConnectedDataIntegrations(connected);
-      // Always update cache with fresh data
-      setDataIntegrationCache(prev => ({
-        ...prev,
-        [configId]: connected
+      console.log(`✅ Data Integration 로드 성공: ${connected.length}개`);
+      
+      // 🔧 데이터 소스 정보 보강 (Unknown 방지)
+      const enrichedConnections = await Promise.all(connected.map(async (integration: any) => {
+        if (!integration.dataSourceName || integration.dataSourceName === 'Unknown') {
+          try {
+            const dsResponse = await fetch(`/api/data-sources/${integration.dataSourceId}`);
+            if (dsResponse.ok) {
+              const dataSource = await dsResponse.json();
+              return {
+                ...integration,
+                dataSourceName: dataSource.name || integration.dataSourceName || 'Unknown',
+                dataSourceType: dataSource.sourceType || integration.dataSourceType || 'Unknown',
+                name: dataSource.name || integration.name || 'Unknown',
+                sourceType: dataSource.sourceType || integration.sourceType || 'Unknown'
+              };
+            }
+          } catch (dsError) {
+            console.warn(`데이터 소스 정보 조회 실패: ${integration.dataSourceId}`, dsError);
+          }
+        }
+        return integration;
       }));
+      
+      setConnectedDataIntegrations(enrichedConnections);
+      
+      // 캐시와 localStorage에 저장
+      setDataIntegrationCache(prev => ({ ...prev, [configId]: enrichedConnections }));
+      saveDataIntegrationState(configId, enrichedConnections);
+      
     } catch (error) {
-      console.error('Failed to load connected data integrations:', error);
-      // Handle empty or error case
-      setConnectedDataIntegrations([]);
-      setDataIntegrationCache(prev => ({
-        ...prev,
-        [configId]: []
-      }));
+      console.error('❌ Data Integration 로드 실패:', error);
+      
+      // 🔧 에러 시에도 localStorage에서 복원 시도
+      const savedState = loadDataIntegrationState(configId);
+      if (savedState.length > 0) {
+        console.log(`⚠️ 에러 복구: localStorage에서 ${savedState.length}개 복원`);
+        setConnectedDataIntegrations(savedState);
+      } else {
+        setConnectedDataIntegrations([]);
+      }
     } finally {
       setIsLoadingIntegrations(false);
     }

@@ -980,9 +980,17 @@ except Exception as e:
     
     const dataInfo = `📊 실제 데이터셋: ${data.length}개 행, ${columns.length}개 열\n📋 컬럼: ${columns.slice(0, 10).join(', ')}${columns.length > 10 ? '...' : ''}`;
     
-    // 🔍 분석 및 요약 질의
+    // 🔍 실제 데이터 분석 및 계산 수행
     if (message.includes('분석') || message.includes('요약')) {
-      return this.performDataAnalysis(data, columns, dataInfo);
+      return this.performRealDataAnalysis(data, columns, dataInfo, message);
+    }
+    
+    // 🔢 특정 ID나 범위 검색 및 계산
+    const idMatch = message.match(/(\d+)번?\s*(id|아이디|ID)/i) || message.match(/(id|아이디|ID).*?(\d+)/i);
+    const rangeMatch = message.match(/(\d+)\s*~\s*(\d+)|(\d+)\s*부터\s*(\d+)|(\d+)\s*에서\s*(\d+)/);
+    
+    if (idMatch || rangeMatch || message.includes('범위') || message.includes('사이')) {
+      return this.performRangeAnalysis(data, message, columns, dataInfo);
     }
     
     // 📈 통계 질의 
@@ -1018,7 +1026,304 @@ except Exception as e:
       return this.analyzeProduction(data);
     }
     
-    // 기본 데이터 개요
+    // 🎯 실제 데이터 분석 수행
+    return this.performRealDataAnalysis(data, columns, dataInfo, message);
+  }
+
+  /**
+   * 🚀 실제 데이터 분석 및 계산 수행
+   */
+  private performRealDataAnalysis(data: any[], columns: string[], dataInfo: string, message: string): {response: string; confidence: number} {
+    try {
+      // Bioreactor 데이터 구조 확인
+      const isBioreactorData = columns.includes('OEE') && columns.includes('Production Rate') && columns.includes('Temperature');
+      
+      if (isBioreactorData) {
+        return this.analyzeBioreactorData(data, message, dataInfo);
+      }
+      
+      // 일반 데이터 분석
+      return this.analyzeGeneralData(data, columns, message, dataInfo);
+      
+    } catch (error) {
+      console.error('데이터 분석 오류:', error);
+      return {
+        response: `📊 **분석 중 오류 발생**\n\n질문: "${message}"\n\n데이터: ${dataInfo}\n\n오류: ${error}`,
+        confidence: 0.5
+      };
+    }
+  }
+
+  /**
+   * 🏭 Bioreactor 데이터 실제 분석
+   */
+  private analyzeBioreactorData(data: any[], message: string, dataInfo: string): {response: string; confidence: number} {
+    // ID 범위 추출
+    const rangeMatch = message.match(/(\d+)\s*~\s*(\d+)|(\d+)\s*부터\s*(\d+)|(\d+)\s*에서\s*(\d+)|(\d+)\s*사이.*?(\d+)/);
+    const singleIdMatch = message.match(/(\d+)번?\s*(id|아이디|ID)/i);
+    
+    let filteredData = data;
+    let analysisTitle = "전체 데이터 분석";
+    
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1] || rangeMatch[3] || rangeMatch[5]);
+      const end = parseInt(rangeMatch[2] || rangeMatch[4] || rangeMatch[6]);
+      
+      filteredData = data.filter(row => {
+        const id = parseInt(row.Id || row.id || '0');
+        return id >= start && id <= end;
+      });
+      
+      analysisTitle = `ID ${start}~${end} 범위 데이터 분석`;
+      
+    } else if (singleIdMatch) {
+      const targetId = parseInt(singleIdMatch[1]);
+      filteredData = data.filter(row => {
+        const id = parseInt(row.Id || row.id || '0');
+        return id === targetId;
+      });
+      analysisTitle = `ID ${targetId} 데이터 분석`;
+    }
+    
+    if (filteredData.length === 0) {
+      return {
+        response: `❌ **${analysisTitle}**\n\n해당 범위의 데이터를 찾을 수 없습니다.\n\n전체 데이터: ${data.length}개 레코드`,
+        confidence: 0.9
+      };
+    }
+    
+    // 실제 계산 수행
+    const calculations = this.calculateBioreactorMetrics(filteredData);
+    
+    let response = `📊 **${analysisTitle}**\n\n`;
+    response += `**기본 정보:**\n`;
+    response += `- 분석 데이터: ${filteredData.length}개 레코드 (전체 ${data.length}개 중)\n`;
+    response += `- 시간 범위: ${filteredData[0]?.TimeStamp} ~ ${filteredData[filteredData.length-1]?.TimeStamp}\n\n`;
+    
+    response += `**실제 계산 결과:**\n`;
+    response += `🎯 **OEE (Overall Equipment Effectiveness):**\n`;
+    response += `- 평균: ${calculations.oee.avg.toFixed(2)}%\n`;
+    response += `- 최소값: ${calculations.oee.min.toFixed(2)}%\n`;
+    response += `- 최대값: ${calculations.oee.max.toFixed(2)}%\n\n`;
+    
+    response += `🏭 **생산 성능:**\n`;
+    response += `- 평균 생산율: ${calculations.production.avg.toFixed(2)}\n`;
+    response += `- 총 생산량: ${calculations.production.total.toFixed(2)}\n`;
+    response += `- 생산량 범위: ${calculations.production.min.toFixed(2)} ~ ${calculations.production.max.toFixed(2)}\n\n`;
+    
+    response += `🌡️ **온도 관리:**\n`;
+    response += `- 평균 온도: ${calculations.temperature.avg.toFixed(1)}°C\n`;
+    response += `- 온도 범위: ${calculations.temperature.min}°C ~ ${calculations.temperature.max}°C\n\n`;
+    
+    response += `⚗️ **품질 지표:**\n`;
+    response += `- 평균 PH: ${calculations.ph.avg.toFixed(1)}\n`;
+    response += `- PH 범위: ${calculations.ph.min} ~ ${calculations.ph.max}\n`;
+    response += `- 평균 품질 점수: ${calculations.quality.avg.toFixed(2)}\n\n`;
+    
+    if (message.includes('oxygen') || message.includes('산소')) {
+      response += `💨 **산소 분석:**\n`;
+      response += `- 총 산소값 합계: ${calculations.oxygen.total}\n`;
+      response += `- 평균 산소 농도: ${calculations.oxygen.avg.toFixed(2)}\n\n`;
+    }
+    
+    response += `**운영 현황:**\n`;
+    response += `- 주요 운영자: ${calculations.operators.join(', ')}\n`;
+    response += `- 배치 ID: ${calculations.batches.join(', ')}\n`;
+    response += `- 현재 상태: ${calculations.phases.join(', ')}\n`;
+    
+    return {
+      response: response,
+      confidence: 0.95
+    };
+  }
+
+  /**
+   * 📊 Bioreactor 메트릭 실제 계산
+   */
+  private calculateBioreactorMetrics(data: any[]) {
+    const metrics = {
+      oee: { avg: 0, min: 100, max: 0, values: [] as number[] },
+      production: { avg: 0, min: Infinity, max: 0, total: 0, values: [] as number[] },
+      temperature: { avg: 0, min: Infinity, max: 0, values: [] as number[] },
+      ph: { avg: 0, min: 14, max: 0, values: [] as number[] },
+      quality: { avg: 0, min: 100, max: 0, values: [] as number[] },
+      oxygen: { total: 0, avg: 0, values: [] as number[] },
+      operators: [] as string[],
+      batches: [] as string[],
+      phases: [] as string[]
+    };
+    
+    data.forEach(row => {
+      // OEE 계산
+      const oee = parseFloat(row.OEE || '0');
+      if (!isNaN(oee)) {
+        metrics.oee.values.push(oee);
+        metrics.oee.min = Math.min(metrics.oee.min, oee);
+        metrics.oee.max = Math.max(metrics.oee.max, oee);
+      }
+      
+      // 생산율 계산
+      const production = parseFloat(row['Production Rate'] || '0');
+      if (!isNaN(production)) {
+        metrics.production.values.push(production);
+        metrics.production.min = Math.min(metrics.production.min, production);
+        metrics.production.max = Math.max(metrics.production.max, production);
+        metrics.production.total += production;
+      }
+      
+      // 온도 계산
+      const temp = parseFloat(row.Temperature || '0');
+      if (!isNaN(temp) && temp > 0) {
+        metrics.temperature.values.push(temp);
+        metrics.temperature.min = Math.min(metrics.temperature.min, temp);
+        metrics.temperature.max = Math.max(metrics.temperature.max, temp);
+      }
+      
+      // PH 계산
+      const ph = parseFloat(row.PH || '0');
+      if (!isNaN(ph) && ph > 0) {
+        metrics.ph.values.push(ph);
+        metrics.ph.min = Math.min(metrics.ph.min, ph);
+        metrics.ph.max = Math.max(metrics.ph.max, ph);
+      }
+      
+      // 품질 점수 계산
+      const quality = parseFloat(row['Quality Information'] || '0');
+      if (!isNaN(quality)) {
+        metrics.quality.values.push(quality);
+        metrics.quality.min = Math.min(metrics.quality.min, quality);
+        metrics.quality.max = Math.max(metrics.quality.max, quality);
+      }
+      
+      // 산소 계산
+      const oxygen = parseFloat(row.Oxygen || '0');
+      if (!isNaN(oxygen)) {
+        metrics.oxygen.values.push(oxygen);
+        metrics.oxygen.total += oxygen;
+      }
+      
+      // 운영 정보 수집
+      if (row.Operator && !metrics.operators.includes(row.Operator)) {
+        metrics.operators.push(row.Operator);
+      }
+      if (row.BatchID && !metrics.batches.includes(row.BatchID)) {
+        metrics.batches.push(row.BatchID);
+      }
+      if (row.Phase && !metrics.phases.includes(row.Phase)) {
+        metrics.phases.push(row.Phase);
+      }
+    });
+    
+    // 평균값 계산
+    metrics.oee.avg = metrics.oee.values.length > 0 ? metrics.oee.values.reduce((a, b) => a + b, 0) / metrics.oee.values.length : 0;
+    metrics.production.avg = metrics.production.values.length > 0 ? metrics.production.values.reduce((a, b) => a + b, 0) / metrics.production.values.length : 0;
+    metrics.temperature.avg = metrics.temperature.values.length > 0 ? metrics.temperature.values.reduce((a, b) => a + b, 0) / metrics.temperature.values.length : 0;
+    metrics.ph.avg = metrics.ph.values.length > 0 ? metrics.ph.values.reduce((a, b) => a + b, 0) / metrics.ph.values.length : 0;
+    metrics.quality.avg = metrics.quality.values.length > 0 ? metrics.quality.values.reduce((a, b) => a + b, 0) / metrics.quality.values.length : 0;
+    metrics.oxygen.avg = metrics.oxygen.values.length > 0 ? metrics.oxygen.values.reduce((a, b) => a + b, 0) / metrics.oxygen.values.length : 0;
+    
+    return metrics;
+  }
+
+  /**
+   * 🔢 범위 분석 수행
+   */
+  private performRangeAnalysis(data: any[], message: string, columns: string[], dataInfo: string): {response: string; confidence: number} {
+    // ID 범위 또는 특정 ID 추출
+    const rangeMatch = message.match(/(\d+)\s*~\s*(\d+)|(\d+)\s*부터\s*(\d+)|(\d+)\s*에서\s*(\d+)/);
+    const singleIdMatch = message.match(/(\d+)번?\s*(id|아이디|ID)/i);
+    
+    if (singleIdMatch) {
+      const targetId = parseInt(singleIdMatch[1]);
+      const targetData = data.find(row => {
+        const id = parseInt(row.Id || row.id || '0');
+        return id === targetId;
+      });
+      
+      if (!targetData) {
+        return {
+          response: `❌ **ID ${targetId} 검색 결과**\n\n해당 ID의 데이터를 찾을 수 없습니다.\n\n${dataInfo}`,
+          confidence: 0.9
+        };
+      }
+      
+      let response = `🎯 **ID ${targetId}의 상세 정보**\n\n`;
+      
+      Object.keys(targetData).forEach(key => {
+        const value = targetData[key];
+        response += `• **${key}**: ${value}\n`;
+      });
+      
+      return {
+        response: response,
+        confidence: 0.98
+      };
+    }
+    
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1] || rangeMatch[3] || rangeMatch[5]);
+      const end = parseInt(rangeMatch[2] || rangeMatch[4] || rangeMatch[6]);
+      
+      const rangeData = data.filter(row => {
+        const id = parseInt(row.Id || row.id || '0');
+        return id >= start && id <= end;
+      });
+      
+      if (rangeData.length === 0) {
+        return {
+          response: `❌ **ID ${start}~${end} 범위 검색 결과**\n\n해당 범위의 데이터를 찾을 수 없습니다.\n\n${dataInfo}`,
+          confidence: 0.9
+        };
+      }
+      
+      return this.performRealDataAnalysis(rangeData, columns, `범위 ${start}~${end}: ${rangeData.length}개 레코드`, message);
+    }
+    
+    // 일반적인 분석 수행
+    return this.performRealDataAnalysis(data, columns, dataInfo, message);
+  }
+
+  /**
+   * 📊 일반 데이터 분석
+   */
+  private analyzeGeneralData(data: any[], columns: string[], message: string, dataInfo: string): {response: string; confidence: number} {
+    let response = `📊 **데이터 분석 결과**\n\n`;
+    response += `${dataInfo}\n\n`;
+    
+    // 수치 컬럼들에 대한 통계 계산
+    const numericColumns = columns.filter(col => {
+      const sampleValue = data[0]?.[col];
+      return !isNaN(parseFloat(sampleValue)) && isFinite(parseFloat(sampleValue));
+    });
+    
+    if (numericColumns.length > 0) {
+      response += `**수치 데이터 통계:**\n`;
+      
+      numericColumns.slice(0, 5).forEach(col => {
+        const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+        if (values.length > 0) {
+          const sum = values.reduce((a, b) => a + b, 0);
+          const avg = sum / values.length;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          
+          response += `• **${col}**: 평균 ${avg.toFixed(2)}, 범위 ${min}~${max}, 총합 ${sum.toFixed(2)}\n`;
+        }
+      });
+    }
+    
+    response += `\n**샘플 데이터:**\n`;
+    data.slice(0, 3).forEach((row, idx) => {
+      response += `${idx + 1}. ${JSON.stringify(row, null, 2)}\n\n`;
+    });
+    
+    return {
+      response: response,
+      confidence: 0.85
+    };
+  }
+
+  // 기본 데이터 개요
     return this.provideDataOverview(data, columns, dataInfo);
   }
 
