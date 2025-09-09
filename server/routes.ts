@@ -332,8 +332,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       // 3. 실제 업로드된 파일 직접 읽기 (attached_assets 폴더)
       if (allUploadedData.length < 1000) { // 충분한 데이터가 없다면
         try {
-          const fs = require('fs');
-          const path = require('path');
+          const fs = await import('fs');
+          const path = await import('path');
           const assetsPath = path.join(process.cwd(), 'attached_assets');
           
           if (fs.existsSync(assetsPath)) {
@@ -431,8 +431,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       // 4. 백업 데이터 (bioreactor) - 최후의 수단
       if (allUploadedData.length === 0) {
         try {
-          const fs = require('fs');
-          const path = require('path');
+          const fs = await import('fs');
+          const path = await import('path');
           const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
           if (fs.existsSync(dataPath)) {
             allUploadedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
@@ -852,12 +852,31 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       
       console.log(`🔗 챗봇-데이터소스 연결 시도: ${configId} → ${dataSourceId}`);
       
-      const integration = await storage.createChatbotDataIntegration({
-        configId,
-        dataSourceId,
-        accessLevel: accessLevel || 'READ',
-        dataFilter: dataFilter || null
-      });
+      // 🔧 중복 키 문제 해결: 기존 연결이 있으면 업데이트, 없으면 생성
+      let integration;
+      try {
+        const existingIntegrations = await storage.getChatbotDataIntegrations(configId);
+        const existingIntegration = existingIntegrations.find(i => i.dataSourceId === dataSourceId);
+        
+        if (existingIntegration) {
+          console.log(`🔄 기존 연결 업데이트: ${existingIntegration.id}`);
+          integration = existingIntegration; // 기존 연결 사용
+        } else {
+          integration = await storage.createChatbotDataIntegration({
+            configId,
+            dataSourceId,
+            accessLevel: accessLevel || 'READ',
+            dataFilter: dataFilter || null
+          });
+        }
+      } catch (createError) {
+        console.warn(`⚠️ 생성 실패, 기존 연결 조회 시도:`, createError.message);
+        const existingIntegrations = await storage.getChatbotDataIntegrations(configId);
+        integration = existingIntegrations.find(i => i.dataSourceId === dataSourceId);
+        if (!integration) {
+          throw createError;
+        }
+      }
       
       console.log(`✅ 챗봇 데이터 연동 완료: ${integration.id}`);
       res.json(integration);

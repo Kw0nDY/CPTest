@@ -287,9 +287,9 @@ export class LocalAIEngine {
    * 업로드된 AI 모델 파일 실행
    */
   private async executeUploadedAIModel(userMessage: string, uploadedData: any[]): Promise<string | null> {
-    const fs = require('fs');
-    const path = require('path');
-    const { spawn } = require('child_process');
+    const fs = await import('fs');
+    const path = await import('path');
+    const { spawn } = (await import('child_process')).default;
     
     try {
       // attached_assets 폴더에서 AI 모델 파일 찾기
