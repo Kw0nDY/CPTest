@@ -1214,6 +1214,8 @@ export default function DataIntegrationTab() {
               id: `enterprise-${Date.now()}`,
               name: `대용량 데이터 (${parseResult.totalRows.toLocaleString()}개 행)`,
               type: 'Enterprise File',
+              category: 'file', // 🔥 누락된 필수 필드 추가!
+              vendor: 'DXT Enterprise',
               status: 'connected',
               lastSync: new Date().toISOString(),
               recordCount: parseResult.totalRows,
