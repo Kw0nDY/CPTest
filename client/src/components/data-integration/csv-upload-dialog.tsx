@@ -54,8 +54,23 @@ interface CSVProcessedData {
   }>;
 }
 
-// CSV data processing function
+// 🎯 대용량 CSV 처리를 위한 개선된 함수
 const processCSVFile = async (file: File): Promise<CSVProcessedData> => {
+  const fileSizeKB = file.size / 1024;
+  console.log(`📏 CSV 파일 크기: ${fileSizeKB.toFixed(2)} KB`);
+
+  // 🚨 대용량 파일 감지 (10MB 이상)
+  if (fileSizeKB > 10240) {
+    console.warn(`⚠️ 대용량 파일 감지: ${fileSizeKB.toFixed(2)} KB - 청크 처리 모드`);
+    return await processLargeCSVFile(file);
+  } else {
+    console.log(`✅ 소용량 파일: ${fileSizeKB.toFixed(2)} KB - 일반 처리 모드`);
+    return await processSmallCSVFile(file);
+  }
+};
+
+// 🎯 소용량 파일 처리 (기존 방식)
+const processSmallCSVFile = async (file: File): Promise<CSVProcessedData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -71,8 +86,8 @@ const processCSVFile = async (file: File): Promise<CSVProcessedData> => {
         // Parse headers from first line
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
-        // Parse sample data (first 5 rows excluding header)
-        const sampleRows = lines.slice(1, 6).map(line => {
+        // Parse sample data (first 10 rows excluding header for better sampling)
+        const sampleRows = lines.slice(1, 11).map(line => {
           const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
           const row: any = {};
           headers.forEach((header, index) => {
@@ -126,6 +141,8 @@ const processCSVFile = async (file: File): Promise<CSVProcessedData> => {
           recordCount: recordCount
         }];
 
+        console.log(`✅ 소용량 CSV 처리 완료: ${sampleRows.length}개 샘플, ${recordCount}개 총 레코드`);
+
         resolve({
           headers,
           schema: fields,
@@ -135,13 +152,129 @@ const processCSVFile = async (file: File): Promise<CSVProcessedData> => {
         });
         
       } catch (error) {
-        console.error('Error processing CSV file:', error);
+        console.error('Error processing small CSV file:', error);
         reject(error);
       }
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsText(file);
+  });
+};
+
+// 🎯 대용량 파일 처리 (청크 기반, 메모리 보호)
+const processLargeCSVFile = async (file: File): Promise<CSVProcessedData> => {
+  console.log(`🔄 대용량 CSV 파일 청크 처리 시작: ${file.name}`);
+  
+  const chunkSize = 1024 * 512; // 512KB 청크 (메모리 절약)
+  let offset = 0;
+  let headers: string[] = [];
+  let sampleRows: any[] = [];
+  let totalLines = 0;
+  let isHeaderParsed = false;
+  let estimatedTotalRecords = 0;
+
+  return new Promise((resolve, reject) => {
+    const readChunk = () => {
+      const chunk = file.slice(offset, offset + chunkSize);
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const lines = text.split('\n').filter(line => line.trim() !== '');
+          
+          // 첫 번째 청크에서 헤더 파싱
+          if (!isHeaderParsed && lines.length > 0) {
+            headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            isHeaderParsed = true;
+            console.log(`📊 대용량 CSV 헤더 감지: ${headers.join(', ')}`);
+          }
+
+          // 샘플 데이터 수집 (최대 20개로 증가)
+          const startIndex = isHeaderParsed && offset === 0 ? 1 : 0;
+          for (let i = startIndex; i < lines.length && sampleRows.length < 20; i++) {
+            const line = lines[i].trim();
+            if (line) {
+              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+              const row: any = {};
+              headers.forEach((header, index) => {
+                const value = values[index] || '';
+                const numValue = parseFloat(value);
+                row[header] = isNaN(numValue) ? value : numValue;
+              });
+              sampleRows.push(row);
+              totalLines++;
+            }
+          }
+
+          // 전체 레코드 수 추정 (청크 크기 기반)
+          if (lines.length > 0) {
+            const avgBytesPerLine = chunkSize / lines.length;
+            estimatedTotalRecords = Math.floor(file.size / avgBytesPerLine);
+            console.log(`📊 예상 총 레코드 수: ${estimatedTotalRecords}개 (평균 라인당 ${avgBytesPerLine.toFixed(2)} bytes)`);
+          }
+
+          // 충분한 샘플을 얻었거나 파일 끝에 도달했으면 완료
+          if (sampleRows.length >= 20 || offset + chunkSize >= file.size) {
+            const fields = headers.map(header => {
+              let type = 'STRING';
+              let description = `${header} field`;
+              
+              // 샘플 데이터로부터 타입 추론
+              for (const row of sampleRows) {
+                const value = row[header];
+                if (value !== null && value !== undefined && value !== '') {
+                  if (typeof value === 'number') {
+                    type = Number.isInteger(value) ? 'INTEGER' : 'DECIMAL';
+                    description = `Numeric ${header.toLowerCase()} value`;
+                  } else if (typeof value === 'string') {
+                    if (value.match(/^\d{4}-\d{2}-\d{2}/) || value.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+                      type = 'DATE';
+                      description = `Date ${header.toLowerCase()} field`;
+                    }
+                  }
+                  break;
+                }
+              }
+              
+              return { name: header, type, description };
+            });
+
+            const dataSchema = [{
+              table: file.name.replace('.csv', ''),
+              fields: fields,
+              recordCount: estimatedTotalRecords
+            }];
+
+            console.log(`✅ 대용량 CSV 청크 처리 완료: ${sampleRows.length}개 샘플, 예상 ${estimatedTotalRecords}개 총 레코드`);
+
+            resolve({
+              headers,
+              schema: fields,
+              sampleData: sampleRows,
+              recordCount: sampleRows.length,
+              dataSchema
+            });
+          } else {
+            // 다음 청크 읽기 (비동기로 브라우저 블로킹 방지)
+            offset += chunkSize;
+            setTimeout(readChunk, 10);
+          }
+        } catch (error) {
+          console.error('Error processing large CSV chunk:', error);
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error('Failed to read file chunk'));
+      };
+
+      reader.readAsText(chunk);
+    };
+
+    readChunk();
   });
 };
 

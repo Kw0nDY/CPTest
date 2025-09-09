@@ -248,34 +248,40 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // 실제 데이터와 함께 AI에게 전달할 전체 프롬프트
           const fullPrompt = prompt + `\n\n**실제 연결된 데이터 현황:**\n- 총 ${allUploadedData.length}개의 데이터 레코드\n- 사용자 질문: "${message}"\n\n위 데이터를 분석하여 정확하고 구체적인 답변을 제공해주세요.`;
           
-          const response = await fetch(flowiseUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              question: fullPrompt,
-              overrideConfig: {
-                systemMessagePrompt: config.systemPrompt || "",
-              }
-            })
+          // 🎯 로컬 AI 엔진을 통한 처리 (외부 Flowise API 의존성 제거)
+          console.log(`🤖 로컬 AI 엔진으로 처리 시작: "${message}"`);
+          
+          const { localAI } = await import('./localAiEngine');
+          
+          const result = await localAI.processQuery(message, allUploadedData, {
+            maxTokens: config.maxTokens || 1500,
+            temperature: (config.temperature || 70) / 100, // 70 -> 0.7 변환
+            enableFallback: true
           });
+          
+          aiResponse = result.response;
+          console.log(`✅ ${result.dataSource} AI 처리 성공: ${result.confidence * 100}% 신뢰도, ${result.processingTime}ms`);
+          
+          // 로컬 AI 성공 후 바로 메시지 응답 생성으로 이동
+          const response = { ok: true };
 
-          if (response.ok) {
-            const aiResult = await response.json();
-            aiResponse = aiResult.text || aiResult.answer || aiResult.response || "AI 응답을 받지 못했습니다.";
-            console.log(`✅ AI 모델 응답 성공: ${aiResponse.substring(0, 100)}...`);
-          } else {
-            console.error(`❌ AI 모델 응답 실패: ${response.status}`);
-            aiResponse = `AI 모델 연결 실패 (상태: ${response.status}). 실제 데이터 ${allUploadedData.length}개를 분석할 준비가 되어있습니다.`;
-          }
-        } catch (apiError) {
-          console.error('❌ AI API 호출 오류:', apiError);
-          // Fallback: 실제 데이터 기반 간단 분석
+          // 로컬 AI 처리 완료 (aiResponse 이미 설정됨)
+          console.log(`✅ 로컬 AI 처리 완료: ${aiResponse.substring(0, 100)}...`);
+        } catch (localAiError) {
+          console.error('❌ 로컬 AI 처리 실패:', localAiError);
+          
+          // 🛡️ 최종 Fallback: 간단한 데이터 기반 응답
           if (allUploadedData.length > 0) {
-            aiResponse = `📊 **실제 데이터 분석**: 총 ${allUploadedData.length}개의 레코드를 확인했습니다. AI 모델 연결 중 오류가 발생했지만, 데이터는 정상적으로 로드되었습니다. 다시 질문해주세요.`;
+            const firstRow = allUploadedData[0];
+            const columns = Object.keys(firstRow || {});
+            aiResponse = `📊 **업로드된 데이터 분석 요청**: "${message}"\n\n` +
+                       `**데이터 현황:**\n` +
+                       `- 총 레코드: ${allUploadedData.length}개\n` +
+                       `- 컬럼: ${columns.join(', ')}\n` +
+                       `- 샘플 데이터: ${JSON.stringify(firstRow, null, 2)}\n\n` +
+                       `**참고:** 더 정확한 AI 분석을 위해 OpenAI API 키를 설정하시면 고급 분석이 가능합니다.`;
           } else {
-            aiResponse = "AI 모델 연결 오류 및 데이터 없음. Knowledge Base에 파일을 업로드하거나 Data Integration을 연결해주세요.";
+            aiResponse = `질문을 받았습니다: "${message}"\n\n현재 분석할 데이터가 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 연결한 후 다시 시도해주세요.`;
           }
         }
       } else {
