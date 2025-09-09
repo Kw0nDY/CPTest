@@ -329,14 +329,114 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 3. 백업 데이터 (bioreactor)
+      // 3. 실제 업로드된 파일 직접 읽기 (attached_assets 폴더)
+      if (allUploadedData.length < 1000) { // 충분한 데이터가 없다면
+        try {
+          const fs = require('fs');
+          const path = require('path');
+          const assetsPath = path.join(process.cwd(), 'attached_assets');
+          
+          if (fs.existsSync(assetsPath)) {
+            const assetFiles = fs.readdirSync(assetsPath);
+            console.log(`🔍 attached_assets 폴더 검색: ${assetFiles.length}개 파일 발견`);
+            
+            // 대용량 CSV 파일들 우선 처리
+            const csvFiles = assetFiles.filter(file => file.endsWith('.csv')).sort((a, b) => {
+              const statA = fs.statSync(path.join(assetsPath, a));
+              const statB = fs.statSync(path.join(assetsPath, b));
+              return statB.size - statA.size; // 큰 파일부터
+            });
+            
+            for (const csvFile of csvFiles.slice(0, 2)) { // 최대 2개 큰 파일
+              const fullPath = path.join(assetsPath, csvFile);
+              const stats = fs.statSync(fullPath);
+              const fileSizeMB = stats.size / (1024 * 1024);
+              
+              console.log(`📊 대용량 CSV 파일 직접 읽기: ${csvFile} (${fileSizeMB.toFixed(1)}MB)`);
+              
+              try {
+                if (fileSizeMB > 10) { // 10MB 이상 대용량 파일
+                  // 스트리밍으로 읽어서 샘플링
+                  const fileContent = fs.readFileSync(fullPath, 'utf-8');
+                  const lines = fileContent.split('\n').filter(line => line.trim());
+                  
+                  if (lines.length > 1) {
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    const totalRows = lines.length - 1;
+                    
+                    console.log(`🚀 대용량 파일 샘플링: ${totalRows}개 행 발견`);
+                    
+                    // 샘플링 전략: 첫 2000개 + 중간 2000개 + 마지막 2000개
+                    const sampleSize = 2000;
+                    const sampleIndices = [
+                      ...Array.from({length: sampleSize}, (_, i) => i + 1), // 첫 2000개
+                      ...Array.from({length: sampleSize}, (_, i) => Math.floor(totalRows / 2) + i), // 중간 2000개
+                      ...Array.from({length: sampleSize}, (_, i) => totalRows - sampleSize + i + 1) // 마지막 2000개
+                    ].filter(i => i > 0 && i < lines.length);
+                    
+                    const uniqueIndices = [...new Set(sampleIndices)];
+                    const sampleRows = uniqueIndices.map(i => {
+                      const values = lines[i].split(',');
+                      const row = {};
+                      headers.forEach((header, idx) => {
+                        row[header] = values[idx]?.trim() || '';
+                      });
+                      return row;
+                    });
+                    
+                    allUploadedData.push(...sampleRows);
+                    console.log(`✅ 대용량 CSV 샘플링 완료: ${csvFile} → ${sampleRows.length}개 레코드 (전체 ${totalRows}개 중)`);
+                    
+                    // 메타데이터도 추가
+                    allUploadedData.push({
+                      file: csvFile,
+                      type: 'large_csv_metadata',
+                      totalRows: totalRows,
+                      columns: headers,
+                      sampleSize: sampleRows.length,
+                      note: `대용량 파일 ${csvFile}: 총 ${totalRows}개 행 중 ${sampleRows.length}개 샘플링됨`
+                    });
+                    
+                  }
+                } else {
+                  // 작은 파일은 전체 읽기
+                  const fileContent = fs.readFileSync(fullPath, 'utf-8');
+                  const lines = fileContent.split('\n').filter(line => line.trim());
+                  
+                  if (lines.length > 1) {
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    const rows = lines.slice(1).map(line => {
+                      const values = line.split(',');
+                      const row = {};
+                      headers.forEach((header, idx) => {
+                        row[header] = values[idx]?.trim() || '';
+                      });
+                      return row;
+                    });
+                    
+                    allUploadedData.push(...rows);
+                    console.log(`✅ 소용량 CSV 전체 로드: ${csvFile} → ${rows.length}개 레코드`);
+                  }
+                }
+              } catch (fileError) {
+                console.warn(`CSV 파일 읽기 실패: ${csvFile}`, fileError);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('attached_assets 직접 읽기 실패:', error);
+        }
+      }
+
+      // 4. 백업 데이터 (bioreactor) - 최후의 수단
       if (allUploadedData.length === 0) {
         try {
-          const fs = await import('fs');
-          const path = await import('path');
+          const fs = require('fs');
+          const path = require('path');
           const dataPath = path.join(process.cwd(), 'real_bioreactor_1000_rows.json');
           if (fs.existsSync(dataPath)) {
             allUploadedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            console.log(`✅ 백업 bioreactor 데이터 로드: ${allUploadedData.length}개 레코드`);
           }
         } catch (error) {
           console.warn('백업 데이터 로드 실패:', error);
