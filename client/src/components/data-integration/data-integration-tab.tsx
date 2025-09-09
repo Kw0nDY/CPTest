@@ -1203,12 +1203,61 @@ export default function DataIntegrationTab() {
       <EnterpriseChunkUploader
         open={showEnterpriseUploadDialog}
         onOpenChange={setShowEnterpriseUploadDialog}
-        onSuccess={(result) => {
+        onSuccess={async (result) => {
           console.log('엔터프라이즈 업로드 성공:', result);
-          toast({
-            title: "대용량 파일 처리 완료",
-            description: `${result?.parseResult?.totalRows || '다수'}개 행이 성공적으로 처리되었습니다.`,
-          });
+          
+          try {
+            const { parseResult } = result;
+            
+            // 🚀 자동으로 데이터 소스 목록에 추가
+            const enterpriseDataSource: DataSource = {
+              id: `enterprise-${Date.now()}`,
+              name: `대용량 데이터 (${parseResult.totalRows.toLocaleString()}개 행)`,
+              type: 'Enterprise File',
+              status: 'connected',
+              lastSync: new Date().toISOString(),
+              recordCount: parseResult.totalRows,
+              config: {
+                database: parseResult.sessionId,
+                host: parseResult.globalSummary?.fileSize?.toString()
+              },
+              connectionDetails: {
+                server: '엔터프라이즈 처리',
+                database: parseResult.sessionId,
+                protocol: 'Chunked Upload'
+              },
+              dataSchema: [{
+                table: 'main_dataset',
+                fields: parseResult.headers?.map((header: string) => ({
+                  name: header,
+                  type: 'STRING',
+                  description: `${header} field from enterprise upload`
+                })) || [],
+                recordCount: parseResult.totalRows,
+                lastUpdated: new Date().toISOString()
+              }],
+              sampleData: {
+                main_dataset: parseResult.sampleData || []
+              }
+            };
+
+            // 데이터 소스 추가
+            await createDataSourceMutation.mutateAsync(enterpriseDataSource);
+            
+            toast({
+              title: "🎉 대용량 파일 처리 완료",
+              description: `${parseResult.totalRows.toLocaleString()}개 행이 성공적으로 처리되어 데이터 소스에 추가되었습니다.`,
+            });
+            
+          } catch (error: any) {
+            console.error('데이터 소스 추가 실패:', error);
+            toast({
+              title: "데이터 소스 추가 실패",
+              description: error.message,
+              variant: "destructive"
+            });
+          }
+          
           setShowEnterpriseUploadDialog(false);
         }}
       />

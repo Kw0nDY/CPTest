@@ -69,8 +69,8 @@ export class StreamingFileParser {
   
   constructor(config: Partial<StreamingParseConfig> = {}) {
     this.config = {
-      batchSize: config.batchSize || 2000,
-      maxMemoryUsage: config.maxMemoryUsage || 512 * 1024 * 1024, // 512MB
+      batchSize: config.batchSize || 5000, // 🚀 배치 크기 증가 (2000 → 5000)
+      maxMemoryUsage: config.maxMemoryUsage || 1024 * 1024 * 1024, // 🔧 메모리 제한 증가 (512MB → 1GB)
       enableIndexing: config.enableIndexing ?? true,
       delimiter: config.delimiter || ',',
       skipEmptyLines: config.skipEmptyLines ?? true,
@@ -179,16 +179,18 @@ export class StreamingFileParser {
       return;
     }
 
-    // 데이터 라인 처리
+    // 데이터 라인 처리 - 🔧 유연한 파싱으로 전체 데이터 보장
     const values = this.parseLine(line);
-    if (values.length !== this.headers.length) {
-      console.warn(`⚠️ 라인 ${this.currentLine}: 열 수 불일치 (${values.length} vs ${this.headers.length})`);
-    }
 
-    // 객체로 변환
+    // 🚀 객체로 변환 - 열 수 불일치 시에도 데이터 처리 계속
     const row: Record<string, any> = {};
     this.headers.forEach((header, index) => {
-      const rawValue = values[index] || '';
+      let rawValue = '';
+      if (index < values.length) {
+        rawValue = values[index] || '';
+      } else {
+        rawValue = ''; // 누락된 컬럼은 빈 값으로 처리
+      }
       row[header] = this.parseValue(rawValue);
     });
 
