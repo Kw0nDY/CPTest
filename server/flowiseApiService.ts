@@ -102,10 +102,16 @@ export class FlowiseApiService {
       };
     } catch (error) {
       console.error('❌ Flowise 메시지 전송 실패:', error);
+      console.error('  📋 에러 세부사항:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       
       return {
         success: false,
-        response: '죄송합니다. 현재 서비스에 문제가 있습니다.',
+        response: `AI 서비스 오류: ${error.message}`,
         confidence: 0.1,
         processingTime: Date.now() - startTime,
       };

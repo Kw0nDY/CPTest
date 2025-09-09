@@ -503,6 +503,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           
         } catch (aiError) {
           console.error('❌ AI 처리 실패:', aiError);
+          console.error('  📋 AI 에러 세부사항:', {
+            name: aiError.name,
+            message: aiError.message,
+            stack: aiError.stack?.substring(0, 500)
+          });
           
           // 🛡️ 최종 Fallback: 간단한 데이터 기반 응답
           if (allUploadedData.length > 0) {
