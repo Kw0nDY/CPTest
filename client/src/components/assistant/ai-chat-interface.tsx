@@ -308,13 +308,19 @@ export function AiChatInterface() {
   useEffect(() => {
     const loadConfigurations = async () => {
       try {
-        // 캐시된 데이터 먼저 확인 (성능 최적화)
+        // 🚀 캐시 무효화 로직 개선 (삭제 문제 해결)
         const cacheKey = 'chat-configurations-cache';
         const cachedData = sessionStorage.getItem(cacheKey);
         const cacheTime = sessionStorage.getItem(cacheKey + '-time');
+        const forceRefresh = sessionStorage.getItem('force-config-refresh');
         
-        // 5분 캐시 유지 (성능 대폭 개선)
-        if (cachedData && cacheTime && (Date.now() - parseInt(cacheTime)) < 5 * 60 * 1000) {
+        // 강제 새로고침이 필요하거나 1분 캐시 초과 시 API 호출
+        if (forceRefresh || !cachedData || !cacheTime || (Date.now() - parseInt(cacheTime)) > 60 * 1000) {
+          console.log('🔄 강제 새로고침 또는 캐시 만료 - API 호출');
+          // 강제 새로고침 플래그 제거
+          sessionStorage.removeItem('force-config-refresh');
+        } else {
+          console.log('💾 캐시된 데이터 사용');
           const configs = JSON.parse(cachedData);
           setConfigurations(configs);
           if (configs.length > 0) {
@@ -599,6 +605,11 @@ export function AiChatInterface() {
       });
 
       if (response.ok) {
+        // 🚀 캐시 무효화 - 삭제 후 강제 새로고침 설정
+        sessionStorage.setItem('force-config-refresh', 'true');
+        sessionStorage.removeItem('chat-configurations-cache');
+        sessionStorage.removeItem('chat-configurations-cache-time');
+        
         setConfigurations(prev => prev.filter(config => config.id !== configId));
         if (selectedConfig?.id === configId) {
           const remainingConfigs = configurations.filter(c => c.id !== configId);
@@ -609,6 +620,11 @@ export function AiChatInterface() {
           title: '삭제 완료',
           description: '챗봇 구성이 삭제되었습니다.',
         });
+        
+        // 즉시 새로운 데이터 로드
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else {
         throw new Error('Failed to delete configuration');
       }

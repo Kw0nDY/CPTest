@@ -733,8 +733,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
 
   app.get("/api/chat-configurations", async (req, res) => {
     try {
+      console.log('🔄 챗봇 구성 로드 시작...');
+      const startTime = Date.now();
+      
       const configs = await storage.getAllChatConfigurations();
-      // 185MB 데이터 전송 문제 해결: uploadedFiles content 제거
+      
+      // 성능 최적화: uploadedFiles content 제거
       const optimizedConfigs = configs.map(config => ({
         ...config,
         uploadedFiles: config.uploadedFiles?.map(file => ({
@@ -744,11 +748,22 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           type: file.type,
           status: file.status,
           language: file.language,
-          // content 필드 제거하여 데이터 크기 대폭 축소
+          uploadedAt: file.uploadedAt
         })) || []
       }));
+      
+      const loadTime = Date.now() - startTime;
+      console.log(`✅ 챗봇 구성 로드 완료: ${optimizedConfigs.length}개, ${loadTime}ms`);
+      
+      // 캐시 무효화를 위한 헤더 추가
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Last-Modified', new Date().toUTCString());
+      
       res.json(optimizedConfigs);
     } catch (error) {
+      console.error('❌ Error fetching chat configurations:', error);
       res.json([]);
     }
   });
