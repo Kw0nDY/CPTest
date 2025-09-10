@@ -180,8 +180,12 @@ export async function registerRoutes(app: any) {
       console.log(`🔍 사용자 데이터 확인 중...`);
       
       // 실제 사용자 업로드 파일 확인 (가짜 데이터 제외)
-      let realUserFiles = [];
+      let realUserFiles: any[] = [];
+      console.log(`🔍 Knowledge Base 확인: config.uploadedFiles = ${config?.uploadedFiles?.length || 0}개`);
+      
       if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
+        console.log(`📂 업로드된 파일들:`, config.uploadedFiles.map(f => ({ name: f.name, contentLength: f.content?.length })));
+        
         // 자동 생성된 파일들 제외 (generated_, sample_, test_ 등)
         realUserFiles = config.uploadedFiles.filter(file => 
           file.name && 
@@ -191,6 +195,13 @@ export async function registerRoutes(app: any) {
           file.content &&
           file.content.trim().length > 0
         );
+        
+        console.log(`✅ 필터링 후 실제 파일: ${realUserFiles.length}개`);
+        realUserFiles.forEach(file => {
+          console.log(`   └─ ${file.name} (${file.content.length}자)`);
+        });
+      } else {
+        console.log(`❌ config.uploadedFiles이 비어있거나 undefined`);
       }
       
       // Data Integration 데이터 확인
@@ -222,7 +233,9 @@ export async function registerRoutes(app: any) {
             
             // 실제 사용자 파일들만 추가
             for (const file of realUserFiles) {
-              ragContext += `\n=== ${file.name} ===\n${file.content.substring(0, 3000)}\n`;
+              if (file && file.name && file.content) {
+                ragContext += `\n=== ${file.name} ===\n${file.content.substring(0, 3000)}\n`;
+              }
             }
             
             // Data Integration 데이터 추가
