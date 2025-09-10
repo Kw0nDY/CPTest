@@ -218,11 +218,12 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
       const data = await response.json();
       
+      // 백엔드 응답 구조: { success: true, message: botMessage }
       const botMessage: ChatMessage = {
-        id: data.botMessage.id,
+        id: data.message.id,
         type: 'bot',
-        message: data.botMessage.message,
-        timestamp: new Date(data.botMessage.createdAt)
+        message: data.message.message,
+        timestamp: new Date(data.message.createdAt)
       };
 
       setMessages(prev => [...prev, botMessage]);

@@ -1056,8 +1056,8 @@ export function AiChatInterface() {
       
       const responseTime = Date.now() - startTime;
       
-      // 응답 텍스트 추출 개선
-      const aiResponse = result.botMessage?.message || 
+      // 응답 텍스트 추출 개선 - 백엔드 응답 구조: { success: true, message: botMessage }
+      const aiResponse = result.message?.message || 
                         result.response || 
                         result.answer || 
                         result.text || 
