@@ -96,7 +96,7 @@ export async function registerRoutes(app: any) {
       const { sessionId } = req.params;
       const { message, configId } = req.body;
 
-      console.log(`🚀 간소화된 채팅 처리 시작: ${message}`);
+      console.log(`🚀 Data Integration 기반 채팅 처리 시작: ${message}`);
 
       // 사용자 메시지 저장
       const userMessage = await storage.createChatMessage({
@@ -113,50 +113,54 @@ export async function registerRoutes(app: any) {
       let extractedApiUrl = "";
       let isDirectSourceApiCall = false;
 
-      // 업로드된 파일 간단 처리
-      if (config?.uploadedFiles) {
-        console.log(`🔍 업로드된 파일 확인: ${config.uploadedFiles.length}개`);
+      // 🔗 Data Integration 시스템에서 연결된 데이터 소스 가져오기 (모델별 격리)
+      try {
+        // 1. 이 챗봇 구성에 연결된 Data Integration 조회
+        const dataIntegrations = await storage.getChatbotDataIntegrations(configId);
+        console.log(`🔗 Data Integration 연결 확인: ${configId} → ${dataIntegrations.length}개 데이터 소스`);
         
-        for (const file of config.uploadedFiles) {
-          console.log(`📄 파일 체크: ${file.name}, type: ${file.type}`);
-          
-          // 소스 파일에서 API URL 추출
-          if (file.type === 'source_code' && file.content) {
-            console.log(`🔍 소스 파일 확인: ${file.name}`);
-            
-            if (file.content.includes('vector/upsert')) {
-              const match = file.content.match(/['"`]([^'"`]*vector\/upsert[^'"`]*)['"`]/);
-              if (match) {
-                extractedApiUrl = match[1];
-                isDirectSourceApiCall = true;
-                console.log(`✅ 소스 파일에서 API URL 추출: ${extractedApiUrl}`);
-              }
-            }
-          }
-          
-          // CSV 파일 데이터 추출
-          if (file.type === 'csv' && file.content) {
-            console.log(`📄 CSV 파일 데이터 처리: ${file.name}`);
+        if (dataIntegrations.length > 0) {
+          // 2. 각 연결된 데이터 소스에서 실제 데이터 로드
+          for (const integration of dataIntegrations) {
+            console.log(`📊 데이터 소스 로드: ${integration.dataSourceId}`);
             try {
-              const lines = file.content.split('\n').filter(line => line.trim());
-              if (lines.length > 1) {
-                const headers = lines[0].split(',').map(h => h.trim());
-                const dataRows = lines.slice(1, 101).map(line => { // 최대 100행만
-                  const values = line.split(',');
-                  const row: any = {};
-                  headers.forEach((header, idx) => {
-                    row[header] = values[idx]?.trim() || '';
-                  });
-                  return row;
-                });
-                allUploadedData.push(...dataRows);
-                console.log(`✅ CSV 데이터 로드: ${file.name} → ${dataRows.length}개 레코드`);
+              const dataSource = await storage.getDataSource(integration.dataSourceId);
+              if (dataSource) {
+                console.log(`✅ 데이터 소스 발견: ${dataSource.name} (${dataSource.type})`);
+                
+                // 실제 데이터 소스에서 데이터 가져오기
+                if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
+                  // 파일 기반 데이터 소스의 sampleData 사용
+                  if (dataSource.sampleData && typeof dataSource.sampleData === 'object') {
+                    for (const [tableName, tableData] of Object.entries(dataSource.sampleData)) {
+                      if (Array.isArray(tableData)) {
+                        allUploadedData.push(...tableData);
+                        console.log(`📄 테이블 데이터 로드: ${tableName} → ${tableData.length}개 레코드`);
+                      }
+                    }
+                  }
+                } else {
+                  // 기타 데이터 소스 유형 처리
+                  const tables = await storage.getDataSourceTables(dataSource.id);
+                  for (const table of tables) {
+                    const tableData = await storage.getTableData(dataSource.id, table.name);
+                    if (Array.isArray(tableData)) {
+                      allUploadedData.push(...tableData);
+                      console.log(`📊 테이블 데이터 로드: ${table.name} → ${tableData.length}개 레코드`);
+                    }
+                  }
+                }
               }
-            } catch (csvError) {
-              console.warn(`CSV 처리 실패: ${file.name}`, csvError);
+            } catch (dataSourceError) {
+              console.warn(`데이터 소스 로드 실패: ${integration.dataSourceId}`, dataSourceError);
             }
           }
+        } else {
+          console.log(`⚠️ 연결된 Data Integration이 없습니다: ${configId}`);
+          console.log(`💡 Assistant → Knowledge Base에서 데이터를 업로드하거나 Data Integration을 설정해주세요`);
         }
+      } catch (integrationError) {
+        console.error(`❌ Data Integration 로드 실패:`, integrationError);
       }
 
       console.log(`🤖 FlowiseAPI를 사용한 질문 답변 처리`);
