@@ -92,9 +92,9 @@ export async function registerRoutes(app: any) {
       // 사용자 메시지 저장
       const userMessage = await storage.createChatMessage({
         sessionId,
-        sender: 'user',
-        content: message,
-        timestamp: new Date().toISOString()
+        type: 'user',
+        message: message,
+        createdAt: new Date().toISOString()
       });
 
       // AI 설정 로드
@@ -229,9 +229,9 @@ export async function registerRoutes(app: any) {
       // 봇 응답 저장
       const botMessage = await storage.createChatMessage({
         sessionId,
-        sender: 'bot',
-        content: aiResponse,
-        timestamp: new Date().toISOString()
+        type: 'bot',
+        message: aiResponse,
+        createdAt: new Date().toISOString()
       });
 
       res.json({
