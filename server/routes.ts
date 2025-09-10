@@ -89,9 +89,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             continue;
           }
 
-          // 🚫 Knowledge Base 데이터 로드 완전 비활성화 (독립성 보장)
-          console.log(`⚠️ Knowledge Base 데이터 로드 비활성화: ${file.name}`);
-          continue;
+          // 🎯 Knowledge Base 데이터 로드 (소스 파일 제외)
+          console.log(`📄 파일 데이터 처리: ${file.name}`);
           
           // 1) content가 있는 경우
           if (file.content && file.content.length > 0) {
@@ -273,10 +272,8 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 🚫 Data Integration 데이터 로드 완전 비활성화 (독립성 보장)
-      console.log(`🚫 Data Integration 데이터 로드 비활성화 - 완전한 독립성 보장`);
-      
-      if (false) { // Data Integration 비활성화
+      // 🎯 Data Integration 데이터 로드 활성화 (API는 소스 파일 기준)
+      console.log(`🔗 Data Integration 데이터 로드 시작`);
         console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
         const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
         console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
@@ -329,8 +326,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         } catch (dataError) {
           console.error('데이터 소스 로드 오류:', dataError);
         }
-        } // Data Integration 비활성화 블록 종료
-      }
+        }
 
       // 🔒 데이터 격리: attached_assets 폴더의 공유 데이터 로드 비활성화
       // 각 AI 모델은 자신의 Knowledge Base와 Data Integration만 사용합니다
