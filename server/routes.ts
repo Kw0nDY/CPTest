@@ -8,71 +8,6 @@ export async function registerRoutes(app: any) {
   const { storage } = await import('./storage');
   const { flowiseService } = await import('./flowiseApiService');
   
-  // 🧠 로컬 데이터 분석 함수
-  async function analyzeDataLocally(ragContext: string, question: string, allData: any[]): Promise<string> {
-    const lowerQuestion = question.toLowerCase();
-    
-    // CSV 헤더 파싱
-    const csvLines = ragContext.split('\n');
-    const headerLine = csvLines.find(line => line.includes('Id,BR-50L'));
-    if (!headerLine) return "데이터 형식을 인식할 수 없습니다.";
-    
-    const headers = headerLine.split(',');
-    const dataLines = csvLines.slice(csvLines.indexOf(headerLine) + 1).filter(line => line.trim().length > 0);
-    
-    // 파싱된 데이터 생성
-    const parsedData = dataLines.map(line => {
-      const values = line.split(',');
-      const row: any = {};
-      headers.forEach((header, i) => {
-        row[header.trim()] = values[i]?.trim() || '';
-      });
-      return row;
-    });
-    
-    console.log(`📊 분석 가능한 데이터: ${parsedData.length}행`);
-    
-    // 인사말 처리
-    if (lowerQuestion.includes('안녕') || lowerQuestion.includes('hello')) {
-      return `안녕하세요! 현재 ${parsedData.length}개의 데이터가 준비되어 있습니다. 
-
-📊 **데이터 요약:**
-- 총 레코드: ${parsedData.length}개
-- 컬럼 수: ${headers.length}개
-
-무엇을 분석해드릴까요?`;
-    }
-    
-    // Oxygen 관련 질문
-    if (lowerQuestion.includes('oxygen') && lowerQuestion.includes('12')) {
-      const oxygenData = parsedData.filter(row => {
-        const oxygen = parseFloat(row['Oxygen'] || '0');
-        return oxygen >= 11.9 && oxygen <= 12.1;
-      });
-      
-      return `🔍 **Oxygen 값이 12 근처인 데이터:**
-
-총 **${oxygenData.length}개** 발견!
-
-${oxygenData.slice(0, 10).map((row, i) => 
-  `${i+1}. ID ${row['Id']}: Oxygen=${row['Oxygen']}`
-).join('\n')}`;
-    }
-    
-    // 온도 관련 질문
-    if (lowerQuestion.includes('온도') || lowerQuestion.includes('temperature')) {
-      const tempData = parsedData.filter(row => parseFloat(row['Temperature'] || '0') > 0).slice(0, 10);
-      
-      return `🌡️ **온도 데이터:**
-
-${tempData.map((row, i) => 
-  `${i+1}. ID ${row['Id']}: ${row['Temperature']}°C`
-).join('\n')}`;
-    }
-    
-    // 기본 응답
-    return `📊 현재 ${parsedData.length}개 레코드 분석 준비 완료. 구체적인 질문을 해주세요!`;
-  }
   
   // 기존 다른 라우트들
   app.get('/api/data-sources', async (req: Request, res: Response) => {
@@ -358,40 +293,29 @@ ${tempData.map((row, i) =>
               ragContext += `\n=== 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 50), null, 2)}\n`;
             }
             
-            // ⚡ 직접 데이터 분석 시스템 활성화
-            console.log(`🧠 로컬 데이터 분석 시작: "${message}"`);
+            // 🔥 Flowise API 직접 호출
+            console.log(`🔥 Flowise API 호출 시작:`, {
+              메시지: message,
+              데이터크기: ragContext.length,
+              세션: sessionId
+            });
             
-            try {
-              // 로컬에서 직접 질문 분석 및 답변 생성
-              aiResponse = await analyzeDataLocally(ragContext, message, allUploadedData);
-              console.log(`✅ 로컬 분석 완료: ${aiResponse.length}자`);
-            } catch (localError: any) {
-              console.log(`⚠️ 로컬 분석 실패, Flowise로 폴백:`, localError.message);
-              
-              const ragPrompt = `CRITICAL: You MUST analyze the provided data carefully and answer in Korean.
+            const ragPrompt = `업로드된 데이터를 기반으로 답변해주세요.
 
-데이터 분석 지침:
-1. 제공된 CSV 데이터의 각 컬럼을 정확히 식별하세요
-2. 숫자 값은 근사치도 포함해서 검색하세요 (예: 12를 찾을 때 11.9~12.1 범위 포함)
-3. 모든 답변은 한국어로 해주세요
-4. 데이터가 있으면 반드시 정확한 수치와 함께 답변하세요
-
-업로드된 실제 데이터:
+데이터:
 ${ragContext}
 
-사용자 질문: ${message}
+질문: ${message}`;
 
-위 데이터를 정확히 분석하여 한국어로 답변해주세요.`;
-
-              const flowiseResponse = await flowiseService.sendMessage(ragPrompt, sessionId);
-              
-              if (flowiseResponse.success) {
-                aiResponse = flowiseResponse.response;
-                console.log(`✅ RAG 답변 성공: ${aiResponse.substring(0, 100)}...`);
-              } else {
-                console.error('⚠️ Flowise API 실패:', flowiseResponse.error);
-                aiResponse = "죄송합니다. 현재 AI 분석 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.";
-              }
+            const flowiseResponse = await flowiseService.sendMessage(ragPrompt, sessionId);
+            
+            if (flowiseResponse.success) {
+              aiResponse = flowiseResponse.response;
+              console.log(`✅ RAG 답변 성공: ${aiResponse.substring(0, 100)}...`);
+            } else {
+              console.error('❌ Flowise API 실패:', flowiseResponse);
+              aiResponse = '업로드하신 데이터를 기반으로 답변할 수 없습니다. 잠시 후 다시 시도해주세요.';
+              console.log(`❌ RAG 답변 실패`);
             }
           } else {
             // 💬 자연스러운 대화 모드
