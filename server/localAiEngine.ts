@@ -84,7 +84,7 @@ export class LocalAIEngine {
 
     const {
       maxTokens = 2000,
-      temperature = 0.7,
+      temperature = Math.min((options.temperature || 70) / 100, 1.0), // 70000000 문제 해결
       model = 'llama',
       contextLimit = 4000,
       enableFallback = true

@@ -93,9 +93,28 @@ export class FlowiseApiService {
 
       const processingTime = Date.now() - startTime;
 
+      // 응답 데이터에서 text 추출 시도
+      let responseText = response.data.text || response.data.answer || response.data.message || response.data.result;
+      
+      // 응답이 객체인 경우 텍스트 추출
+      if (!responseText && typeof response.data === 'object') {
+        if (response.data.response) {
+          responseText = response.data.response;
+        } else if (response.data.content) {
+          responseText = response.data.content;
+        } else if (typeof response.data === 'string') {
+          responseText = response.data;
+        }
+      }
+      
+      // 여전히 응답이 없으면 기본 메시지
+      if (!responseText) {
+        responseText = 'AI 서비스에서 응답을 받지 못했습니다. 다시 시도해주세요.';
+      }
+
       return {
         success: true,
-        response: response.data.text || response.data.answer || '응답을 받지 못했습니다.',
+        response: responseText,
         confidence: 0.9,
         processingTime,
         metadata: response.data,

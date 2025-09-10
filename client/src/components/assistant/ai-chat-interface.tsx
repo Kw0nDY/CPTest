@@ -1007,49 +1007,73 @@ export function AiChatInterface() {
     const startTime = Date.now();
 
     try {
+      console.log(`🧪 테스트 시작: "${testMessage}" with config "${selectedConfigForTest.name}"`);
+      
       const response = await fetch('/api/chat/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
 
+      if (!response.ok) {
+        throw new Error(`세션 생성 실패: ${response.status}`);
+      }
+
       const { sessionId } = await response.json();
+      console.log(`📝 세션 생성 완료: ${sessionId}`);
 
       const chatResponse = await fetch(`/api/chat/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: testMessage,
-          chatflowId: selectedConfigForTest.chatflowId 
+          configId: selectedConfigForTest.id  // configId 사용으로 변경
         })
       });
 
+      if (!chatResponse.ok) {
+        throw new Error(`메시지 전송 실패: ${chatResponse.status}`);
+      }
+
       const result = await chatResponse.json();
+      console.log(`💬 응답 받음:`, result);
+      
       const responseTime = Date.now() - startTime;
+      
+      // 응답 텍스트 추출 개선
+      const aiResponse = result.botMessage?.message || 
+                        result.response || 
+                        result.answer || 
+                        result.text || 
+                        '응답을 받지 못했습니다.';
 
       const newTest: ChatTest = {
         id: `test-${Date.now()}`,
         message: testMessage,
-        response: result.botMessage?.message || '응답 없음',
+        response: aiResponse,
         responseTime,
         timestamp: new Date().toISOString(),
-        status: chatResponse.ok ? 'success' : 'error'
+        status: aiResponse && aiResponse !== '응답을 받지 못했습니다.' ? 'success' : 'error'
       };
 
       setTestResults(prev => [newTest, ...prev]);
       setTestMessage('');
 
       toast({
-        title: '테스트 완료',
+        title: newTest.status === 'success' ? '테스트 완료' : '테스트 경고',
         description: `응답 시간: ${responseTime}ms`,
+        variant: newTest.status === 'success' ? 'default' : 'destructive'
       });
 
     } catch (error) {
+      console.error('❌ 테스트 실패:', error);
+      
+      const responseTime = Date.now() - startTime;
       const newTest: ChatTest = {
         id: `test-${Date.now()}`,
         message: testMessage,
-        response: '오류: 테스트 실패',
-        responseTime: Date.now() - startTime,
+        response: `오류: ${error?.message || '테스트 실패'}`,
+        responseTime,
         timestamp: new Date().toISOString(),
         status: 'error'
       };
@@ -1061,9 +1085,11 @@ export function AiChatInterface() {
         description: '챗봇 테스트 중 오류가 발생했습니다.',
         variant: 'destructive',
       });
+    } finally {
+      // 반드시 상태를 리셋하여 "테스트 중..." 상태에서 벗어나게 함
+      setIsTesting(false);
+      console.log(`🏁 테스트 완료, 상태 리셋됨`);
     }
-
-    setIsTesting(false);
   };
 
   // CSV 파싱 함수
