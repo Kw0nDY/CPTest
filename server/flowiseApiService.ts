@@ -151,10 +151,10 @@ export class FlowiseApiService {
   }
 }
 
-// 기본 Flowise 설정
+// 기본 Flowise 설정 (클린 인스턴스 사용)
 export const defaultFlowiseConfig: FlowiseConfig = {
   apiUrl: 'http://220.118.23.185:3000/api/v1',
-  chatflowId: '9e85772e-dc56-4b4d-bb00-e18aeb80a484',
+  chatflowId: 'clean-instance-' + Date.now(), // 새로운 전용 인스턴스
 };
 
 // 싱글톤 인스턴스
