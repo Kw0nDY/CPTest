@@ -58,6 +58,56 @@ export async function registerRoutes(app: any) {
     }
   });
 
+  // 📝 **Problem 1 Fix**: Knowledge Base 파일 저장을 위한 챗봇 구성 업데이트
+  app.put('/api/chat-configurations/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      console.log(`💾 챗봇 구성 업데이트 요청: ${id}`, {
+        uploadedFiles: updates.uploadedFiles?.length || 0,
+        name: updates.name
+      });
+      
+      const updatedConfig = await storage.updateChatConfiguration(id, updates);
+      
+      if (!updatedConfig) {
+        return res.status(404).json({ error: 'Configuration not found' });
+      }
+      
+      console.log(`✅ 챗봇 구성 업데이트 성공: ${id} → 파일 ${updatedConfig.uploadedFiles?.length || 0}개`);
+      res.json(updatedConfig);
+    } catch (error) {
+      console.error('챗봇 구성 업데이트 오류:', error);
+      res.status(500).json({ error: 'Failed to update chat configuration' });
+    }
+  });
+
+  // 📊 **Problem 2 Fix**: Data Integration 연결 생성
+  app.post('/api/chatbot-data-integrations', async (req: Request, res: Response) => {
+    try {
+      const { configId, dataSourceId, accessLevel = 'read', dataFilter } = req.body;
+      
+      console.log(`🔗 Data Integration 연결 생성: ${configId} ↔ ${dataSourceId}`);
+      
+      const integration = await storage.createChatbotDataIntegration({
+        id: `integration-${Date.now()}`,
+        configId,
+        dataSourceId,
+        isConnected: 1,
+        connectedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      console.log(`✅ Data Integration 연결 성공: ${integration.id}`);
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error('Data Integration 연결 오류:', error);
+      res.status(500).json({ error: 'Failed to create data integration' });
+    }
+  });
+
   app.delete('/api/chatbot-data-integrations/:configId/:dataSourceId', async (req: Request, res: Response) => {
     try {
       const { configId, dataSourceId } = req.params;
