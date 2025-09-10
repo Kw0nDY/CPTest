@@ -45,14 +45,14 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       let extractedApiUrl = null;
       let isDirectSourceApiCall = false;
       
-      // 1. Knowledge Base 파일 데이터 로드 (대용량 파일 건너뛰기)
+      // 1. 소스 파일에서 chatflowId 추출 (데이터 로드 없이)
       console.log(`🔍 AI 모델 "${config?.name}"의 uploadedFiles 확인: ${config?.uploadedFiles?.length || 0}개`);
       
       if (config?.uploadedFiles) {
         for (const file of config.uploadedFiles) {
           console.log(`📄 파일 체크: ${file.name}, type: ${file.type}, content 길이: ${file.content?.length || 0}`);
           
-          // 🎯 AI 소스 파일에서 API URL 추출
+          // 🎯 AI 소스 파일에서만 chatflowId 추출 (데이터는 로드하지 않음)
           const isAISourceFile = file.name.endsWith('.py') || 
                                 file.name.endsWith('.js') || 
                                 file.name.endsWith('.ts') || 
@@ -69,20 +69,29 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
             console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
             
-            // 🎯 소스 파일의 실제 API URL 우선 사용
+            // 🎯 소스 파일에서 chatflowId 추출하여 prediction API 구성
             if (allUrls.length > 0) {
-              extractedApiUrl = allUrls[0].replace(/['";\s\)\]>]+$/, ''); // 끝의 특수문자 제거
-              isDirectSourceApiCall = true; // 소스 파일 API 직접 호출 플래그
-              console.log(`✅ 소스 파일 API URL 사용: ${extractedApiUrl} (직접 호출 모드)`);
+              const sourceUrl = allUrls[0].replace(/['";\s\)\]>]+$/, '');
+              console.log(`🔍 소스 파일에서 발견된 URL: ${sourceUrl}`);
+              
+              // chatflowId 추출 (vector/upsert 또는 prediction URL에서)
+              const chatflowMatch = sourceUrl.match(/[a-f0-9-]{36}/); // UUID 형태의 chatflowId 추출
+              if (chatflowMatch) {
+                const chatflowId = chatflowMatch[0];
+                extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`;
+                isDirectSourceApiCall = true;
+                console.log(`✅ chatflowId 추출: ${chatflowId} → prediction API: ${extractedApiUrl}`);
+              }
             }
             
-            // 소스 파일은 데이터 분석에서 제외
-            console.log(`⚠️ 소스 파일 (데이터 분석에서 제외): ${file.name}`);
+            // 소스 파일에서 chatflowId만 추출하고 데이터 분석에서 제외
+            console.log(`⚠️ 소스 파일에서 chatflowId만 추출: ${file.name}`);
             continue;
           }
 
-          // 🎯 데이터 파일 처리 - content가 없어도 metadata에서 찾기
-          let fileProcessed = false;
+          // 🚫 Knowledge Base 데이터 로드 완전 비활성화 (독립성 보장)
+          console.log(`⚠️ Knowledge Base 데이터 로드 비활성화: ${file.name}`);
+          continue;
           
           // 1) content가 있는 경우
           if (file.content && file.content.length > 0) {
@@ -264,12 +273,15 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 2. Data Integration 연결된 데이터 로드 (개선된 버전)
-      console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
-      const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
-      console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+      // 🚫 Data Integration 데이터 로드 완전 비활성화 (독립성 보장)
+      console.log(`🚫 Data Integration 데이터 로드 비활성화 - 완전한 독립성 보장`);
       
-      for (const integration of connectedDataSources) {
+      if (false) { // Data Integration 비활성화
+        console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
+        const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
+        console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+        
+        for (const integration of connectedDataSources) {
         try {
           console.log(`📊 데이터 소스 로드 중: ${integration.dataSourceId}`);
           const dataSource = await storage.getDataSource(integration.dataSourceId);
