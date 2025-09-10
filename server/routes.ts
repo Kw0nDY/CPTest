@@ -476,6 +476,14 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       
       if (config) {
         try {
+          // AI 처리 옵션 설정 (먼저 초기화)
+          const aiOptions = {
+            maxTokens: config.maxTokens || 2000,
+            temperature: Math.min((config.temperature || 70) / 100, 1.0), // UI에서 받은 값을 0-1 범위로 변환, 최대 1.0
+            model: 'llama',
+            enableFallback: true
+          };
+          
           console.log(`🦙 Flowise Llama AI 엔진 호출: "${message}"`);
           console.log(`📊 분석할 데이터 개수: ${allUploadedData.length}개`);
           console.log(`🔧 Config ID: ${configId}`);
@@ -485,14 +493,6 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           
           // AI 엔진 초기화
           await localAI.initialize();
-          
-          // AI 처리 옵션 설정
-          const aiOptions = {
-            maxTokens: config.maxTokens || 2000,
-            temperature: Math.min((config.temperature || 70) / 100, 1.0), // UI에서 받은 값을 0-1 범위로 변환, 최대 1.0
-            model: 'llama',
-            enableFallback: true
-          };
           
           // 통합 AI 처리 (Flowise + 로컬 계산)
           const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);

@@ -1055,17 +1055,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChatConfiguration(id: string): Promise<void> {
     try {
-      // 먼저 관련된 chat messages 삭제
+      console.log(`🗑️ 완전한 챗봇 구성 삭제 시작: ${id}`);
+      
+      // 1. 관련된 chat messages 삭제
       const sessions = await db.select().from(chatSessions).where(eq(chatSessions.configId, id));
       for (const session of sessions) {
         await db.delete(chatMessages).where(eq(chatMessages.sessionId, session.sessionId));
       }
-      // 그 다음 chat_sessions 삭제
+      console.log(`  ✅ Chat messages 삭제 완료: ${sessions.length}개 세션`);
+      
+      // 2. chat_sessions 삭제
       await db.delete(chatSessions).where(eq(chatSessions.configId, id));
-      // 마지막으로 chat_configurations 삭제
+      console.log(`  ✅ Chat sessions 삭제 완료`);
+      
+      // 3. chatbot data integrations 삭제
+      await db.delete(chatbotDataIntegrations).where(eq(chatbotDataIntegrations.configId, id));
+      console.log(`  ✅ Data integrations 삭제 완료`);
+      
+      // 4. AI model files 삭제
+      await db.delete(aiModelFiles).where(eq(aiModelFiles.modelId, id));
+      console.log(`  ✅ AI model files 삭제 완료`);
+      
+      // 5. 마지막으로 chat_configurations 삭제
       await db.delete(chatConfigurations).where(eq(chatConfigurations.id, id));
+      console.log(`  ✅ Chat configuration 삭제 완료: ${id}`);
+      
     } catch (error) {
-      console.error('Error deleting chat configuration:', error);
+      console.error('❌ Error deleting chat configuration:', error);
       throw error;
     }
   }
