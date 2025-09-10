@@ -279,20 +279,99 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 🚀 Data Integration 건너뛰고 바로 AI 처리 (속도 개선)
-      console.log(`⚡ Data Integration 건너뛰고 빠른 AI 처리 시작`);
-      const connectedDataSources = []; // 빈 배열로 설정하여 건너뛰기
-        
-      // Data Integration 로드를 건너뛰고 바로 AI 처리로 이동
-      console.log(`⚡ 빠른 처리를 위해 Data Integration 건너뛰기 (업로드된 파일 데이터만 사용)`);
+      // ⚡ 즉시 AI 처리로 이동 (모든 복잡한 처리 건너뛰기)
+      console.log(`⚡ 간단한 API 호출 모드 - 업로드된 데이터: ${allUploadedData.length}개 레코드`);
+      console.log(`🚀 바로 AI API 호출 시작`);
 
-      // 🔒 데이터 격리: attached_assets 폴더의 공유 데이터 로드 비활성화
-      // 각 AI 모델은 자신의 Knowledge Base와 Data Integration만 사용합니다
-      console.log(`🔒 AI 모델 "${config?.name}" (${config?.id})에 대한 데이터 격리 적용`);
-      console.log(`📊 현재 모델의 격리된 데이터: ${allUploadedData.length}개 레코드`);
-      console.log(`🚀 AI 처리 단계로 진입 준비 완료`);
+      // 🦙 바로 AI 엔진 실행
+      let aiResponse = "";
       
-      if (false) { // 공유 데이터 로드 비활성화
+      if (config) {
+        try {
+          console.log(`🚀 소스 파일 API 직접 호출: ${extractedApiUrl}`);
+          console.log(`📝 원본 질문: "${message}"`);
+          console.log(`📊 전달할 데이터: ${allUploadedData.length}개 레코드`);
+          
+          if (isDirectSourceApiCall && extractedApiUrl) {
+            // FormData 생성 (소스 파일 방식과 동일)
+            const FormData = (await import('form-data')).default;
+            const formData = new FormData();
+            
+            // 업로드된 데이터를 CSV 형태로 변환하여 파일로 전달
+            if (allUploadedData.length > 0) {
+              // 첫 번째 데이터 객체에서 컬럼명 추출
+              const firstItem = allUploadedData[0];
+              const columns = Object.keys(firstItem);
+              
+              // CSV 데이터 생성
+              const csvHeader = columns.join(',');
+              const csvRows = allUploadedData.map(item => 
+                columns.map(col => (item[col] || '').toString().replace(/,/g, ';')).join(',')
+              );
+              const csvContent = [csvHeader, ...csvRows].join('\n');
+              
+              // 파일로 추가
+              formData.append('files', Buffer.from(csvContent), {
+                filename: 'uploaded_data.csv',
+                contentType: 'text/csv'
+              });
+              
+              console.log(`📎 CSV 파일 생성: ${csvRows.length}행, 컬럼: ${columns.join(', ')}`);
+            }
+            
+            // 메타데이터 추가 (사용자 질문 포함)
+            formData.append('columnName', 'data');
+            formData.append('metadata', JSON.stringify({ 
+              userQuestion: message, 
+              dataCount: allUploadedData.length 
+            }));
+
+            const response = await fetch(extractedApiUrl, {
+              method: 'POST',
+              body: formData
+            });
+
+            if (response.ok) {
+              const apiResult = await response.json();
+              console.log(`✅ 소스 파일 API 응답:`, apiResult);
+              
+              // API 응답 처리
+              aiResponse = apiResult.text || apiResult.message || apiResult.result || 
+                         `데이터가 성공적으로 업로드되었습니다. ${allUploadedData.length}개의 레코드가 벡터 데이터베이스에 저장되었습니다.`;
+              console.log(`📋 API 응답: ${aiResponse.substring(0, 200)}...`);
+            } else {
+              throw new Error(`API 호출 실패: ${response.status}`);
+            }
+          } else {
+            aiResponse = `질문을 받았습니다: "${message}"\n\n현재 분석할 데이터: ${allUploadedData.length}개 레코드`;
+          }
+        } catch (error) {
+          console.error('❌ API 호출 실패:', error);
+          aiResponse = `죄송합니다. "${message}"에 대한 처리 중 오류가 발생했습니다. 다시 시도해주세요.`;
+        }
+      } else {
+        aiResponse = "AI 모델 설정이 없습니다. 챗봇 구성을 확인해주세요.";
+      }
+
+      const botMessage = await storage.createChatMessage({
+        sessionId,
+        sender: 'bot',
+        content: aiResponse,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        message: botMessage
+      });
+
+    } catch (error) {
+      console.error('채팅 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/chat/:sessionId', async (req, res) => {
         try {
           const fs = await import('fs');
           const path = await import('path');
