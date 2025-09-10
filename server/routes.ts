@@ -186,12 +186,14 @@ export async function registerRoutes(app: any) {
       if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
         console.log(`📂 업로드된 파일들:`, config.uploadedFiles.map(f => ({ name: f.name, contentLength: f.content?.length })));
         
-        // 자동 생성된 파일들 제외 (generated_, sample_, test_ 등)
+        // 시스템 파일 및 자동 생성된 파일들 제외
         realUserFiles = config.uploadedFiles.filter(file => 
           file.name && 
           !file.name.startsWith('generated_') && 
           !file.name.startsWith('sample_') && 
           !file.name.startsWith('test_') &&
+          !file.name.startsWith('flowise_') &&
+          !file.name.endsWith('.py') &&
           file.content &&
           file.content.trim().length > 0
         );
