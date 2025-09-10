@@ -130,9 +130,9 @@ export async function registerRoutes(app: any) {
                 
                 // 실제 데이터 소스에서 데이터 가져오기
                 if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
-                  // 파일 기반 데이터 소스의 sampleData 사용
-                  if (dataSource.sampleData && typeof dataSource.sampleData === 'object') {
-                    for (const [tableName, tableData] of Object.entries(dataSource.sampleData)) {
+                  // 파일 기반 데이터 소스의 config.resultData 사용
+                  if (dataSource.config?.resultData && typeof dataSource.config.resultData === 'object') {
+                    for (const [tableName, tableData] of Object.entries(dataSource.config.resultData)) {
                       if (Array.isArray(tableData)) {
                         allUploadedData.push(...tableData);
                         console.log(`📄 테이블 데이터 로드: ${tableName} → ${tableData.length}개 레코드`);
@@ -163,28 +163,81 @@ export async function registerRoutes(app: any) {
         console.error(`❌ Data Integration 로드 실패:`, integrationError);
       }
 
-      console.log(`🤖 FlowiseAPI를 사용한 질문 답변 처리`);
-      console.log(`📝 사용자 질문: "${message}"`);
-      console.log(`📊 업로드된 데이터: ${allUploadedData.length}개 레코드`);
+      // 🎯 사용자 데이터로만 제한된 RAG 시스템 구축 (Knowledge Base + Data Integration)
+      let userKnowledgeBase = "";
+      console.log(`🏗️ 사용자 업로드 데이터 기반 RAG 시스템 구축 중...`);
+      
+      try {
+        // 1. Knowledge Base - 사용자가 업로드한 파일들 로드
+        if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
+          console.log(`📚 Knowledge Base 파일들: ${config.uploadedFiles.length}개`);
+          
+          for (const file of config.uploadedFiles) {
+            if (file.content && file.name) {
+              userKnowledgeBase += `\n\n=== Knowledge Base: ${file.name} ===\n${file.content.substring(0, 5000)}\n`;
+              console.log(`📁 Knowledge Base 파일 로드: ${file.name} (${file.content.length}자)`);
+            }
+          }
+        } else {
+          console.log(`📚 Knowledge Base 파일 없음`);
+        }
+        
+        // 2. Data Integration 데이터 추가 (있는 경우)
+        if (allUploadedData.length > 0) {
+          userKnowledgeBase += `\n\n=== Data Integration 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 100), null, 2)}\n`;
+          console.log(`🔗 Data Integration 데이터 추가: ${allUploadedData.length}개 레코드`);
+        } else {
+          console.log(`🔗 Data Integration 연동 데이터 없음`);
+        }
+        
+      } catch (error) {
+        console.error(`사용자 데이터 로드 실패:`, error);
+      }
 
-      // AI 처리 - FlowiseApiService 사용
+      console.log(`🎯 사용자 RAG 시스템 구축 완료: ${userKnowledgeBase.length}자의 사용자 데이터`);
+      console.log(`📝 사용자 질문: "${message}"`);
+      console.log(`📊 총 사용자 데이터: Knowledge Base ${config?.uploadedFiles?.length || 0}개 + Data Integration ${allUploadedData.length}개 레코드`);
+
+      // 🎯 내부 데이터로만 제한된 AI 처리
       let aiResponse = "";
       
       if (config) {
         try {
-          // FlowiseApiService를 사용하여 prediction API 호출
-          const flowiseResponse = await flowiseService.sendMessage(message, sessionId);
-          
-          if (flowiseResponse.success) {
-            aiResponse = flowiseResponse.response;
-            console.log(`✅ Flowise 응답 성공: ${aiResponse.substring(0, 200)}...`);
+          // 🔒 사용자 데이터로만 제한된 컨텍스트 구성
+          if (userKnowledgeBase.trim().length > 0) {
+            const restrictedPrompt = `
+🔒 **사용자가 업로드한 데이터만 사용하여 답변하세요**
+
+**사용 가능한 사용자 데이터:**
+${userKnowledgeBase}
+
+**중요한 제약사항:**
+- 오직 위의 사용자가 업로드하거나 연동한 데이터만 사용하여 답변하세요
+- 외부 지식이나 일반적인 정보는 절대 사용하지 마세요
+- 사용자 데이터에서 관련 정보를 찾을 수 없으면 "업로드하신 데이터에서 해당 정보를 찾을 수 없습니다. Knowledge Base에 관련 파일을 업로드하거나 Data Integration을 설정해주세요."라고 답변하세요
+- 업로드된 파일의 내용과 연동된 데이터의 내용에만 기반하여 답변하세요
+
+**사용자 질문:** ${message}
+`;
+
+            // FlowiseApiService를 사용하여 제한된 컨텍스트로 prediction API 호출
+            const flowiseResponse = await flowiseService.sendMessage(restrictedPrompt, sessionId);
+            
+            if (flowiseResponse.success) {
+              aiResponse = flowiseResponse.response;
+              console.log(`✅ 사용자 RAG 응답 성공: ${aiResponse.substring(0, 200)}...`);
+            } else {
+              aiResponse = '업로드하신 데이터에서 해당 정보를 찾을 수 없습니다.';
+              console.log(`❌ 사용자 RAG 응답 실패: ${flowiseResponse.response}`);
+            }
           } else {
-            aiResponse = flowiseResponse.response || '죄송합니다. AI 서비스에서 응답을 받지 못했습니다.';
-            console.log(`❌ Flowise 응답 실패: ${aiResponse}`);
+            // 사용자 데이터가 없는 경우
+            aiResponse = '현재 업로드된 파일이나 연동된 데이터가 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 설정한 후 질문해주세요.';
+            console.log(`📋 사용자 데이터 없음 - 안내 메시지 응답`);
           }
         } catch (error) {
-          console.error('❌ Flowise API 호출 실패:', error);
-          aiResponse = `죄송합니다. "${message}"에 대한 처리 중 오류가 발생했습니다. 다시 시도해주세요.`;
+          console.error('❌ 사용자 RAG 시스템 오류:', error);
+          aiResponse = `사용자 데이터 처리 중 오류가 발생했습니다. 다시 시도해주세요.`;
         }
       } else {
         aiResponse = "AI 모델 설정이 없습니다. 챗봇 구성을 확인해주세요.";
