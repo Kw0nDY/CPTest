@@ -292,12 +292,20 @@ export async function registerRoutes(app: any) {
               ragContext += `\n=== 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 50), null, 2)}\n`;
             }
             
-            const ragPrompt = `업로드된 데이터를 기반으로 답변해주세요.
+            const ragPrompt = `CRITICAL: You MUST analyze the provided data carefully and answer in Korean.
 
-데이터:
+데이터 분석 지침:
+1. 제공된 CSV 데이터의 각 컬럼을 정확히 식별하세요
+2. 숫자 값은 근사치도 포함해서 검색하세요 (예: 12를 찾을 때 11.9~12.1 범위 포함)
+3. 모든 답변은 한국어로 해주세요
+4. 데이터가 있으면 반드시 정확한 수치와 함께 답변하세요
+
+업로드된 실제 데이터:
 ${ragContext}
 
-질문: ${message}`;
+사용자 질문: ${message}
+
+위 데이터를 정확히 분석하여 한국어로 답변해주세요.`;
 
             const flowiseResponse = await flowiseService.sendMessage(ragPrompt, sessionId);
             
