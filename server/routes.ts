@@ -91,13 +91,10 @@ export async function registerRoutes(app: any) {
       console.log(`🔗 Data Integration 연결 생성: ${configId} ↔ ${dataSourceId}`);
       
       const integration = await storage.createChatbotDataIntegration({
-        id: `integration-${Date.now()}`,
         configId,
         dataSourceId,
         isConnected: 1,
-        connectedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        connectedAt: new Date().toISOString()
       });
       
       console.log(`✅ Data Integration 연결 성공: ${integration.id}`);
