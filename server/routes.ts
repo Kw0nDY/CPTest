@@ -31,7 +31,15 @@ export async function registerRoutes(app: any) {
 
   app.get('/api/chat-configurations', async (req: Request, res: Response) => {
     try {
-      const configs = await storage.getChatConfigurations();
+      console.log('🔄 챗봇 구성 조회 시작');
+      const startTime = Date.now();
+      
+      // 최적화: uploadedFiles가 매우 클 수 있으므로 필요한 컬럼만 선택
+      const configs = await storage.getChatConfigurationsOptimized();
+      
+      const endTime = Date.now();
+      console.log(`✅ 챗봇 구성 조회 완료: ${configs.length}개, ${endTime - startTime}ms`);
+      
       res.json(configs);
     } catch (error) {
       console.error('챗봇 구성 조회 오류:', error);

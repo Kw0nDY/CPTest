@@ -976,6 +976,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(chatSessions.sessionId, sessionId));
   }
 
+  async deleteChatSession(sessionId: string): Promise<void> {
+    // 먼저 해당 세션의 메시지들을 삭제
+    await db.delete(chatMessages).where(eq(chatMessages.sessionId, sessionId));
+    // 그 다음 세션을 삭제
+    await db.delete(chatSessions).where(eq(chatSessions.sessionId, sessionId));
+  }
+
   async searchUploadedData(query: string): Promise<any[]> {
     // Search through all data sources and sample data for relevant information
     const dataSources = await this.getDataSources();
@@ -1018,6 +1025,33 @@ export class DatabaseStorage implements IStorage {
   async getChatConfigurations(): Promise<ChatConfiguration[]> {
     try {
       return await db.select().from(chatConfigurations);
+    } catch (error) {
+      console.warn('ChatConfigurations table not ready, returning empty array');
+      return [];
+    }
+  }
+
+  async getChatConfigurationsOptimized(): Promise<ChatConfiguration[]> {
+    try {
+      // uploadedFiles 필드는 매우 클 수 있으므로 기본 조회에서는 제외하고 최적화
+      const configs = await db.select({
+        id: chatConfigurations.id,
+        name: chatConfigurations.name,
+        chatflowId: chatConfigurations.chatflowId,
+        apiEndpoint: chatConfigurations.apiEndpoint,
+        systemPrompt: chatConfigurations.systemPrompt,
+        maxTokens: chatConfigurations.maxTokens,
+        temperature: chatConfigurations.temperature,
+        isActive: chatConfigurations.isActive,
+        createdAt: chatConfigurations.createdAt,
+        updatedAt: chatConfigurations.updatedAt
+      }).from(chatConfigurations);
+      
+      // uploadedFiles는 별도로 요약 정보만 추가
+      return configs.map(config => ({
+        ...config,
+        uploadedFiles: [] // 빈 배열로 초기화 (프론트엔드 호환성)
+      })) as ChatConfiguration[];
     } catch (error) {
       console.warn('ChatConfigurations table not ready, returning empty array');
       return [];

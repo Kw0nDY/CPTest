@@ -119,7 +119,7 @@ export class FlowiseApiService {
         processingTime,
         metadata: response.data,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Flowise 메시지 전송 실패:', error);
       console.error('  📋 에러 세부사항:', {
         message: error.message,
