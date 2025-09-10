@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { IStorage } from "./storage";
 import multer from "multer";
-import crypto from "crypto";
 const upload = multer();
 
 export async function registerRoutes(app: any) {
@@ -99,7 +98,6 @@ export async function registerRoutes(app: any) {
 
         // 사용자 메시지 저장
         const userMessage = await storage.createChatMessage({
-          id: crypto.randomUUID(),
           sessionId,
           type: "user",
           message: message,
@@ -268,7 +266,6 @@ export async function registerRoutes(app: any) {
 
         // 봇 응답 저장
         const botMessage = await storage.createChatMessage({
-          id: crypto.randomUUID(),
           sessionId,
           type: "bot",
           message: aiResponse,
