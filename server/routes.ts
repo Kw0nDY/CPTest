@@ -41,14 +41,9 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       
       // 🎯 실제 데이터 수집: Knowledge Base + Data Integration
       
-      // 🔍 API URL 자동 구성 (ChatFlow ID 기반)
+      // 🔍 소스 파일에서 실제 API URL 추출 (우선순위 1)
       let extractedApiUrl = null;
-      
-      // ChatFlow ID가 있으면 바로 URL 구성
-      if (config?.chatflowId) {
-        extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
-        console.log(`🔧 ChatFlow ID 기반 API URL: ${extractedApiUrl}`);
-      }
+      let isDirectSourceApiCall = false;
       
       // 1. Knowledge Base 파일 데이터 로드 (대용량 파일 건너뛰기)
       console.log(`🔍 AI 모델 "${config?.name}"의 uploadedFiles 확인: ${config?.uploadedFiles?.length || 0}개`);
@@ -74,16 +69,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
             const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
             console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
             
-            // 첫 번째 HTTP URL이 있으면 그것을 사용
+            // 🎯 소스 파일의 실제 API URL 우선 사용
             if (allUrls.length > 0) {
               extractedApiUrl = allUrls[0].replace(/['";\s\)\]>]+$/, ''); // 끝의 특수문자 제거
-              console.log(`✅ 첫 번째 URL 사용: ${extractedApiUrl}`);
-            }
-            
-            // config.chatflowId가 있으면 기본 패턴으로 URL 구성
-            if (!extractedApiUrl && config?.chatflowId) {
-              extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
-              console.log(`🔧 ChatFlow ID로 URL 구성: ${extractedApiUrl}`);
+              isDirectSourceApiCall = true; // 소스 파일 API 직접 호출 플래그
+              console.log(`✅ 소스 파일 API URL 사용: ${extractedApiUrl} (직접 호출 모드)`);
             }
             
             // 소스 파일은 데이터 분석에서 제외
@@ -494,11 +484,52 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // AI 엔진 초기화
           await localAI.initialize();
           
-          // 통합 AI 처리 (Flowise + 로컬 계산)
-          const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);
-          
-          aiResponse = result.response;
-          console.log(`✅ AI 처리 완료: ${result.confidence * 100}% 신뢰도, 소스: ${result.dataSource}`);
+          // 🎯 소스 파일 API 직접 호출 (프롬프트 수정 없이)
+          if (isDirectSourceApiCall && extractedApiUrl) {
+            console.log(`🚀 소스 파일 API 직접 호출: ${extractedApiUrl}`);
+            console.log(`📝 원본 질문 그대로 전달: "${message}"`);
+            
+            try {
+              const response = await fetch(extractedApiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  question: message, // 질문 그대로 전달
+                  overrideConfig: {
+                    returnSourceDocuments: true
+                  }
+                }),
+                timeout: 30000
+              });
+
+              if (response.ok) {
+                const apiResult = await response.json();
+                console.log(`✅ 소스 파일 API 응답:`, apiResult);
+                
+                // API 응답 그대로 사용
+                aiResponse = apiResult.text || apiResult.answer || apiResult.response || JSON.stringify(apiResult);
+                console.log(`📋 원본 응답 그대로 사용: ${aiResponse.substring(0, 200)}...`);
+              } else {
+                throw new Error(`API 호출 실패: ${response.status}`);
+              }
+            } catch (apiError) {
+              console.error(`❌ 소스 파일 API 호출 실패:`, apiError);
+              // 실패 시 기본 AI 처리로 fallback
+              const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);
+              aiResponse = result.response;
+            }
+          } else {
+            // 기존 방식: 통합 AI 처리 (Flowise + 로컬 계산)
+            const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);
+            aiResponse = result.response;
+          }
+          if (isDirectSourceApiCall) {
+            console.log(`✅ 소스 파일 API 직접 호출 완료`);
+          } else {
+            console.log(`✅ 기본 AI 처리 완료`);
+          }
           console.log(`📋 AI 응답 미리보기: ${aiResponse.substring(0, 200)}...`);
           
         } catch (aiError) {
@@ -932,6 +963,22 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       res.json(connectedSources);
     } catch (error) {
       res.json([]);
+    }
+  });
+
+  // 누락된 API: 챗봇 데이터 연동 해제 (DELETE)
+  app.delete("/api/chatbot-data-integrations/:configId/:dataSourceId", async (req, res) => {
+    try {
+      const { configId, dataSourceId } = req.params;
+      console.log(`🗑️ 데이터 연동 해제: ${configId} → ${dataSourceId}`);
+      
+      await storage.deleteChatbotDataIntegration(configId, dataSourceId);
+      console.log(`✅ 데이터 연동 해제 완료`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('❌ 데이터 연동 해제 실패:', error);
+      res.status(500).json({ error: 'Failed to disconnect data integration' });
     }
   });
 
