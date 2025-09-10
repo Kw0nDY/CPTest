@@ -388,6 +388,12 @@ export function CSVUploadDialog({ open, onOpenChange, onSuccess }: CSVUploadDial
     }
 
     try {
+      // 🔥 Flowise 벡터 DB 업로드 먼저 진행
+      toast({
+        title: "Flowise 벡터 DB 업로드 중...",
+        description: "파일을 AI 분석 시스템에 업로드하고 있습니다."
+      });
+
       // Create data source for CSV files
       const config = {
         files: completedFiles.map(f => ({
@@ -400,7 +406,9 @@ export function CSVUploadDialog({ open, onOpenChange, onSuccess }: CSVUploadDial
           acc[tableName] = f.processedData?.sampleData || [];
           return acc;
         }, {} as Record<string, any[]>),
-        dataSchema: completedFiles.flatMap(f => f.processedData?.dataSchema || [])
+        dataSchema: completedFiles.flatMap(f => f.processedData?.dataSchema || []),
+        // ✅ Flowise 업로드 플래그 추가
+        uploadToFlowise: true
       };
 
       const dataSourceData = {

@@ -117,13 +117,74 @@ export async function registerRoutes(app: any) {
     }
   });
 
+  // 🔥 **새로운 데이터 소스 생성 (Flowise 벡터 DB 업로드 포함)**
+  app.post('/api/data-sources', async (req: Request, res: Response) => {
+    try {
+      const dataSourceData = req.body;
+      console.log(`🚀 데이터 소스 생성 시작: ${dataSourceData.name} (${dataSourceData.type})`);
+
+      // 🔥 Flowise 벡터 DB 업로드 처리
+      if (dataSourceData.config?.uploadToFlowise && dataSourceData.type === 'csv') {
+        console.log(`🔥 Flowise 벡터 DB 업로드 시작: ${dataSourceData.name}`);
+        
+        try {
+          const files = dataSourceData.config?.files || [];
+          
+          for (const file of files) {
+            console.log(`📤 파일 업로드 준비: ${file.name}`);
+            
+            // CSV 데이터를 문자열로 변환
+            const csvContent = dataSourceData.config?.sampleData?.[file.name.replace('.csv', '')] || [];
+            
+            if (csvContent.length > 0) {
+              // CSV 헤더와 데이터를 문자열로 변환
+              const headers = dataSourceData.config?.files?.find((f: any) => f.name === file.name)?.headers || [];
+              let csvString = headers.join(',') + '\n';
+              csvString += csvContent.map((row: any) => {
+                return headers.map((header: string) => row[header] || '').join(',');
+              }).join('\n');
+              
+              // Buffer로 변환하여 Flowise API 호출
+              const csvBuffer = Buffer.from(csvString, 'utf-8');
+              console.log(`📊 CSV 데이터 크기: ${csvBuffer.length} bytes`);
+              
+              const flowiseResult = await flowiseService.uploadVectorData(
+                csvBuffer, 
+                file.name, 
+                { dataSourceId: `ds-${Date.now()}`, type: 'csv' }
+              );
+              
+              console.log(`✅ Flowise 벡터 DB 업로드 성공:`, flowiseResult);
+              
+            } else {
+              console.warn(`⚠️ 파일 데이터가 비어있음: ${file.name}`);
+            }
+          }
+          
+        } catch (flowiseError) {
+          console.error('❌ Flowise 업로드 실패:', flowiseError);
+          // 실패해도 로컬 데이터 소스는 생성
+        }
+      }
+
+      // 로컬 데이터 소스 생성
+      const createdDataSource = await storage.createDataSource(dataSourceData);
+      console.log(`✅ 데이터 소스 생성 완료: ${createdDataSource.id}`);
+      
+      res.status(201).json(createdDataSource);
+    } catch (error) {
+      console.error('데이터 소스 생성 오류:', error);
+      res.status(500).json({ error: 'Failed to create data source' });
+    }
+  });
+
   app.get('/api/data-sources/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const dataSource = await storage.getDataSource(id);
       res.json(dataSource);
     } catch (error) {
-      console.error('데이터 소스 조회 오류:', error);
+      console.error('데이터 소스 조회 오료:', error);
       res.status(500).json({ error: 'Failed to fetch data source' });
     }
   });
@@ -293,21 +354,15 @@ export async function registerRoutes(app: any) {
               ragContext += `\n=== 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 50), null, 2)}\n`;
             }
             
-            // 🔥 Flowise API 직접 호출
+            // 🔥 Flowise API 직접 호출 (벡터 DB에서 자동 검색)
             console.log(`🔥 Flowise API 호출 시작:`, {
               메시지: message,
-              데이터크기: ragContext.length,
-              세션: sessionId
+              세션: sessionId,
+              모드: '벡터DB 자동검색'
             });
             
-            const ragPrompt = `업로드된 데이터를 기반으로 답변해주세요.
-
-데이터:
-${ragContext}
-
-질문: ${message}`;
-
-            const flowiseResponse = await flowiseService.sendMessage(ragPrompt, sessionId);
+            // ✅ 순수 질문만 전송 (CSV 데이터 포함 안함)
+            const flowiseResponse = await flowiseService.sendMessage(message, sessionId);
             
             if (flowiseResponse.success) {
               aiResponse = flowiseResponse.response;
