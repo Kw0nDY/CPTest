@@ -173,82 +173,96 @@ export async function registerRoutes(app: any) {
         console.error(`❌ Data Integration 로드 실패:`, integrationError);
       }
 
-      // 🎯 사용자 데이터로만 제한된 RAG 시스템 구축 (Knowledge Base + Data Integration)
-      let userKnowledgeBase = "";
-      console.log(`🏗️ 사용자 업로드 데이터 기반 RAG 시스템 구축 중...`);
+      // 🔍 사용자 데이터 확인 (Knowledge Base + Data Integration)
+      let hasUserData = false;
+      let userDataSummary = "";
       
-      try {
-        // 1. Knowledge Base - 모델별 격리된 업로드 파일들만 로드
-        if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
-          console.log(`🔒 "${config.name}" 모델 전용 Knowledge Base: ${config.uploadedFiles.length}개 파일 (다른 모델 접근 불가)`);
-          
-          for (const file of config.uploadedFiles) {
-            if (file.content && file.name) {
-              userKnowledgeBase += `\n\n=== Knowledge Base: ${file.name} ===\n${file.content.substring(0, 5000)}\n`;
-              console.log(`   └─ 격리된 파일: ${file.name} (${file.content.length}자, ${config.name} 전용)`);
-            }
-          }
-        } else {
-          console.log(`📚 "${config?.name}" 모델: Knowledge Base 파일 없음 (완전 격리 상태)`);
-        }
-        
-        // 2. Data Integration 격리된 데이터 추가 (해당 모델 전용만)
-        if (allUploadedData.length > 0) {
-          userKnowledgeBase += `\n\n=== Data Integration 연동 데이터 (${config?.name} 모델 전용) ===\n${JSON.stringify(allUploadedData.slice(0, 100), null, 2)}\n`;
-          console.log(`🔗 "${config?.name}" 모델 전용 Data Integration: ${allUploadedData.length}개 레코드 (다른 모델 데이터 차단)`);
-        } else {
-          console.log(`🔗 "${config?.name}" 모델: Data Integration 연동 데이터 없음 (격리 상태 유지)`);
-        }
-        
-      } catch (error) {
-        console.error(`사용자 데이터 로드 실패:`, error);
+      console.log(`🔍 사용자 데이터 확인 중...`);
+      
+      // 실제 사용자 업로드 파일 확인 (가짜 데이터 제외)
+      let realUserFiles = [];
+      if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
+        // 자동 생성된 파일들 제외 (generated_, sample_, test_ 등)
+        realUserFiles = config.uploadedFiles.filter(file => 
+          file.name && 
+          !file.name.startsWith('generated_') && 
+          !file.name.startsWith('sample_') && 
+          !file.name.startsWith('test_') &&
+          file.content &&
+          file.content.trim().length > 0
+        );
+      }
+      
+      // Data Integration 데이터 확인
+      let hasRealDataIntegration = allUploadedData.length > 0;
+      
+      // 실제 사용자 데이터 존재 여부 확인
+      hasUserData = realUserFiles.length > 0 || hasRealDataIntegration;
+      
+      console.log(`📊 실제 사용자 데이터: Knowledge Base ${realUserFiles.length}개 파일, Data Integration ${allUploadedData.length}개 레코드`);
+      
+      if (hasUserData) {
+        console.log(`✅ 사용자 데이터 발견: RAG 모드 활성화`);
+        userDataSummary = "사용자가 업로드한 데이터를 기반으로 답변합니다.";
+      } else {
+        console.log(`💬 사용자 데이터 없음: 일반 대화 모드 활성화`);
+        userDataSummary = "일반 대화가 가능합니다.";
       }
 
-      console.log(`🔒 "${config?.name}" 모델 전용 RAG 시스템 구축 완료: ${userKnowledgeBase.length}자의 격리된 데이터`);
-      console.log(`📝 사용자 질문: "${message}"`);
-      console.log(`🛡️ 데이터 격리 확인: "${config?.name}" 모델 전용 Knowledge Base ${config?.uploadedFiles?.length || 0}개 + Data Integration ${allUploadedData.length}개 레코드`);
-      console.log(`🚫 다른 모델 데이터 접근 차단: 완전 격리 보장`);
-
-      // 🎯 내부 데이터로만 제한된 AI 처리
+      // 🎯 사용자 데이터 유무에 따른 적절한 AI 처리
       let aiResponse = "";
       
       if (config) {
         try {
-          // 🔒 사용자 데이터로만 제한된 컨텍스트 구성
-          if (userKnowledgeBase.trim().length > 0) {
-            const restrictedPrompt = `
-🔒 **사용자가 업로드한 데이터만 사용하여 답변하세요**
+          if (hasUserData) {
+            // 📊 RAG 모드: 사용자 데이터 기반 답변
+            console.log(`🤖 RAG 모드: 사용자 데이터 기반 답변 처리`);
+            
+            let ragContext = "";
+            
+            // 실제 사용자 파일들만 추가
+            for (const file of realUserFiles) {
+              ragContext += `\n=== ${file.name} ===\n${file.content.substring(0, 3000)}\n`;
+            }
+            
+            // Data Integration 데이터 추가
+            if (allUploadedData.length > 0) {
+              ragContext += `\n=== 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 50), null, 2)}\n`;
+            }
+            
+            const ragPrompt = `업로드된 데이터를 기반으로 답변해주세요.
 
-**사용 가능한 사용자 데이터:**
-${userKnowledgeBase}
+데이터:
+${ragContext}
 
-**중요한 제약사항:**
-- 오직 위의 사용자가 업로드하거나 연동한 데이터만 사용하여 답변하세요
-- 외부 지식이나 일반적인 정보는 절대 사용하지 마세요
-- 사용자 데이터에서 관련 정보를 찾을 수 없으면 "업로드하신 데이터에서 해당 정보를 찾을 수 없습니다. Knowledge Base에 관련 파일을 업로드하거나 Data Integration을 설정해주세요."라고 답변하세요
-- 업로드된 파일의 내용과 연동된 데이터의 내용에만 기반하여 답변하세요
+질문: ${message}`;
 
-**사용자 질문:** ${message}
-`;
-
-            // FlowiseApiService를 사용하여 제한된 컨텍스트로 prediction API 호출
-            const flowiseResponse = await flowiseService.sendMessage(restrictedPrompt, sessionId);
+            const flowiseResponse = await flowiseService.sendMessage(ragPrompt, sessionId);
             
             if (flowiseResponse.success) {
               aiResponse = flowiseResponse.response;
-              console.log(`✅ 사용자 RAG 응답 성공: ${aiResponse.substring(0, 200)}...`);
+              console.log(`✅ RAG 답변 성공: ${aiResponse.substring(0, 100)}...`);
             } else {
-              aiResponse = '업로드하신 데이터에서 해당 정보를 찾을 수 없습니다.';
-              console.log(`❌ 사용자 RAG 응답 실패: ${flowiseResponse.response}`);
+              aiResponse = '업로드하신 데이터를 기반으로 답변할 수 없습니다.';
+              console.log(`❌ RAG 답변 실패`);
             }
           } else {
-            // 사용자 데이터가 없는 경우
-            aiResponse = '현재 업로드된 파일이나 연동된 데이터가 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 설정한 후 질문해주세요.';
-            console.log(`📋 사용자 데이터 없음 - 안내 메시지 응답`);
+            // 💬 일반 대화 모드: 자연스러운 대화
+            console.log(`💬 일반 대화 모드: "${message}" 처리`);
+            
+            const flowiseResponse = await flowiseService.sendMessage(message, sessionId);
+            
+            if (flowiseResponse.success) {
+              aiResponse = flowiseResponse.response;
+              console.log(`✅ 일반 대화 성공: ${aiResponse.substring(0, 100)}...`);
+            } else {
+              aiResponse = '죄송합니다. 응답을 생성할 수 없습니다.';
+              console.log(`❌ 일반 대화 실패`);
+            }
           }
         } catch (error) {
-          console.error('❌ 사용자 RAG 시스템 오류:', error);
-          aiResponse = `사용자 데이터 처리 중 오류가 발생했습니다. 다시 시도해주세요.`;
+          console.error('❌ AI 처리 오류:', error);
+          aiResponse = `죄송합니다. 처리 중 오류가 발생했습니다.`;
         }
       } else {
         aiResponse = "AI 모델 설정이 없습니다. 챗봇 구성을 확인해주세요.";
