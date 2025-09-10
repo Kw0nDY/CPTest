@@ -329,6 +329,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         } catch (dataError) {
           console.error('데이터 소스 로드 오류:', dataError);
         }
+        } // Data Integration 비활성화 블록 종료
       }
 
       // 🔒 데이터 격리: attached_assets 폴더의 공유 데이터 로드 비활성화
@@ -508,7 +509,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  question: message, // 질문 그대로 전달
+                  question: message, // 🎯 사용자 질문 그대로 전달 (프롬프트 수정 없음)
                   overrideConfig: {
                     returnSourceDocuments: true
                   }
