@@ -6,6 +6,7 @@ const upload = multer();
 
 export async function registerRoutes(app: any) {
   const { storage } = await import('./storage');
+  const { flowiseService } = await import('./flowiseApiService');
   
   // 기존 다른 라우트들
   app.get('/api/data-sources', async (req: Request, res: Response) => {
@@ -150,82 +151,27 @@ export async function registerRoutes(app: any) {
         }
       }
 
-      // config에서 API URL 설정 (소스 파일에서 찾지 못한 경우)
-      if (!isDirectSourceApiCall && config?.chatflowId) {
-        extractedApiUrl = `http://220.118.23.185:3000/api/v1/vector/upsert/${config.chatflowId}`;
-        isDirectSourceApiCall = true;
-        console.log(`✅ config에서 vector/upsert API 구성: ${config.chatflowId} → ${extractedApiUrl}`);
-      }
+      console.log(`🤖 FlowiseAPI를 사용한 질문 답변 처리`);
+      console.log(`📝 사용자 질문: "${message}"`);
+      console.log(`📊 업로드된 데이터: ${allUploadedData.length}개 레코드`);
 
-      console.log(`⚡ 간단한 API 호출 모드 - 업로드된 데이터: ${allUploadedData.length}개 레코드`);
-      console.log(`🚀 바로 AI API 호출 시작`);
-
-      // AI 처리
+      // AI 처리 - FlowiseApiService 사용
       let aiResponse = "";
       
       if (config) {
         try {
-          console.log(`🚀 API 직접 호출: ${extractedApiUrl}`);
-          console.log(`📝 원본 질문: "${message}"`);
-          console.log(`📊 전달할 데이터: ${allUploadedData.length}개 레코드`);
+          // FlowiseApiService를 사용하여 prediction API 호출
+          const flowiseResponse = await flowiseService.sendMessage(message, sessionId);
           
-          if (isDirectSourceApiCall && extractedApiUrl) {
-            // FormData 생성
-            const FormData = (await import('form-data')).default;
-            const formData = new FormData();
-            
-            // 업로드된 데이터를 CSV로 변환
-            if (allUploadedData.length > 0) {
-              const firstItem = allUploadedData[0];
-              const columns = Object.keys(firstItem);
-              
-              const csvHeader = columns.join(',');
-              const csvRows = allUploadedData.map(item => 
-                columns.map(col => (item[col] || '').toString().replace(/,/g, ';')).join(',')
-              );
-              const csvContent = [csvHeader, ...csvRows].join('\n');
-              
-              formData.append('files', Buffer.from(csvContent), {
-                filename: 'uploaded_data.csv',
-                contentType: 'text/csv'
-              });
-              
-              console.log(`📎 CSV 파일 생성: ${csvRows.length}행, 컬럼: ${columns.join(', ')}`);
-            }
-            
-            // 메타데이터 추가 - 실제 컬럼명 사용
-            if (allUploadedData.length > 0) {
-              const columns = Object.keys(allUploadedData[0]);
-              columns.forEach(column => {
-                formData.append('columnName', column);
-              });
-              console.log(`📋 전송된 컬럼명: ${columns.join(', ')}`);
-            }
-            formData.append('metadata', JSON.stringify({ 
-              userQuestion: message, 
-              dataCount: allUploadedData.length 
-            }));
-
-            const response = await fetch(extractedApiUrl, {
-              method: 'POST',
-              body: formData
-            });
-
-            if (response.ok) {
-              const apiResult = await response.json();
-              console.log(`✅ API 응답:`, apiResult);
-              
-              aiResponse = apiResult.text || apiResult.message || apiResult.result || 
-                         `데이터가 성공적으로 업로드되었습니다. ${allUploadedData.length}개의 레코드가 벡터 데이터베이스에 저장되었습니다.`;
-              console.log(`📋 최종 응답: ${aiResponse.substring(0, 200)}...`);
-            } else {
-              throw new Error(`API 호출 실패: ${response.status}`);
-            }
+          if (flowiseResponse.success) {
+            aiResponse = flowiseResponse.response;
+            console.log(`✅ Flowise 응답 성공: ${aiResponse.substring(0, 200)}...`);
           } else {
-            aiResponse = `질문을 받았습니다: "${message}"\n\n현재 분석할 데이터: ${allUploadedData.length}개 레코드`;
+            aiResponse = flowiseResponse.response || '죄송합니다. AI 서비스에서 응답을 받지 못했습니다.';
+            console.log(`❌ Flowise 응답 실패: ${aiResponse}`);
           }
         } catch (error) {
-          console.error('❌ API 호출 실패:', error);
+          console.error('❌ Flowise API 호출 실패:', error);
           aiResponse = `죄송합니다. "${message}"에 대한 처리 중 오류가 발생했습니다. 다시 시도해주세요.`;
         }
       } else {
