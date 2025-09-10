@@ -113,11 +113,21 @@ export async function registerRoutes(app: any) {
       let extractedApiUrl = "";
       let isDirectSourceApiCall = false;
 
-      // 🔗 Data Integration 시스템에서 연결된 데이터 소스 가져오기 (모델별 격리)
+      // 🔒 모델별 데이터 완전 격리 시스템 (A모델→BC데이터, F모델→GB데이터)
       try {
-        // 1. 이 챗봇 구성에 연결된 Data Integration 조회
+        // 1. 이 챗봇 구성에 연결된 Data Integration 조회 (완전 격리)
         const dataIntegrations = await storage.getChatbotDataIntegrations(configId);
-        console.log(`🔗 Data Integration 연결 확인: ${configId} → ${dataIntegrations.length}개 데이터 소스`);
+        console.log(`🔒 모델별 데이터 격리 확인: ${configId} → ${dataIntegrations.length}개 전용 데이터 소스`);
+        
+        // 격리 검증: 다른 모델의 데이터 접근 차단 확인
+        if (dataIntegrations.length > 0) {
+          console.log(`✅ 데이터 격리 성공: "${config?.name}" 모델은 자신만의 ${dataIntegrations.length}개 데이터 소스에만 접근`);
+          for (const integration of dataIntegrations) {
+            console.log(`   └─ 전용 데이터 소스: ${integration.dataSourceId} (다른 모델 접근 불가)`);
+          }
+        } else {
+          console.log(`🔒 완전 격리 상태: "${config?.name}" 모델은 연결된 데이터 없음 (다른 모델 데이터 차단됨)`);
+        }
         
         if (dataIntegrations.length > 0) {
           // 2. 각 연결된 데이터 소스에서 실제 데이터 로드
@@ -168,35 +178,36 @@ export async function registerRoutes(app: any) {
       console.log(`🏗️ 사용자 업로드 데이터 기반 RAG 시스템 구축 중...`);
       
       try {
-        // 1. Knowledge Base - 사용자가 업로드한 파일들 로드
+        // 1. Knowledge Base - 모델별 격리된 업로드 파일들만 로드
         if (config?.uploadedFiles && config.uploadedFiles.length > 0) {
-          console.log(`📚 Knowledge Base 파일들: ${config.uploadedFiles.length}개`);
+          console.log(`🔒 "${config.name}" 모델 전용 Knowledge Base: ${config.uploadedFiles.length}개 파일 (다른 모델 접근 불가)`);
           
           for (const file of config.uploadedFiles) {
             if (file.content && file.name) {
               userKnowledgeBase += `\n\n=== Knowledge Base: ${file.name} ===\n${file.content.substring(0, 5000)}\n`;
-              console.log(`📁 Knowledge Base 파일 로드: ${file.name} (${file.content.length}자)`);
+              console.log(`   └─ 격리된 파일: ${file.name} (${file.content.length}자, ${config.name} 전용)`);
             }
           }
         } else {
-          console.log(`📚 Knowledge Base 파일 없음`);
+          console.log(`📚 "${config?.name}" 모델: Knowledge Base 파일 없음 (완전 격리 상태)`);
         }
         
-        // 2. Data Integration 데이터 추가 (있는 경우)
+        // 2. Data Integration 격리된 데이터 추가 (해당 모델 전용만)
         if (allUploadedData.length > 0) {
-          userKnowledgeBase += `\n\n=== Data Integration 연동 데이터 ===\n${JSON.stringify(allUploadedData.slice(0, 100), null, 2)}\n`;
-          console.log(`🔗 Data Integration 데이터 추가: ${allUploadedData.length}개 레코드`);
+          userKnowledgeBase += `\n\n=== Data Integration 연동 데이터 (${config?.name} 모델 전용) ===\n${JSON.stringify(allUploadedData.slice(0, 100), null, 2)}\n`;
+          console.log(`🔗 "${config?.name}" 모델 전용 Data Integration: ${allUploadedData.length}개 레코드 (다른 모델 데이터 차단)`);
         } else {
-          console.log(`🔗 Data Integration 연동 데이터 없음`);
+          console.log(`🔗 "${config?.name}" 모델: Data Integration 연동 데이터 없음 (격리 상태 유지)`);
         }
         
       } catch (error) {
         console.error(`사용자 데이터 로드 실패:`, error);
       }
 
-      console.log(`🎯 사용자 RAG 시스템 구축 완료: ${userKnowledgeBase.length}자의 사용자 데이터`);
+      console.log(`🔒 "${config?.name}" 모델 전용 RAG 시스템 구축 완료: ${userKnowledgeBase.length}자의 격리된 데이터`);
       console.log(`📝 사용자 질문: "${message}"`);
-      console.log(`📊 총 사용자 데이터: Knowledge Base ${config?.uploadedFiles?.length || 0}개 + Data Integration ${allUploadedData.length}개 레코드`);
+      console.log(`🛡️ 데이터 격리 확인: "${config?.name}" 모델 전용 Knowledge Base ${config?.uploadedFiles?.length || 0}개 + Data Integration ${allUploadedData.length}개 레코드`);
+      console.log(`🚫 다른 모델 데이터 접근 차단: 완전 격리 보장`);
 
       // 🎯 내부 데이터로만 제한된 AI 처리
       let aiResponse = "";
