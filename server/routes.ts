@@ -279,89 +279,12 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
         }
       }
 
-      // 🎯 Data Integration 데이터 로드 활성화 (API는 소스 파일 기준)
-      console.log(`🔗 Data Integration 데이터 로드 시작`);
-        console.log(`🔗 Data Integration 확인 중... configId: ${configId}`);
-        const connectedDataSources = configId ? await storage.getChatbotDataIntegrations(configId) : [];
-        console.log(`🔗 연결된 데이터 소스 개수: ${connectedDataSources.length}개`);
+      // 🚀 Data Integration 건너뛰고 바로 AI 처리 (속도 개선)
+      console.log(`⚡ Data Integration 건너뛰고 빠른 AI 처리 시작`);
+      const connectedDataSources = []; // 빈 배열로 설정하여 건너뛰기
         
-        for (const integration of connectedDataSources) {
-        try {
-          console.log(`📊 데이터 소스 로드 시작: ${integration.dataSourceId}`);
-          const dataSource = await storage.getDataSource(integration.dataSourceId);
-          console.log(`📊 데이터 소스 조회 완료: ${dataSource ? '성공' : '실패'}`);
-          
-          if (!dataSource) {
-            console.warn(`⚠️ 데이터 소스를 찾을 수 없음: ${integration.dataSourceId}`);
-            continue;
-          }
-          
-          console.log(`📋 데이터 소스 "${dataSource.name}" (type: ${dataSource.type}) 처리 중`);
-          
-          // 1) config.sampleData에서 데이터 로드
-          if (dataSource?.config?.sampleData) {
-            console.log(`📊 sampleData에서 데이터 로드 중...`);
-            for (const [tableName, tableData] of Object.entries(dataSource.config.sampleData)) {
-              if (Array.isArray(tableData) && tableData.length > 0) {
-                allUploadedData.push(...tableData.slice(0, 1000)); // 최대 1000개씩
-                console.log(`✅ Data Integration에서 로드: ${tableName} → ${Math.min(tableData.length, 1000)}개 레코드`);
-              }
-            }
-          }
-          
-          // 2) 실제 테이블 데이터 로드 시도 (Excel/Google Sheets용) - 타임아웃 적용
-          try {
-            if (dataSource.type === 'Excel' || dataSource.type === 'Google Sheets') {
-              console.log(`🔍 테이블 목록 조회 시작: ${integration.dataSourceId}`);
-              
-              // 타임아웃 적용 (3초)
-              const tablesPromise = storage.getDataSourceTables(integration.dataSourceId);
-              const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('테이블 조회 타임아웃')), 3000);
-              });
-              
-              const tables = await Promise.race([tablesPromise, timeoutPromise]);
-              console.log(`✅ 테이블 목록 조회 완료: ${tables?.length || 0}개`);
-              
-              if (tables && tables.length > 0) {
-                console.log(`🔍 데이터 소스 테이블: ${tables.length}개 발견`);
-                
-                for (const table of tables.slice(0, 3)) { // 최대 3개 테이블
-                  try {
-                    console.log(`📋 테이블 데이터 로드 시작: ${table.name}`);
-                    
-                    // 테이블 데이터 로드에도 타임아웃 적용 (2초)
-                    const tableDataPromise = storage.getTableData(integration.dataSourceId, table.name);
-                    const tableTimeoutPromise = new Promise((_, reject) => {
-                      setTimeout(() => reject(new Error('테이블 데이터 로드 타임아웃')), 2000);
-                    });
-                    
-                    const tableData = await Promise.race([tableDataPromise, tableTimeoutPromise]);
-                    
-                    if (tableData && tableData.length > 0) {
-                      allUploadedData.push(...tableData.slice(0, 500)); // 테이블당 최대 500개
-                      console.log(`✅ 실제 테이블 데이터 로드: ${table.name} → ${Math.min(tableData.length, 500)}개 레코드`);
-                    } else {
-                      console.log(`⚠️ 테이블 데이터 없음: ${table.name}`);
-                    }
-                  } catch (tableError) {
-                    console.warn(`❌ 테이블 데이터 로드 실패: ${table.name}`, tableError.message);
-                  }
-                }
-              } else {
-                console.log(`⚠️ 테이블이 없거나 조회 실패`);
-              }
-            } else {
-              console.log(`⚠️ 지원하지 않는 데이터 소스 유형: ${dataSource.type}`);
-            }
-          } catch (tablesError) {
-            console.warn('❌ 테이블 데이터 로드 시도 실패:', tablesError.message);
-          }
-          
-        } catch (dataError) {
-          console.error('데이터 소스 로드 오류:', dataError);
-        }
-        }
+      // Data Integration 로드를 건너뛰고 바로 AI 처리로 이동
+      console.log(`⚡ 빠른 처리를 위해 Data Integration 건너뛰기 (업로드된 파일 데이터만 사용)`);
 
       // 🔒 데이터 격리: attached_assets 폴더의 공유 데이터 로드 비활성화
       // 각 AI 모델은 자신의 Knowledge Base와 Data Integration만 사용합니다
