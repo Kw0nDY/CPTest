@@ -940,6 +940,22 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // 챗봇 구성 삭제 API (누락된 핵심 엔드포인트)
+  app.delete("/api/chat-configurations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log(`🗑️ 챗봇 구성 삭제 시작: ${id}`);
+      
+      await storage.deleteChatConfiguration(id);
+      console.log(`✅ 챗봇 구성 삭제 완료: ${id}`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('챗봇 구성 삭제 오류:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   app.put("/api/chat-configurations/:id/toggle-active", async (req, res) => {
     try {
       const updated = await storage.toggleChatConfigurationActive(req.params.id);

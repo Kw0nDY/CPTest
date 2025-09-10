@@ -1263,16 +1263,50 @@ export function AiChatInterface() {
     if (!selectedConfigForKnowledge) return;
     
     try {
+      // UI 상태에서 파일 제거
       setKnowledgeBaseItems(prev => ({
         ...prev,
         [selectedConfigForKnowledge.id]: (prev[selectedConfigForKnowledge.id] || []).filter(item => item.id !== itemId)
       }));
+
+      // 챗봇 구성에서도 파일 제거 (실제 저장소에서 삭제)
+      const updatedConfig = {
+        ...selectedConfigForKnowledge,
+        uploadedFiles: selectedConfigForKnowledge.uploadedFiles?.filter(file => file.id !== itemId) || []
+      };
+
+      // 서버에 업데이트된 구성 저장
+      const response = await fetch(`/api/chat-configurations/${selectedConfigForKnowledge.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updatedConfig.name,
+          chatflowId: updatedConfig.chatflowId,
+          apiEndpoint: updatedConfig.apiEndpoint,
+          systemPrompt: updatedConfig.systemPrompt,
+          maxTokens: updatedConfig.maxTokens,
+          temperature: updatedConfig.temperature,
+          isActive: updatedConfig.isActive ? 1 : 0,
+          uploadedFiles: updatedConfig.uploadedFiles
+        })
+      });
+
+      if (response.ok) {
+        // 로컬 상태 업데이트
+        setConfigurations(prev => prev.map(config => 
+          config.id === selectedConfigForKnowledge.id ? updatedConfig : config
+        ));
+        setSelectedConfigForKnowledge(updatedConfig);
+        
+        console.log(`✅ Knowledge Base 파일 삭제 완료: ${itemId}`);
+      }
       
       toast({
         title: '파일 삭제',
-        description: 'Knowledge Base에서 파일이 제거되었습니다.',
+        description: 'Knowledge Base에서 파일이 완전히 제거되었습니다.',
       });
     } catch (error) {
+      console.error('Knowledge Base 파일 삭제 오류:', error);
       toast({
         title: '삭제 실패',
         description: 'Knowledge Base 파일 삭제 중 오류가 발생했습니다.',
