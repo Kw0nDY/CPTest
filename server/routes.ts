@@ -92,6 +92,9 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // 🎯 Knowledge Base 데이터 로드 (소스 파일 제외)
           console.log(`📄 파일 데이터 처리: ${file.name}`);
           
+          // 파일 처리 상태 변수
+          let fileProcessed = false;
+          
           // 1) content가 있는 경우
           if (file.content && file.content.length > 0) {
             try {
