@@ -61,26 +61,38 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                                 file.language === 'js' ||
                                 file.language === 'ts';
           
-          if (isAISourceFile && file.content) {
-            console.log(`🔍 소스 파일에서 API URL 추출 시도: ${file.name}`);
-            console.log(`📄 파일 내용 전체: ${file.content}`);
+          if (isAISourceFile) {
+            console.log(`🔍 소스 파일 확인: ${file.name}, content 길이: ${file.content?.length || 0}`);
             
-            // 모든 가능한 URL 패턴 시도
-            const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
-            console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
-            
-            // 🎯 소스 파일에서 chatflowId 추출하여 prediction API 구성
-            if (allUrls.length > 0) {
-              const sourceUrl = allUrls[0].replace(/['";\s\)\]>]+$/, '');
-              console.log(`🔍 소스 파일에서 발견된 URL: ${sourceUrl}`);
-              
-              // chatflowId 추출 (vector/upsert 또는 prediction URL에서)
-              const chatflowMatch = sourceUrl.match(/[a-f0-9-]{36}/); // UUID 형태의 chatflowId 추출
-              if (chatflowMatch) {
-                const chatflowId = chatflowMatch[0];
-                extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`;
+            // content가 없으면 config에서 chatflowId 사용
+            if (!file.content || file.content.length === 0) {
+              console.log(`⚠️ 소스 파일 content가 비어있음, config의 chatflowId 사용`);
+              if (config?.chatflowId) {
+                extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
                 isDirectSourceApiCall = true;
-                console.log(`✅ chatflowId 추출: ${chatflowId} → prediction API: ${extractedApiUrl}`);
+                console.log(`✅ config에서 chatflowId 사용: ${config.chatflowId} → ${extractedApiUrl}`);
+              }
+            } else {
+              console.log(`🔍 소스 파일에서 API URL 추출 시도: ${file.name}`);
+              console.log(`📄 파일 내용 전체: ${file.content}`);
+            
+              // 모든 가능한 URL 패턴 시도
+              const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
+              console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
+              
+              // 🎯 소스 파일에서 chatflowId 추출하여 prediction API 구성
+              if (allUrls.length > 0) {
+                const sourceUrl = allUrls[0].replace(/['";\s\)\]>]+$/, '');
+                console.log(`🔍 소스 파일에서 발견된 URL: ${sourceUrl}`);
+                
+                // chatflowId 추출 (vector/upsert 또는 prediction URL에서)
+                const chatflowMatch = sourceUrl.match(/[a-f0-9-]{36}/); // UUID 형태의 chatflowId 추출
+                if (chatflowMatch) {
+                  const chatflowId = chatflowMatch[0];
+                  extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`;
+                  isDirectSourceApiCall = true;
+                  console.log(`✅ chatflowId 추출: ${chatflowId} → prediction API: ${extractedApiUrl}`);
+                }
               }
             }
             
@@ -533,9 +545,24 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               aiResponse = result.response;
             }
           } else {
-            // 기존 방식: 통합 AI 처리 (Flowise + 로컬 계산)
-            const result = await localAI.processQuery(message, allUploadedData, aiOptions, config.id);
-            aiResponse = result.response;
+            // 기존 방식: 통합 AI 처리 (Flowise + 로컬 계산) - 타임아웃 적용
+            console.log(`🔧 기본 AI 처리 시작 (소스 파일 API가 없거나 추출 실패)`);
+            
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('AI 처리 타임아웃 (30초)')), 30000);
+            });
+            
+            const aiPromise = localAI.processQuery(message, allUploadedData, aiOptions, config.id);
+            
+            try {
+              const result = await Promise.race([aiPromise, timeoutPromise]);
+              aiResponse = result.response;
+              console.log(`✅ 기본 AI 처리 성공: ${aiResponse.substring(0, 100)}...`);
+            } catch (timeoutError) {
+              console.error(`⏰ AI 처리 타임아웃:`, timeoutError);
+              // 타임아웃 시 즉시 응답
+              aiResponse = `죄송합니다. "${message}"에 대한 처리가 시간 초과되었습니다. 좀 더 간단한 질문으로 다시 시도해주세요.`;
+            }
           }
           if (isDirectSourceApiCall) {
             console.log(`✅ 소스 파일 API 직접 호출 완료`);
