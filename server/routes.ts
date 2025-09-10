@@ -64,13 +64,13 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           if (isAISourceFile) {
             console.log(`🔍 소스 파일 확인: ${file.name}, content 길이: ${file.content?.length || 0}`);
             
-            // content가 없으면 config에서 chatflowId 사용
+            // content가 없으면 config에서 vector/upsert API 구성
             if (!file.content || file.content.length === 0) {
-              console.log(`⚠️ 소스 파일 content가 비어있음, config의 chatflowId 사용`);
+              console.log(`⚠️ 소스 파일 content가 비어있음, config의 chatflowId로 vector/upsert API 구성`);
               if (config?.chatflowId) {
-                extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${config.chatflowId}`;
+                extractedApiUrl = `http://220.118.23.185:3000/api/v1/vector/upsert/${config.chatflowId}`;
                 isDirectSourceApiCall = true;
-                console.log(`✅ config에서 chatflowId 사용: ${config.chatflowId} → ${extractedApiUrl}`);
+                console.log(`✅ config에서 vector/upsert API 구성: ${config.chatflowId} → ${extractedApiUrl}`);
               }
             } else {
               console.log(`🔍 소스 파일에서 API URL 추출 시도: ${file.name}`);
@@ -80,19 +80,11 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
               const allUrls = file.content.match(/https?:\/\/[^\s"'\)>\]]+/g) || [];
               console.log(`🔍 발견된 모든 URL: ${JSON.stringify(allUrls)}`);
               
-              // 🎯 소스 파일에서 chatflowId 추출하여 prediction API 구성
+              // 🎯 소스 파일에서 정확한 API URL 사용 (그대로)
               if (allUrls.length > 0) {
-                const sourceUrl = allUrls[0].replace(/['";\s\)\]>]+$/, '');
-                console.log(`🔍 소스 파일에서 발견된 URL: ${sourceUrl}`);
-                
-                // chatflowId 추출 (vector/upsert 또는 prediction URL에서)
-                const chatflowMatch = sourceUrl.match(/[a-f0-9-]{36}/); // UUID 형태의 chatflowId 추출
-                if (chatflowMatch) {
-                  const chatflowId = chatflowMatch[0];
-                  extractedApiUrl = `http://220.118.23.185:3000/api/v1/prediction/${chatflowId}`;
-                  isDirectSourceApiCall = true;
-                  console.log(`✅ chatflowId 추출: ${chatflowId} → prediction API: ${extractedApiUrl}`);
-                }
+                extractedApiUrl = allUrls[0].replace(/['";\s\)\]>]+$/, '');
+                isDirectSourceApiCall = true;
+                console.log(`✅ 소스 파일의 정확한 API URL 사용: ${extractedApiUrl}`);
               }
             }
             
@@ -508,23 +500,49 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
           // AI 엔진 초기화
           await localAI.initialize();
           
-          // 🎯 소스 파일 API 직접 호출 (프롬프트 수정 없이)
+          // 🎯 소스 파일 API 직접 호출 (업로드된 데이터와 함께)
           if (isDirectSourceApiCall && extractedApiUrl) {
             console.log(`🚀 소스 파일 API 직접 호출: ${extractedApiUrl}`);
-            console.log(`📝 원본 질문 그대로 전달: "${message}"`);
+            console.log(`📝 원본 질문: "${message}"`);
+            console.log(`📊 전달할 데이터: ${allUploadedData.length}개 레코드`);
             
             try {
+              // FormData 생성 (소스 파일 방식과 동일)
+              const FormData = (await import('form-data')).default;
+              const formData = new FormData();
+              
+              // 업로드된 데이터를 CSV 형태로 변환하여 파일로 전달
+              if (allUploadedData.length > 0) {
+                // 첫 번째 데이터 객체에서 컬럼명 추출
+                const firstItem = allUploadedData[0];
+                const columns = Object.keys(firstItem);
+                
+                // CSV 데이터 생성
+                const csvHeader = columns.join(',');
+                const csvRows = allUploadedData.map(item => 
+                  columns.map(col => (item[col] || '').toString().replace(/,/g, ';')).join(',')
+                );
+                const csvContent = [csvHeader, ...csvRows].join('\n');
+                
+                // 파일로 추가
+                formData.append('files', Buffer.from(csvContent), {
+                  filename: 'uploaded_data.csv',
+                  contentType: 'text/csv'
+                });
+                
+                console.log(`📎 CSV 파일 생성: ${csvRows.length}행, 컬럼: ${columns.join(', ')}`);
+              }
+              
+              // 메타데이터 추가 (사용자 질문 포함)
+              formData.append('columnName', 'data');
+              formData.append('metadata', JSON.stringify({ 
+                userQuestion: message, 
+                dataCount: allUploadedData.length 
+              }));
+
               const response = await fetch(extractedApiUrl, {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  question: message, // 🎯 사용자 질문 그대로 전달 (프롬프트 수정 없음)
-                  overrideConfig: {
-                    returnSourceDocuments: true
-                  }
-                }),
+                body: formData,
                 timeout: 30000
               });
 
@@ -532,9 +550,10 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
                 const apiResult = await response.json();
                 console.log(`✅ 소스 파일 API 응답:`, apiResult);
                 
-                // API 응답 그대로 사용
-                aiResponse = apiResult.text || apiResult.answer || apiResult.response || JSON.stringify(apiResult);
-                console.log(`📋 원본 응답 그대로 사용: ${aiResponse.substring(0, 200)}...`);
+                // API 응답 처리
+                aiResponse = apiResult.text || apiResult.message || apiResult.result || 
+                           `데이터가 성공적으로 업로드되었습니다. ${allUploadedData.length}개의 레코드가 벡터 데이터베이스에 저장되었습니다.`;
+                console.log(`📋 API 응답: ${aiResponse.substring(0, 200)}...`);
               } else {
                 throw new Error(`API 호출 실패: ${response.status}`);
               }
