@@ -193,8 +193,14 @@ export async function registerRoutes(app: any) {
               console.log(`📎 CSV 파일 생성: ${csvRows.length}행, 컬럼: ${columns.join(', ')}`);
             }
             
-            // 메타데이터 추가
-            formData.append('columnName', 'data');
+            // 메타데이터 추가 - 실제 컬럼명 사용
+            if (allUploadedData.length > 0) {
+              const columns = Object.keys(allUploadedData[0]);
+              columns.forEach(column => {
+                formData.append('columnName', column);
+              });
+              console.log(`📋 전송된 컬럼명: ${columns.join(', ')}`);
+            }
             formData.append('metadata', JSON.stringify({ 
               userQuestion: message, 
               dataCount: allUploadedData.length 
