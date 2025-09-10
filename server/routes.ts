@@ -262,30 +262,33 @@ ${ragContext}
               console.log(`❌ RAG 답변 실패`);
             }
           } else {
-            // 🚫 데이터 없음: RAG 제한 모드
-            console.log(`🚫 데이터 없음: "${message}" - RAG 제한 모드 활성화`);
+            // 💬 자연스러운 대화 모드
+            console.log(`💬 자연스러운 대화 모드 활성화: "${message}"`);
             
-            const restrictedPrompt = `
-🔒 **업로드된 데이터가 없습니다 - 제한된 답변만 가능**
+            const naturalPrompt = `
+IMPORTANT: Always respond in Korean (한국어).
 
-중요한 제약사항:
-- 현재 업로드된 파일이나 연동된 데이터가 없습니다
-- 외부 지식이나 일반적인 정보는 절대 사용하지 마세요
-- 데이터와 관련된 질문에는 "업로드된 데이터가 없어서 답변할 수 없습니다"라고 답변하세요
-- 간단한 인사말이나 일반적인 대화는 간략하게 응답하세요
+당신은 전문적이고 친근한 데이터 분석 어시스턴트입니다.
+
+지침:
+- 모든 답변은 반드시 한국어로 해주세요
+- 현재 업로드된 데이터나 연동된 데이터가 없는 상태입니다
+- 기본적인 인사말과 일반적인 대화는 자연스럽게 응답해주세요
+- 데이터 분석이나 특정 수치 질문의 경우 "데이터를 업로드해주시면 정확한 분석을 도와드릴 수 있습니다"라고 안내해주세요
+- 간단한 질문이나 일반적인 대화는 친근하게 대화해주세요
 
 사용자 질문: ${message}
 
-만약 사용자가 특정 데이터나 정보를 묻는다면, 업로드된 데이터가 없다고 답변하세요.`;
+친근하고 도움이 되는 톤으로 한국어로 답변해주세요.`;
 
-            const flowiseResponse = await flowiseService.sendMessage(restrictedPrompt, sessionId);
+            const flowiseResponse = await flowiseService.sendMessage(naturalPrompt, sessionId);
             
             if (flowiseResponse.success) {
               aiResponse = flowiseResponse.response;
-              console.log(`✅ 제한된 답변 성공: ${aiResponse.substring(0, 100)}...`);
+              console.log(`✅ 자연스러운 대화 성공: ${aiResponse.substring(0, 100)}...`);
             } else {
-              aiResponse = '현재 업로드된 데이터가 없어서 답변할 수 없습니다. Knowledge Base에 파일을 업로드하거나 Data Integration을 설정해주세요.';
-              console.log(`❌ 제한된 답변 실패 - 기본 메시지 사용`);
+              aiResponse = '안녕하세요! 무엇을 도와드릴까요? 데이터 분석이 필요하시면 파일을 업로드해주세요.';
+              console.log(`❌ Flowise 응답 실패 - 친근한 기본 메시지 사용`);
             }
           }
         } catch (error) {
